@@ -15,8 +15,10 @@
 # Profiles
 #   bots      the Telegram bots. Off until configured: set COMPOSE_PROFILES=bots
 #             in .env (docs/DEPLOY.md, "Expense bot", "Connect osbot").
+#   ops       ops-agent, the control panel's Docker agent. COMPOSE_PROFILES=bots,ops
+#             (docs/DEPLOY.md, "Control panel").
 #
-# Labels (read by ops-agent in phase 5, ARCHITECTURE.md §8)
+# Labels (read by ops-agent, ARCHITECTURE.md §8)
 #   os.managed=true     shows up in the control panel (status, logs, restart)
 #   os.protected=true   visible, but the panel refuses stop/deploy for it
 #   os.role=<role>      grouping for the panel: edge | app | data | bot
@@ -99,6 +101,13 @@ services:
       OSBOT_API_SECRET: ${OSBOT_API_SECRET:-}
       OSBOT_TOKEN: ${OSBOT_TOKEN:-}
       OSBOT_OWNER_CHAT_ID: ${OSBOT_OWNER_CHAT_ID:-}
+      # Control panel (/app/ops). Empty URL = "Control panel not connected".
+      OPS_AGENT_URL: ${OPS_AGENT_URL:-}
+      OPS_AGENT_SECRET: ${OPS_AGENT_SECRET:-}
+      # Deploy dialog: image tags from GHCR + commit messages from GitHub.
+      # Optional token (read:packages) for private packages / higher rate limits.
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_REPO: ${GITHUB_REPO:-NnnotAnwar/anwarnnnot}
     expose:
       - "3000"
     networks:
@@ -251,25 +260,44 @@ services:
       os.name: osbot
       os.role: bot
 
-  # Phase 5 (ARCHITECTURE.md §8): the only container with the Docker socket.
-  # Reachable from web only (HMAC-signed requests), never published.
-  # ops-agent:
-  #   image: ghcr.io/nnnotanwar/anwar-os-ops-agent:${OPS_AGENT_TAG:-latest}
-  #   restart: unless-stopped
-  #   <<: *hardening
-  #   environment:
-  #     OPS_AGENT_HMAC_SECRET: ${OPS_AGENT_HMAC_SECRET:?set OPS_AGENT_HMAC_SECRET in .env}
-  #     COMPOSE_PROJECT_NAME: anwar-os
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #     - ./:/srv/infra:ro # to run `docker compose pull/up` for one service
-  #   networks:
-  #     - internal
-  #   logging: *logging
-  #   labels:
-  #     os.managed: "true"
-  #     os.protected: "true"
-  #     os.role: edge
+  # Control panel agent (services/ops-agent, ARCHITECTURE.md §8): the ONLY
+  # container with the Docker socket. Reachable on `internal` only, from web,
+  # with HMAC-signed requests (OPS_AGENT_SECRET); never published. It doesn't
+  # need the internet: image pulls are done by the Docker daemon.
+  # Profile `ops`: add it to COMPOSE_PROFILES once OPS_AGENT_SECRET is set.
+  ops-agent:
+    image: ghcr.io/nnnotanwar/anwar-os-ops-agent:${OPS_AGENT_TAG:-latest}
+    profiles: [ops]
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    <<: *hardening
+    mem_limit: 64m
+    # Runs as 65532 (image USER); the socket's group grants it Docker access.
+    # deploy.sh exports DOCKER_GID from the socket; set it in .env for manual runs.
+    group_add:
+      - "${DOCKER_GID:-999}"
+    stop_grace_period: 5m # lets a running deploy finish or roll back
+    environment:
+      OPS_AGENT_SECRET: ${OPS_AGENT_SECRET:-}
+      # Only this compose project's os.managed=true containers are visible.
+      OPS_AGENT_PROJECT: anwar-os
+      OPS_AGENT_DEPLOY_TIMEOUT: ${OPS_AGENT_DEPLOY_TIMEOUT:-240}
+      # Optional: pull private GHCR packages (a PAT with read:packages).
+      OPS_AGENT_REGISTRY_USER: ${OPS_AGENT_REGISTRY_USER:-}
+      OPS_AGENT_REGISTRY_TOKEN: ${OPS_AGENT_REGISTRY_TOKEN:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    expose:
+      - "8080"
+    networks:
+      - internal
+    logging: *logging
+    labels:
+      os.managed: "true"
+      os.protected: "true"
+      os.role: edge
 
 networks:
   edge: {}

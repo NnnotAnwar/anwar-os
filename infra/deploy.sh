@@ -2,9 +2,9 @@
 # Deploy, roll back or inspect the anwar.os stack on the server.
 #
 #   deploy.sh <git-sha>   check out that commit of main, pull its images, migrate,
-#                         replace web, wait for its healthcheck; then the bots (if
-#                         the `bots` profile is on). On failure the previous
-#                         commit + images are restored automatically.
+#                         replace web, wait for its healthcheck; then ops-agent
+#                         and the bots (if the `ops` / `bots` profiles are on).
+#                         On failure the previous commit + images are restored.
 #   deploy.sh rollback    redeploy the previous successful sha (from history)
 #   deploy.sh status      current sha, container states, last deploys
 #
@@ -29,6 +29,13 @@ die() { log "ERROR: $*" >&2; exit 1; }
 
 compose() { docker compose -f "$INFRA_DIR/compose.prod.yml" --env-file "$ENV_FILE" "$@"; }
 
+# ops-agent joins the Docker socket's group; take it from the socket unless .env
+# pins it. Process env wins over --env-file in compose.
+if [[ -z "${DOCKER_GID:-}" && -S /var/run/docker.sock ]]; then
+  DOCKER_GID="$(stat -c %g /var/run/docker.sock)"
+  export DOCKER_GID
+fi
+
 # Value of KEY in .env (last occurrence), empty if unset.
 env_get() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1; }
 
@@ -43,6 +50,12 @@ env_set() {
 
 # True when the `bots` profile is active (COMPOSE_PROFILES=bots in .env).
 bots_enabled() { compose config --services | grep -qx bot-expenses; }
+
+# True when the `ops` profile is active (COMPOSE_PROFILES=...,ops in .env) and
+# the agent has its secret.
+ops_enabled() {
+  compose config --services | grep -qx ops-agent && [[ -n "$(env_get OPS_AGENT_SECRET)" ]]
+}
 
 # Each bot is deployed only once it is configured, so the profile can be on
 # with just one of them set up.
@@ -77,6 +90,8 @@ reload_caddy() {
 
 start_web() { compose up -d --no-deps --wait --wait-timeout "$WAIT_TIMEOUT" web; }
 
+start_ops_agent() { compose up -d --no-deps --wait --wait-timeout 60 ops-agent; }
+
 start_bot() {
   # Image HEALTHCHECK: healthy once the bot has written its heartbeat.
   compose up -d --no-deps --wait --wait-timeout 240 bot-expenses
@@ -98,11 +113,12 @@ bootstrap_bot_db() {
 }
 
 deploy() {
-  local sha prev_tag prev_bot_tag prev_osbot_tag prev_sha bots=0 osbot=0
+  local sha prev_tag prev_bot_tag prev_osbot_tag prev_ops_tag prev_sha bots=0 osbot=0 ops=0
   sha="$(resolve_sha "$1")"
   prev_tag="$(env_get WEB_TAG)"
   prev_bot_tag="$(env_get BOT_EXPENSES_TAG)"
   prev_osbot_tag="$(env_get BOT_OSBOT_TAG)"
+  prev_ops_tag="$(env_get OPS_AGENT_TAG)"
   prev_sha="$(git -C "$REPO_DIR" rev-parse HEAD)"
 
   log "deploying $sha (was ${prev_tag:-unset})"
@@ -125,6 +141,11 @@ deploy() {
       log "bots profile on, OSBOT_TOKEN/OSBOT_API_SECRET/OSBOT_OWNER_CHAT_ID incomplete: skipping bot-osbot"
     fi
   fi
+  if ops_enabled; then
+    ops=1
+    env_set OPS_AGENT_TAG "$sha"
+    images+=(ops-agent)
+  fi
 
   restore_previous() {
     log "restoring previous release ${prev_tag:-unset}"
@@ -132,6 +153,7 @@ deploy() {
     env_set WEB_TAG "${prev_tag:-latest}"
     ((bots)) && env_set BOT_EXPENSES_TAG "${prev_bot_tag:-latest}"
     ((osbot)) && env_set BOT_OSBOT_TAG "${prev_osbot_tag:-latest}"
+    ((ops)) && env_set OPS_AGENT_TAG "${prev_ops_tag:-latest}"
     return 0
   }
 
@@ -160,6 +182,16 @@ deploy() {
   reload_caddy
   printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$sha" >>"$HISTORY_FILE"
   log "web is live at $sha"
+
+  if ((ops)); then
+    log "ops-agent: start and wait for its healthcheck"
+    if ! start_ops_agent; then
+      compose logs --tail 40 ops-agent >&2 || true
+      env_set OPS_AGENT_TAG "${prev_ops_tag:-latest}"
+      start_ops_agent || log "previous ops-agent image is unhealthy too"
+      log "WARNING: ops-agent failed to start; kept ${prev_ops_tag:-latest} (web stays at $sha)"
+    fi
+  fi
 
   if ((bots)); then
     log "bot-expenses: bootstrap role/schema, start, wait for heartbeat"
@@ -200,7 +232,8 @@ status() {
   printf 'commit:           %s\n' "$(git -C "$REPO_DIR" log -1 --format='%H %s' 2>/dev/null || echo '?')"
   printf 'WEB_TAG:          %s\n' "$(env_get WEB_TAG)"
   printf 'BOT_EXPENSES_TAG: %s\n' "$(env_get BOT_EXPENSES_TAG)"
-  printf 'BOT_OSBOT_TAG:    %s\n\n' "$(env_get BOT_OSBOT_TAG)"
+  printf 'BOT_OSBOT_TAG:    %s\n' "$(env_get BOT_OSBOT_TAG)"
+  printf 'OPS_AGENT_TAG:    %s\n\n' "$(env_get OPS_AGENT_TAG)"
   compose ps
   if [[ -f "$HISTORY_FILE" ]]; then
     printf '\nlast deploys:\n'

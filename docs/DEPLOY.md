@@ -8,14 +8,15 @@ Architecture background: [ARCHITECTURE.md §3](ARCHITECTURE.md#3-infrastructure)
 | Server | Hetzner Cloud **CAX21** (arm64, 4 vCPU / 8 GB), Ubuntu 24.04, Falkenstein or Nuremberg |
 | Domain | `anwarnnnot.com` (registered at Vercel, DNS managed in Vercel) |
 | Files + backups | Hetzner Object Storage, same location as the server |
-| Images | `ghcr.io/nnnotanwar/anwar-os-{web,migrate,bot-expenses}:<sha>`, linux/arm64 + linux/amd64 |
+| Images | `ghcr.io/nnnotanwar/anwar-os-{web,migrate,bot-expenses,bot-osbot,ops-agent}:<sha>`, linux/arm64 + linux/amd64 |
 
 ## What's in the repo
 
 | Path | Role |
 |---|---|
 | `Dockerfile` | `runner` target: Next.js standalone server (~75 MB compressed). `migrator` target: runs `pnpm db:migrate` / `pnpm owner:create` |
-| `infra/compose.prod.yml` | `caddy`, `web`, `db`, `migrate` (one-shot), `bot-expenses` + `bot-osbot` (profile `bots`), `ops-agent` placeholder |
+| `infra/compose.prod.yml` | `caddy`, `web`, `db`, `migrate` (one-shot), `bot-expenses` + `bot-osbot` (profile `bots`), `ops-agent` (profile `ops`) |
+| `services/ops-agent/` | the control panel's Docker agent (Go, stdlib only, ~7 MB image) |
 | `infra/Caddyfile` | TLS, security headers, compression, www → apex |
 | `infra/.env.example` | every variable, documented. The real `.env` lives only on the server |
 | `infra/bootstrap.sh` | hardens a fresh Ubuntu 24.04 (idempotent) |
@@ -420,12 +421,52 @@ Rotating the secret: change `OSBOT_API_SECRET`, `deploy.sh <current sha>` (web
 and bot restart together). Rotating the token: `/revoke` in @BotFather, update
 `OSBOT_TOKEN`, deploy.
 
-## 15. Day-2 notes
+## 15. Control panel (ops-agent)
+
+`/app/ops` shows every `os.managed=true` container of the `anwar-os` compose
+project (state, health, uptime, tag, restarts, CPU/RAM), tails logs, starts /
+stops / restarts, and deploys another image tag. `/app/bots` adds bot stats.
+Web never touches Docker: it signs requests to `ops-agent`, the only container
+with `/var/run/docker.sock`, on the `internal` network (no ports, no internet).
+
+1. In `.env`: `OPS_AGENT_SECRET` (`openssl rand -hex 32`),
+   `OPS_AGENT_URL=http://ops-agent:8080`, and add `ops` to `COMPOSE_PROFILES`
+   (e.g. `COMPOSE_PROFILES=bots,ops`).
+2. `deploy.sh <current sha>`. It pulls `anwar-os-ops-agent:<sha>`, starts it
+   after web and waits for its healthcheck. `DOCKER_GID` is read from the socket
+   (set it in `.env` for hand-run `dc up`).
+3. Open `/app/ops`: the cards list caddy, web, db, ops-agent (protected) and
+   the bots. Every action lands in "Activity" (table `ops_events`).
+
+**Rules** (enforced by the agent, not the UI): only `os.managed=true` containers
+of this compose project exist for it (one-off `compose run` containers don't);
+`os.protected=true` ones (caddy, web, db, ops-agent) can be restarted but never
+stopped or deployed; a deploy can only switch the tag of the image the service
+already runs. Requests are HMAC-SHA256 signed over timestamp, nonce, method,
+path and body; the agent refuses anything older than 60 s or a reused nonce.
+
+**Deploys from the panel** pull `repo:<tag>`, park the old container as
+`<name>-ops-previous`, start a copy of it on the new tag (same env, limits,
+networks and compose labels), wait for its healthcheck (`OPS_AGENT_DEPLOY_TIMEOUT`,
+default 240 s), then remove the old one, or put the old one back if the new one
+fails. The tag in `.env` is **not** changed: the next `deploy.sh` (every push to
+main) or a hand-run `dc up -d <service>` brings the service back to the `.env`
+tag. Use the panel for hotfix rollbacks and bot redeploys; use git for the rest.
+
+If the agent died mid-deploy (rare), a stopped `<name>-ops-previous` may be left:
+`docker rm -f <name>-ops-previous` and `dc up -d <service>`.
+
+The deploy dialog lists tags from GHCR (anonymous for public packages) and
+matches sha tags to commits of `GITHUB_REPO` for the message and date. Set
+`GITHUB_TOKEN` (read:packages) if the packages are private; then also set
+`OPS_AGENT_REGISTRY_USER` / `OPS_AGENT_REGISTRY_TOKEN` so the agent can pull.
+
+## 16. Day-2 notes
 
 - Logs: `dc logs -f web`, `dc logs --tail 200 caddy`. Docker rotates them
   (10 MB × 5 per container).
 - `dc ps` shows health; `/api/health` is public for uptime monitors.
-- **Labels:** services carry `os.managed=true` (listed by the phase-5 ops-agent),
+- **Labels:** services carry `os.managed=true` (listed by ops-agent),
   `os.protected=true` (visible but not stoppable/deployable from the panel: caddy,
   web, db), `os.role` (edge/app/data/bot); bot images add `os.kind=bot` and
   `os.name`. One-shot jobs are `os.managed=false`.
