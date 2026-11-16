@@ -24,7 +24,7 @@ export async function ReadLater() {
       {links.map((link) => (
         <li key={link.id}>
           <a href={link.url} target="_blank" rel="noopener noreferrer" className={rowClass}>
-            <Favicon src={link.favicon_url} />
+            <Favicon src={link.favicon_url} name={link.site_name || link.url.replace(/^https?:\/\//, "")} />
             <span className="text-body min-w-0 flex-1 truncate">{link.title}</span>
             <span className="text-caption max-w-[40%] shrink-0 truncate text-muted-foreground">
               {domainOf(link.url)}

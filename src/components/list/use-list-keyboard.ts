@@ -21,17 +21,20 @@ export function useListKeyboard({
   filter,
   selection,
   handlers,
+  extra,
   enabled = true,
 }: {
   container: RefObject<HTMLElement | null>
   filter?: RefObject<HTMLInputElement | null>
   selection?: Selection
   handlers: ListHandlers
+  /** Extra single-letter keys acting on the focused row (or the selection). */
+  extra?: Record<string, (id: string | null) => void>
   enabled?: boolean
 }) {
-  const latest = useRef({ handlers, selection, filter })
+  const latest = useRef({ handlers, selection, filter, extra })
   useEffect(() => {
-    latest.current = { handlers, selection, filter }
+    latest.current = { handlers, selection, filter, extra }
   })
 
   useEffect(() => {
@@ -61,10 +64,22 @@ export function useListKeyboard({
       }
       if (document.querySelector("[role=dialog], [role=menu]")) return
 
+      const { handlers, selection, filter, extra } = latest.current
+      const typing = isTypingTarget(e.target)
+
+      // Module-specific letters (e.g. R for read later on links).
+      const custom = !typing && !e.metaKey && !e.ctrlKey && !e.altKey ? extra?.[e.key] : undefined
+      if (custom) {
+        const row = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>("[data-row-id]")
+        const rowId = row?.dataset.rowId ?? null
+        if (!rowId && !selection?.count) return
+        e.preventDefault()
+        custom(rowId)
+        return
+      }
+
       const command = listCommand(e)
       if (!command) return
-      const { handlers, selection, filter } = latest.current
-      const typing = isTypingTarget(e.target)
 
       if (typing) {
         // From the filter, ↓ / Esc hand over to the list.

@@ -1,6 +1,8 @@
 import { Suspense } from "react"
 import NextLink from "next/link"
-import { ExternalLink, LinkIcon, X } from "@/components/icons"
+import { ExternalLink, LinkDuo, X } from "@/components/icons"
+import { EmptyState } from "@/components/list/shortcut-hint"
+import { Page, Reveal, SkeletonExit } from "@/components/motion"
 import { PageHeader } from "@/components/shell/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
@@ -40,11 +42,12 @@ function readFilters(sp: Record<string, string | string[] | undefined>): Filters
 
 export default function LinksPage({ searchParams }: PageProps<"/app/links">) {
   return (
-    <div className="grid w-full max-w-3xl gap-4">
+    <Page>
+    <div className="mx-auto grid w-full max-w-3xl gap-4">
       <PageHeader
         eyebrow="Library"
         title="Links"
-        description="Paste a link to save it. Mark the good ones public to share them on your links page."
+        description="Paste a link anywhere on this page to save it. Mark the good ones public to share them on your links page."
         actions={
           <NextLink
             href="/links"
@@ -56,10 +59,19 @@ export default function LinksPage({ searchParams }: PageProps<"/app/links">) {
           </NextLink>
         }
       />
-      <Suspense fallback={<LinksSkeleton />}>
-        <LinksBody searchParams={searchParams} />
+      <Suspense
+        fallback={
+          <SkeletonExit>
+            <LinksSkeleton />
+          </SkeletonExit>
+        }
+      >
+        <Reveal>
+          <LinksBody searchParams={searchParams} />
+        </Reveal>
       </Suspense>
     </div>
+    </Page>
   )
 }
 
@@ -83,7 +95,9 @@ async function LinksBody({ searchParams }: Pick<PageProps<"/app/links">, "search
     <div className="grid gap-4">
       <AddLinkForm autoFocus={filters.add || empty} />
       {empty ? (
-        <EmptyState />
+        <EmptyState icon={LinkDuo} title="Nothing saved yet">
+          Copy a link anywhere and paste it here — the title and icon fill in on their own.
+        </EmptyState>
       ) : (
         <>
           <div className="grid gap-2">
@@ -153,20 +167,6 @@ async function LinksBody({ searchParams }: Pick<PageProps<"/app/links">, "search
           {links.length > 0 && <LinkList links={links} />}
         </>
       )}
-    </div>
-  )
-}
-
-function EmptyState() {
-  return (
-    <div className="glass grid justify-items-start gap-3 rounded-xl p-4">
-      <LinkIcon className="size-5 text-text-accent" />
-      <div className="grid gap-1">
-        <p className="text-card-title">Nothing saved yet</p>
-        <p className="text-meta max-w-prose text-muted-foreground">
-          Paste a link above. The title and icon fill in on their own; add tags later to group them.
-        </p>
-      </div>
     </div>
   )
 }

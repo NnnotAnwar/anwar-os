@@ -5,11 +5,40 @@ import { actions } from "./actions"
 import {
   createLinkInput,
   linkIdInput,
+  linkIdsInput,
   restoreLinkInput,
   setLinkFlagsInput,
+  setLinksFlagsInput,
   updateLinkInput,
   type Link,
 } from "./schema"
+
+/** Read later / public for several links (swipe, menu, keys and the bulk bar). */
+export async function setLinksFlags(input: { ids: string[]; isPublic?: boolean; readLater?: boolean }): Promise<Result> {
+  const parsed = setLinksFlagsInput.safeParse(input)
+  if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) }
+  const { ids, ...flags } = parsed.data
+  try {
+    for (const id of ids) await actions.setFlags.handler({ id, ...flags })
+    refresh()
+    return { ok: true, data: undefined }
+  } catch {
+    return { ok: false, error: OFFLINE }
+  }
+}
+
+/** Runs when the Undo toast expires: the list already hid these links. */
+export async function deleteLinks(input: { ids: string[] }): Promise<Result> {
+  const parsed = linkIdsInput.safeParse(input)
+  if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) }
+  try {
+    for (const id of parsed.data.ids) await actions.delete.handler({ id })
+    refresh()
+    return { ok: true, data: undefined }
+  } catch {
+    return { ok: false, error: OFFLINE }
+  }
+}
 
 export type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string }
 

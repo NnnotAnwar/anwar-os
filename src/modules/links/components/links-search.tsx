@@ -39,6 +39,7 @@ export function LinksSearch({ initialQuery }: { initialQuery: string }) {
         )}
       />
       <input
+        id="list-filter"
         type="search"
         value={value}
         onChange={(e) => update(e.target.value)}

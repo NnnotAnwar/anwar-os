@@ -103,6 +103,14 @@ export const setLinkFlagsInput = z.object({
 
 export const linkIdInput = z.object({ id: z.uuid() })
 
+const linkIds = z.array(z.uuid()).min(1).max(500)
+export const linkIdsInput = z.object({ ids: linkIds })
+export const setLinksFlagsInput = z.object({
+  ids: linkIds,
+  isPublic: z.boolean().optional(),
+  readLater: z.boolean().optional(),
+})
+
 export const listLinksInput = z.object({
   limit: z.number().int().min(1).max(500).default(200),
   query: z.string().trim().max(100).optional(),
