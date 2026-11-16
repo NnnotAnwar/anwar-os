@@ -33,3 +33,15 @@ export async function withViewer<T>(viewerId: string, fn: (tx: Tx) => Promise<T>
     return fn(tx)
   })
 }
+
+/**
+ * Database work for visitors with no session (public pages). No viewer is set,
+ * so only policies written for public rows (e.g. `is_public and owner_id =
+ * app.site_owner_id()`) let anything through.
+ */
+export async function asPublic<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select set_config('app.user_id', '', true)`)
+    return fn(tx)
+  })
+}
