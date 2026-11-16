@@ -32,16 +32,15 @@ function withActiveState(View: (props: LinkProps & { active: boolean }) => React
   }
 }
 
-/** Sidebar entry. The active one gets a sky rule on its left edge. */
+/** Sidebar entry. The active one is tinted with the accent. */
 export const NavLink = withActiveState(function NavLinkView({ href, icon, active, children }) {
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 [&_svg]:size-4 [&_svg]:shrink-0",
-        active &&
-          "bg-sidebar-accent font-medium text-foreground before:absolute before:inset-y-1.5 before:-left-3 before:w-0.5 before:rounded-full before:bg-sky",
+        "text-meta flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-muted-foreground transition-colors duration-150 outline-none hover:bg-track hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 [&_svg]:size-4 [&_svg]:shrink-0",
+        active && "bg-sidebar-accent font-semibold text-text-accent hover:bg-sidebar-accent hover:text-text-accent",
       )}
     >
       {icon}
@@ -58,7 +57,7 @@ export const TabLink = withActiveState(function TabLinkView({ href, icon, active
       aria-current={active ? "page" : undefined}
       className={cn(
         "flex flex-1 flex-col items-center gap-1 py-2 text-[11px] text-muted-foreground outline-none focus-visible:text-foreground [&_svg]:size-5",
-        active && "text-sky",
+        active && "font-semibold text-text-accent",
       )}
     >
       {icon}

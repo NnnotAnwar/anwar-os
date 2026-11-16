@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
-import { CornerDownLeft, FileText, LogOut, Monitor, Moon, Sun } from "lucide-react"
+import { CornerDownLeft, FileText, LogOut, Monitor, Moon, Sun } from "@/components/icons"
 import { useTheme } from "next-themes"
 import {
   Command,

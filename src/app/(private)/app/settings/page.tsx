@@ -19,7 +19,7 @@ export default function SettingsPage() {
             Ask for a 6-digit code from an authenticator app every time you sign in.
           </p>
         </div>
-        <div className="rounded-xl border bg-card p-5">
+        <div className="glass rounded-xl p-5">
           <Suspense fallback={<Skeleton className="h-8 w-44" />}>
             <MfaStatus />
           </Suspense>

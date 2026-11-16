@@ -1,7 +1,7 @@
 "use client"
 
 import { useSyncExternalStore } from "react"
-import { Search } from "lucide-react"
+import { Search } from "@/components/icons"
 import { Kbd } from "@/components/ui/kbd"
 import { cn } from "@/lib/utils"
 import { openCommandPalette } from "./command-events"
@@ -20,7 +20,7 @@ export function SearchTrigger({ className }: { className?: string }) {
       type="button"
       onClick={openCommandPalette}
       className={cn(
-        "group flex h-9 items-center gap-2 rounded-lg border bg-card px-3 text-sm text-muted-foreground transition-colors outline-none hover:border-input hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+        "group flex h-9 items-center gap-2 rounded-lg border border-field-border bg-field px-3 text-sm text-muted-foreground transition-colors outline-none hover:border-input hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
         className,
       )}
     >

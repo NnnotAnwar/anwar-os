@@ -1,6 +1,6 @@
 import type { ComponentType } from "react"
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft } from "@/components/icons"
 import { PageHeader } from "@/components/shell/page-header"
 import { toolInfo, type ToolSlug } from "../catalog"
 import { BasicCalculator } from "../components/basic-calculator"

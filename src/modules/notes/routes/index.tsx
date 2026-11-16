@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import Link from "next/link"
-import { NotebookPen, Plus } from "lucide-react"
+import { NotebookPen, Plus } from "@/components/icons"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shell/page-header"
@@ -67,7 +67,7 @@ async function NotesBody({ searchParams }: Pick<PageProps<"/app/notes">, "search
 function EmptyState() {
   return (
     <div className="grid justify-items-start gap-4 rounded-xl border border-dashed p-8">
-      <NotebookPen className="size-6 text-sky" aria-hidden />
+      <NotebookPen className="size-6 text-text-accent" aria-hidden />
       <div className="grid gap-1">
         <p className="font-medium">Your notes will live here</p>
         <p className="max-w-prose text-sm text-muted-foreground">

@@ -2,7 +2,7 @@
 
 import { useTransition } from "react"
 import Link from "next/link"
-import { LogOut, Monitor, Moon, Settings, Sun } from "lucide-react"
+import { LogOut, Monitor, Moon, Settings, Sun } from "@/components/icons"
 import { useTheme } from "next-themes"
 import {
   DropdownMenu,
@@ -40,7 +40,7 @@ export function UserMenu({ name, email, role, variant }: Props) {
           variant === "full" ? "w-full px-2 py-1.5" : "p-1",
         )}
       >
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-sky font-display text-xs font-semibold text-primary-foreground">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-600 font-display text-xs font-semibold text-primary-foreground">
           {initial}
         </span>
         {variant === "full" && (

@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react"
+import type { AppIcon } from "@/components/icons"
 import type { ReactNode } from "react"
 import type { z } from "zod"
 import type { AppRole } from "@/db/schema"
@@ -56,7 +56,7 @@ export type ModuleManifest = {
   id: string
   name: string
   description: string
-  icon: LucideIcon
+  icon: AppIcon
   nav: NavItem[]
   access: {
     /** Usable by anonymous demo visitors on mock data (phase 2). */

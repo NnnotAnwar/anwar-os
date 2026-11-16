@@ -1,10 +1,10 @@
-import { Calculator, Flame, Sigma, TrendingUp, type LucideIcon } from "lucide-react"
+import { Calculator, Flame, Sigma, TrendingUp, type AppIcon } from "@/components/icons"
 
 export type ToolInfo = {
   slug: string
   title: string
   description: string
-  icon: LucideIcon
+  icon: AppIcon
 }
 
 /** Every calculator, in display order. Slugs are route segments under /tools and /app/tools. */

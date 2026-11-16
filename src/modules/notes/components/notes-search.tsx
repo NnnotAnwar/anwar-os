@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { Search, X } from "lucide-react"
+import { Search, X } from "@/components/icons"
 import { cn } from "@/lib/utils"
 
 /** Filters the list through `?q=`, so a search survives reloads and can be linked. */
@@ -40,7 +40,7 @@ export function NotesSearch({ initialQuery }: { initialQuery: string }) {
         onKeyDown={(e) => e.key === "Escape" && update("")}
         placeholder="Filter notes"
         aria-label="Filter notes"
-        className="h-10 w-full rounded-lg border bg-card pr-9 pl-9 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-search-cancel-button]:hidden"
+        className="h-9 w-full rounded-lg border border-field-border bg-field pr-9 pl-9 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-search-cancel-button]:hidden"
       />
       {value && (
         <button

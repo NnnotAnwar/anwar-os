@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Pin } from "lucide-react"
+import { Pin } from "@/components/icons"
 import { formatRelative } from "@/lib/time"
 import { excerpt, type Note } from "../schema"
 
@@ -16,7 +16,7 @@ export function NoteList({
   query?: string
 }) {
   return (
-    <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+    <ul className="divide-y overflow-hidden glass rounded-xl">
       {notes.map((note) => {
         const preview = excerpt(note.body, query)
         return (
@@ -27,7 +27,7 @@ export function NoteList({
             >
               <span className="grid min-w-0 flex-1 gap-0.5">
                 <span className="flex items-center gap-1.5 font-medium">
-                  {note.pinned && <Pin className="size-3.5 shrink-0 text-sky" aria-label="Pinned" />}
+                  {note.pinned && <Pin className="size-3.5 shrink-0 text-text-accent" aria-label="Pinned" />}
                   <span className="truncate">{note.title}</span>
                 </span>
                 {preview && <span className="truncate text-sm text-muted-foreground">{preview}</span>}

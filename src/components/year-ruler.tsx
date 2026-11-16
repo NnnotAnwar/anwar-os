@@ -10,7 +10,7 @@ import {
 
 /**
  * The year as a ruler of ISO weeks. Past weeks are inked, the current week carries
- * the sun marker, future weeks are faint. Month starts get taller ticks.
+ * the accent "now" marker, future weeks are faint. Month starts get taller ticks.
  */
 export function YearRuler({ today, locale }: { today: CalendarDate; locale: string }) {
   const { week: currentWeek, weekYear } = isoWeek(today)
@@ -45,18 +45,18 @@ export function YearRuler({ today, locale }: { today: CalendarDate; locale: stri
               className={cn(
                 "ruler-tick relative w-px rounded-full",
                 monthStartWeeks.has(week) ? "h-6" : "h-3.5",
-                isPast ? "bg-foreground/75" : "bg-mist/25",
-                isNow && "h-9 w-[3px] bg-sun",
+                isPast ? "bg-foreground/70" : "bg-muted-foreground/25",
+                isNow && "h-9 w-[3px] bg-accent-500",
               )}
             >
               {isNow && (
-                <span className="ruler-sun absolute -top-3 left-1/2 size-2.5 -translate-x-1/2 rounded-full bg-sun ring-4 ring-sun/20" />
+                <span className="ruler-sun absolute -top-3 left-1/2 size-2.5 -translate-x-1/2 rounded-full bg-accent-500 ring-4 ring-accent-500/25" />
               )}
             </span>
           )
         })}
       </div>
-      <div className="relative h-4 font-mono text-[10px] tracking-wider text-muted-foreground uppercase" aria-hidden>
+      <div className="relative h-4 text-micro text-muted-foreground" aria-hidden>
         {monthStarts.map((m, i) => (
           <span
             key={m.label}
@@ -67,7 +67,7 @@ export function YearRuler({ today, locale }: { today: CalendarDate; locale: stri
           </span>
         ))}
       </div>
-      <figcaption className="font-mono text-xs text-muted-foreground tabular">{summary}</figcaption>
+      <figcaption className="text-meta text-muted-foreground tabular-nums">{summary}</figcaption>
     </figure>
   )
 }

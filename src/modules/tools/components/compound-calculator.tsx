@@ -58,7 +58,7 @@ export function CompoundCalculator() {
                 label={<Swatch className="bg-chart-3">You put in</Swatch>}
                 value={money(res.result.totalContributed)}
               />
-              <ResultRow label={<Swatch className="bg-sky">Interest earned</Swatch>} value={money(res.result.totalInterest)} />
+              <ResultRow label={<Swatch className="bg-accent-600">Interest earned</Swatch>} value={money(res.result.totalInterest)} />
               {res.result.finalBalance > 0 && (
                 <ResultRow
                   label="Interest share of balance"
@@ -108,7 +108,7 @@ function GrowthChart({ rows }: { rows: YearRow[] }) {
               className="flex h-full min-w-0 flex-1 flex-col justify-end"
               title={`Year ${row.year}: ${money(row.balance)}`}
             >
-              <div className="rounded-t-[2px] bg-sky" style={{ height: `${(gain / peak) * 100}%` }} />
+              <div className="rounded-t-[2px] bg-accent-600" style={{ height: `${(gain / peak) * 100}%` }} />
               <div className="bg-chart-3" style={{ height: `${(base / peak) * 100}%` }} />
             </div>
           )

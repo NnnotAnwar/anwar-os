@@ -112,7 +112,7 @@ export function ChoiceGroup<T extends string>({
                 "block rounded-md text-sm transition-colors peer-focus-visible:ring-3 peer-focus-visible:ring-ring/50",
                 layout === "row"
                   ? "px-2 py-1.5 text-center text-muted-foreground peer-checked:bg-card peer-checked:font-medium peer-checked:text-foreground peer-checked:shadow-sm hover:text-foreground"
-                  : "border px-3 py-2 peer-checked:border-sky peer-checked:bg-accent hover:bg-muted/60",
+                  : "border px-3 py-2 peer-checked:border-accent-500 peer-checked:bg-accent hover:bg-muted/60",
               )}
             >
               <span className={cn(layout === "list" && "font-medium")}>{option.label}</span>
@@ -158,7 +158,7 @@ export function ResultRow({ label, value, unit, hint }: { label: ReactNode; valu
  */
 export function ResultPanel({ children, className, label }: { children: ReactNode; className?: string; label: string }) {
   return (
-    <section aria-label={label} className={cn("grid content-start gap-6 rounded-xl border bg-card p-4 sm:p-6", className)}>
+    <section aria-label={label} className={cn("grid content-start gap-6 glass rounded-xl p-4 sm:p-6", className)}>
       {children}
     </section>
   )

@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { Delete } from "lucide-react"
+import { Delete } from "@/components/icons"
 import { cn } from "@/lib/utils"
 import { evaluate } from "../lib/expression"
 import { formatPrecise } from "../lib/format"
@@ -100,7 +100,7 @@ export function BasicCalculator() {
 
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] md:items-start">
-      <div className="grid gap-4 rounded-xl border bg-card p-4">
+      <div className="grid gap-4 glass rounded-xl p-4">
         <form
           className="grid gap-1"
           onSubmit={(e) => {
@@ -170,7 +170,7 @@ export function BasicCalculator() {
                 key.tone === "accent"
                   ? "bg-primary text-primary-foreground hover:bg-primary/85"
                   : key.tone === "op"
-                    ? "bg-accent text-sky hover:bg-accent/70"
+                    ? "bg-accent text-text-accent hover:bg-accent/70"
                     : "bg-muted hover:bg-muted/70",
               )}
             >

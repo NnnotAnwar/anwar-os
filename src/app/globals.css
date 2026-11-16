@@ -2,18 +2,56 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Planuj Glass — the design language shared with Planuj Směny.
+ * Frosted glass over a lilac canvas, one accent scale (indigo) for every action,
+ * compact type: Inter for UI and every number, Satoshi for display words.
+ * Source of truth: the "Planuj Glass" design system (tokens.json) and
+ * planuj-smeny-app/src/index.css. shadcn's semantic tokens are mapped onto it
+ * below, so every component speaks the same language.
+ */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-onest);
-  --font-mono: var(--font-jetbrains);
-  --font-heading: var(--font-onest);
-  --font-display: var(--font-unbounded);
-  --color-sky: var(--sky);
-  --color-sun: var(--sun);
-  --color-mist: var(--mist);
+  --font-sans: "Inter", var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Satoshi", "Inter", var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-display);
+  /* Numbers use Inter's tabular figures, not a monospace face. */
+  --font-mono: "Inter", var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --color-accent-50: #eef2ff;
+  --color-accent-100: #e0e7ff;
+  --color-accent-200: #c7d2fe;
+  --color-accent-300: #a5b4fc;
+  --color-accent-400: #818cf8;
+  --color-accent-500: #6366f1;
+  --color-accent-600: #4f46e5;
+  --color-accent-700: #4338ca;
+  --color-accent-800: #3730a3;
+  --color-accent-900: #312e81;
+  --color-accent-950: #1e1b4b;
+
+  --color-ink: #1b1a2e;
+  --color-ink-soft: #66637f;
+  --color-text-accent: var(--text-accent);
+  --color-glass: var(--glass);
+  --color-glass-menu: var(--glass-menu);
+  --color-field: var(--field);
+  --color-field-border: var(--field-border);
+  --color-hairline: var(--hairline);
+  --color-track: var(--track);
+  --color-warning-text: var(--warning-text);
+  --color-warning-surface: var(--warning-surface);
+  --color-error-surface: var(--error-surface);
+
+  /* Aliases from the first theme, kept so older code reads correctly:
+     sky = accent text, mist = soft text, sun = the accent ("now"). */
+  --color-sky: var(--text-accent);
+  --color-mist: var(--muted-foreground);
+  --color-sun: var(--color-accent-500);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -43,121 +81,254 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+
+  /* radius-lg 12px (buttons, fields), radius-xl ≈16px (cards, tables, modals). */
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.667);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-xl: calc(var(--radius) * 1.333);
+  --radius-2xl: calc(var(--radius) * 1.333);
+  --radius-3xl: calc(var(--radius) * 1.333);
+  --radius-4xl: calc(var(--radius) * 1.333);
+
+  /* Shadows are tinted with the accent, never grey. */
+  --shadow-glass: 0 1px 2px rgb(27 26 46 / 0.04), 0 12px 32px -14px color-mix(in srgb, #4f46e5 26%, transparent);
+  --shadow-glass-lg: 0 1px 2px rgb(27 26 46 / 0.05), 0 28px 56px -24px color-mix(in srgb, #4f46e5 34%, transparent);
+  --shadow-chip: 0 1px 2px rgb(27 26 46 / 0.08), 0 0 0 1px rgb(27 26 46 / 0.04);
 }
 
-/*
- * Anwar OS tokens.
- * Paper / Ink / Mist: cool mineral neutrals. Sky: the one interactive color.
- * Sun: reserved for "now" (the current-week marker), never for text or buttons.
- */
 :root {
-  --paper: #f4f7f8;
-  --ink: #0f1e26;
-  --mist: #5b707b;
-  --line: #dce4e8;
-  --sky: #0a6a82;
-  --sun: #f0b41c;
+  --canvas-from: #f8f7fc;
+  --canvas-via: #f5f4f9;
+  --canvas-to: #eeecf7;
 
-  --background: var(--paper);
-  --foreground: var(--ink);
-  --card: #ffffff;
-  --card-foreground: var(--ink);
-  --popover: #ffffff;
-  --popover-foreground: var(--ink);
-  --primary: var(--sky);
+  --text-accent: #4f46e5;
+  --glass: rgba(255, 255, 255, 0.62);
+  --glass-menu: rgba(255, 255, 255, 0.94);
+  --field: rgba(255, 255, 255, 0.7);
+  --field-border: rgba(27, 26, 46, 0.1);
+  --hairline: rgba(27, 26, 46, 0.06);
+  --track: rgba(27, 26, 46, 0.06);
+  --warning-text: #b45309;
+  --warning-surface: rgba(245, 158, 11, 0.12);
+  --error-surface: #fef2f2;
+
+  --background: var(--canvas-via);
+  --foreground: #1b1a2e;
+  --card: var(--glass);
+  --card-foreground: #1b1a2e;
+  --popover: var(--glass-menu);
+  --popover-foreground: #1b1a2e;
+  --primary: #4f46e5;
   --primary-foreground: #ffffff;
-  --secondary: #e8eef1;
-  --secondary-foreground: var(--ink);
-  --muted: #e8eef1;
-  --muted-foreground: var(--mist);
-  --accent: #e3edf1;
-  --accent-foreground: var(--ink);
-  --destructive: #c2362b;
-  --border: var(--line);
-  --input: #cfd9de;
-  --ring: #3f93a8;
-  --chart-1: #0a6a82;
-  --chart-2: #3f93a8;
-  --chart-3: #7fb6c4;
-  --chart-4: #5b707b;
-  --chart-5: #f0b41c;
-  --radius: 0.625rem;
-  --sidebar: #edf2f4;
-  --sidebar-foreground: var(--ink);
-  --sidebar-primary: var(--sky);
+  --secondary: color-mix(in srgb, #6366f1 12%, transparent);
+  --secondary-foreground: #4338ca;
+  --muted: var(--track);
+  --muted-foreground: #66637f;
+  --accent: var(--track);
+  --accent-foreground: #1b1a2e;
+  --destructive: #e11d48;
+  --border: var(--hairline);
+  --input: var(--field-border);
+  --ring: #6366f1;
+  --chart-1: #4f46e5;
+  --chart-2: #818cf8;
+  --chart-3: #a5b4fc;
+  --chart-4: #66637f;
+  --chart-5: #c7d2fe;
+  --radius: 0.75rem;
+  --sidebar: var(--glass);
+  --sidebar-foreground: #1b1a2e;
+  --sidebar-primary: #4f46e5;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #dfe8ec;
-  --sidebar-accent-foreground: var(--ink);
-  --sidebar-border: var(--line);
-  --sidebar-ring: #3f93a8;
+  --sidebar-accent: color-mix(in srgb, #6366f1 10%, transparent);
+  --sidebar-accent-foreground: #1b1a2e;
+  --sidebar-border: var(--hairline);
+  --sidebar-ring: #6366f1;
 }
 
 .dark {
-  --paper: #0b141a;
-  --ink: #e4ecef;
-  --mist: #8ea3ae;
-  --line: #1f2e37;
-  --sky: #52c6dd;
-  --sun: #f2be2e;
+  --canvas-from: #0d0c17;
+  --canvas-via: #121022;
+  --canvas-to: #1a1730;
 
-  --background: var(--paper);
-  --foreground: var(--ink);
-  --card: #111d24;
-  --card-foreground: var(--ink);
-  --popover: #13212a;
-  --popover-foreground: var(--ink);
-  --primary: var(--sky);
-  --primary-foreground: #06232b;
-  --secondary: #182730;
-  --secondary-foreground: var(--ink);
-  --muted: #16242c;
-  --muted-foreground: var(--mist);
-  --accent: #1a2b35;
-  --accent-foreground: var(--ink);
-  --destructive: #f07167;
-  --border: var(--line);
-  --input: #263843;
-  --ring: #2f8ea3;
-  --chart-1: #52c6dd;
-  --chart-2: #2f8ea3;
-  --chart-3: #1d5d6d;
-  --chart-4: #8ea3ae;
-  --chart-5: #f2be2e;
-  --sidebar: #0e1920;
-  --sidebar-foreground: var(--ink);
-  --sidebar-primary: var(--sky);
-  --sidebar-primary-foreground: #06232b;
-  --sidebar-accent: #172630;
-  --sidebar-accent-foreground: var(--ink);
-  --sidebar-border: var(--line);
-  --sidebar-ring: #2f8ea3;
+  --text-accent: #a5b4fc;
+  --glass: rgba(255, 255, 255, 0.045);
+  --glass-menu: rgba(26, 23, 48, 0.96);
+  --field: rgba(255, 255, 255, 0.05);
+  --field-border: rgba(255, 255, 255, 0.1);
+  --hairline: rgba(255, 255, 255, 0.07);
+  --track: rgba(255, 255, 255, 0.06);
+  --warning-text: #fcd34d;
+  --warning-surface: rgba(245, 158, 11, 0.12);
+  --error-surface: rgba(127, 29, 29, 0.2);
+
+  --background: var(--canvas-via);
+  --foreground: #ffffff;
+  --card: var(--glass);
+  --card-foreground: #ffffff;
+  --popover: var(--glass-menu);
+  --popover-foreground: #ffffff;
+  /* Filled buttons stay on 600 so white text passes AA in both themes. */
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: color-mix(in srgb, #6366f1 18%, transparent);
+  --secondary-foreground: #c7d2fe;
+  --muted: var(--track);
+  --muted-foreground: #a3a1bd;
+  --accent: var(--track);
+  --accent-foreground: #ffffff;
+  --destructive: #fb7185;
+  --border: var(--hairline);
+  --input: var(--field-border);
+  --ring: #818cf8;
+  --chart-1: #818cf8;
+  --chart-2: #6366f1;
+  --chart-3: #4338ca;
+  --chart-4: #a3a1bd;
+  --chart-5: #312e81;
+  --sidebar: var(--glass);
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #6366f1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: color-mix(in srgb, #818cf8 14%, transparent);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: var(--hairline);
+  --sidebar-ring: #818cf8;
+}
+
+/*
+ * Frosted-glass surface with a lit 1px edge: a gradient border (mask on
+ * ::before), bright where light catches the top-left, fading to an accent tint.
+ * Give the element a rounded-* so the edge follows its corners.
+ */
+@utility glass {
+  :where(&) {
+    position: relative;
+  }
+  background-color: var(--glass-bg, var(--glass));
+  -webkit-backdrop-filter: blur(22px) saturate(1.6);
+  backdrop-filter: blur(22px) saturate(1.6);
+  box-shadow: var(--glass-shadow, var(--shadow-glass));
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      155deg,
+      rgb(255 255 255 / 0.95),
+      rgb(255 255 255 / 0.35) 45%,
+      color-mix(in srgb, #818cf8 38%, transparent)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  :where(.dark) &::before {
+    background: linear-gradient(
+      155deg,
+      rgb(255 255 255 / 0.2),
+      rgb(255 255 255 / 0.04) 45%,
+      color-mix(in srgb, #818cf8 32%, transparent)
+    );
+  }
+}
+
+/* Denser glass for menus, popovers and modals: lists stay legible over content. */
+@utility glass-menu {
+  --glass-bg: var(--glass-menu);
+  --glass-shadow: var(--shadow-glass-lg);
+}
+
+/* Segmented control: a recessed track; the chosen option lifts out as a chip. */
+@utility segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 0.75rem;
+  background-color: var(--track);
+}
+
+@utility segment-active {
+  background-color: white;
+  box-shadow: var(--shadow-chip);
+
+  :where(.dark) & {
+    background-color: rgb(255 255 255 / 0.12);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
+  }
+}
+
+/* Type styles: size + weight + tracking only; colour stays at the call site. */
+@layer components {
+  .text-greeting {
+    @apply font-display text-[22px] leading-[1.1] font-bold tracking-[-0.03em] xl:text-[26px];
+  }
+  .text-card-title {
+    @apply font-display text-base leading-tight font-bold tracking-[-0.015em];
+  }
+  .text-heading {
+    @apply font-display text-sm font-bold tracking-[-0.01em];
+  }
+  .text-body {
+    @apply text-sm font-medium;
+  }
+  .text-body-strong {
+    @apply text-sm font-semibold;
+  }
+  .text-meta {
+    @apply text-[13px] leading-snug font-medium;
+  }
+  .text-small {
+    @apply text-xs font-medium;
+  }
+  .text-caption {
+    @apply text-[11px] leading-tight font-medium;
+  }
+  .text-eyebrow {
+    @apply text-[10px] leading-none font-semibold tracking-[0.14em] uppercase;
+  }
+  .text-micro {
+    @apply text-[10px] leading-none font-bold tracking-[0.08em] uppercase;
+  }
+  .text-metric {
+    @apply text-lg font-semibold tracking-[-0.02em] tabular-nums;
+  }
+  .text-metric-sm {
+    @apply text-sm font-semibold tabular-nums;
+  }
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
     @apply font-sans;
   }
-}
-
-@layer base {
-  ::selection {
-    background: color-mix(in oklab, var(--sky) 25%, transparent);
+  body {
+    @apply text-foreground;
+    /* The canvas: the only thing that paints the page. */
+    background: linear-gradient(to bottom right, var(--canvas-from), var(--canvas-via), var(--canvas-to)) fixed;
+    background-color: var(--canvas-via);
+    font-feature-settings: "cv11", "ss01";
   }
+  .font-mono,
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+  ::selection {
+    background: color-mix(in oklab, #6366f1 25%, transparent);
+  }
+  button:not(:disabled):active {
+    scale: 0.98;
   }
 }
 
@@ -170,7 +341,7 @@
   }
 }
 
-/* Year ruler: ticks rise left to right once on load, then the sun marker lands. */
+/* Year ruler: ticks rise left to right once on load, then the "now" marker lands. */
 @keyframes ruler-rise {
   from {
     transform: scaleY(0);

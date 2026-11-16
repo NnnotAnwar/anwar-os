@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, Pin, PinOff, Trash2 } from "lucide-react"
+import { ArrowLeft, Pin, PinOff, Trash2 } from "@/components/icons"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -180,7 +180,7 @@ export function NoteEditor(props: Props) {
                     onClick={togglePin}
                     aria-pressed={pinned}
                     aria-label={pinned ? "Unpin note" : "Pin note"}
-                    className={cn(pinned && "text-sky")}
+                    className={cn(pinned && "text-text-accent")}
                   />
                 }
               >

@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import Link from "next/link"
-import { CalendarDays, Plus, Settings } from "lucide-react"
+import { CalendarDays, Plus, Settings } from "@/components/icons"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CommandPalette } from "@/components/shell/command-palette"
@@ -19,8 +19,8 @@ export const metadata = { title: { absolute: "Today · anwar.os", template: "%s 
 // viewer (their modules, identity) streams in behind small Suspense boundaries.
 export default function AppLayout({ children }: LayoutProps<"/app">) {
   return (
-    <div className="min-h-svh md:grid md:grid-cols-[15rem_minmax(0,1fr)]">
-      <aside className="sticky top-0 hidden h-svh flex-col border-r bg-sidebar px-3 py-4 md:flex">
+    <div className="min-h-svh md:grid md:grid-cols-[16rem_minmax(0,1fr)]">
+      <aside className="glass sticky top-3 m-3 mr-0 hidden h-[calc(100svh-1.5rem)] flex-col rounded-xl px-3 py-4 md:flex">
         <div className="px-2.5 pb-6">
           <Wordmark />
         </div>
@@ -32,7 +32,7 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
             <ModuleNav />
           </Suspense>
         </nav>
-        <div className="mt-auto grid gap-0.5 border-t pt-3">
+        <div className="mt-auto grid gap-0.5 border-t border-hairline pt-3">
           <NavLink href="/app/settings" icon={<Settings />}>
             Settings
           </NavLink>
@@ -43,7 +43,7 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
       </aside>
 
       <div className="flex min-h-svh min-w-0 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/85 px-4 backdrop-blur-md md:px-8">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 bg-background/70 px-3 backdrop-blur-xl md:static md:bg-transparent md:px-6 md:pt-3 md:backdrop-blur-none">
           <div className="md:hidden">
             <Wordmark />
           </div>
@@ -62,7 +62,7 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
             </div>
           </div>
         </header>
-        <main className="flex-1 px-4 pt-6 pb-28 md:px-8 md:pt-10 md:pb-12">{children}</main>
+        <main className="mx-auto w-full max-w-6xl flex-1 px-3 pt-4 pb-28 md:px-6 md:pt-6 md:pb-12">{children}</main>
       </div>
 
       <Suspense fallback={null}>
@@ -109,7 +109,7 @@ async function CreateButton() {
   const create = mods.find((m) => m.create)?.create
   if (!create) return null
   return (
-    <Link href={create.href} className={cn(buttonVariants({ size: "lg" }), "gap-1.5")}>
+    <Link href={create.href} className={cn(buttonVariants(), "gap-1.5")}>
       <Plus />
       <span className="hidden sm:inline">{create.label}</span>
       <span className="sr-only sm:hidden">{create.label}</span>
@@ -123,7 +123,7 @@ async function MobileTabs() {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
+      className="glass glass-menu fixed inset-x-0 bottom-0 z-30 flex rounded-none pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       <TabLink href="/app" exact icon={<CalendarDays />}>
         Today

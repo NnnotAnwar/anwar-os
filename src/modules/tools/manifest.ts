@@ -1,4 +1,4 @@
-import { Calculator } from "lucide-react"
+import { Calculator } from "@/components/icons"
 import { defineModule } from "@/core/module"
 
 // Pure client-side math: no tables, no server actions. The same calculators are

@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import Link from "next/link"
-import { ArrowUpRight } from "lucide-react"
+import { ArrowUpRight } from "@/components/icons"
 import { Skeleton } from "@/components/ui/skeleton"
 import { YearRuler } from "@/components/year-ruler"
 import { requireViewer } from "@/core/auth"
@@ -10,7 +10,7 @@ import { modules } from "@/modules/_registry"
 
 export default function TodayPage() {
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-12">
+    <div className="grid w-full gap-3 md:gap-4">
       <Suspense fallback={<HeaderSkeleton />}>
         <TodayHeader />
       </Suspense>
@@ -40,17 +40,17 @@ async function TodayHeader() {
   const name = viewer.displayName ?? viewer.email?.split("@")[0]
 
   return (
-    <header className="grid gap-8">
-      <div className="grid gap-3">
-        <p className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
+    <header className="glass grid gap-6 rounded-xl p-4 [--glass-shadow:var(--shadow-glass-lg)] md:p-6">
+      <div className="grid gap-2">
+        <p className="text-eyebrow text-text-accent">
           {weekday}
           {city && <> · {city}</>}
         </p>
-        <h1 className="font-display text-4xl font-semibold tracking-tight md:text-6xl">{date}</h1>
-        <p className="text-lg text-muted-foreground">
+        <h1 className="text-greeting">
           {greeting(hour)}
-          {name && `, ${name}`}.
-        </p>
+          {name && `, ${name}`}
+        </h1>
+        <p className="text-meta text-muted-foreground">{date}</p>
       </div>
       <YearRuler today={today} locale={locale} />
     </header>
@@ -65,16 +65,16 @@ async function Widgets() {
   )
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid gap-3 md:grid-cols-2 md:gap-4">
       {widgets.map((w) => (
-        <section key={w.key} aria-labelledby={`${w.key}-title`} className="grid content-start gap-3 rounded-xl border bg-card p-5">
+        <section key={w.key} aria-labelledby={`${w.key}-title`} className="glass grid content-start gap-3 rounded-xl p-4">
           <header className="flex items-center justify-between gap-2">
-            <h2 id={`${w.key}-title`} className="text-sm font-medium">
+            <h2 id={`${w.key}-title`} className="text-card-title">
               {w.title}
             </h2>
             <Link
               href={w.href}
-              className="flex items-center gap-0.5 rounded font-mono text-[11px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="text-caption flex items-center gap-0.5 rounded text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               {w.moduleName}
               <ArrowUpRight className="size-3" aria-hidden />
@@ -127,7 +127,7 @@ function WidgetsSkeleton() {
   return (
     <div className="grid gap-4 md:grid-cols-2" aria-hidden>
       {[0, 1].map((i) => (
-        <div key={i} className="grid gap-3 rounded-xl border bg-card p-5">
+        <div key={i} className="grid gap-3 glass rounded-xl p-5">
           <Skeleton className="h-4 w-28" />
           <RowsSkeleton />
         </div>

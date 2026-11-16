@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Pin } from "lucide-react"
+import { Pin } from "@/components/icons"
 import type { ViewerContext } from "@/core/module"
 import { formatRelative } from "@/lib/time"
 import { actions } from "../actions"
@@ -42,7 +42,7 @@ export async function RecentNotes({ ctx }: { ctx: ViewerContext }) {
     return (
       <p className="text-sm text-muted-foreground">
         Nothing written yet.{" "}
-        <Link href="/app/notes/new" className="text-sky underline-offset-4 hover:underline">
+        <Link href="/app/notes/new" className="text-text-accent underline-offset-4 hover:underline">
           Start a note
         </Link>
       </p>

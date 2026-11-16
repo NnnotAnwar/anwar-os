@@ -29,7 +29,7 @@ export function StatisticsCalculator() {
           <button
             type="button"
             onClick={() => setText(text ? "" : SAMPLE)}
-            className="rounded-md px-1.5 py-0.5 text-xs text-sky outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="rounded-md px-1.5 py-0.5 text-xs text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {text ? "Clear" : "Use sample data"}
           </button>
@@ -186,7 +186,7 @@ function Histogram({ values }: { values: number[] }) {
             <span className="sr-only">{`${fmt(bin.from)} to ${fmt(bin.to)}: ${bin.count}`}</span>
             <div
               aria-hidden
-              className="rounded-t-sm bg-sky/80"
+              className="rounded-t-sm bg-accent-600/80"
               style={{ height: bin.count === 0 ? 0 : `max(2px, ${(bin.count / peak) * 100}%)` }}
             />
           </li>

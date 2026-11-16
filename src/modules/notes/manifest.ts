@@ -1,4 +1,4 @@
-import { NotebookPen } from "lucide-react"
+import { NotebookPen } from "@/components/icons"
 import { defineModule } from "@/core/module"
 
 export const notes = defineModule({

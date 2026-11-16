@@ -5,9 +5,9 @@ export function Wordmark({ href = "/app" }: { href?: string }) {
   return (
     <Link
       href={href}
-      className="rounded-md font-display text-[13px] font-semibold tracking-tight outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      className="rounded-md font-display text-[15px] font-bold tracking-[-0.02em] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
-      anwar<span className="text-mist">.os</span>
+      anwar<span className="text-text-accent">.os</span>
     </Link>
   )
 }
