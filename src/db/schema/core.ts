@@ -10,5 +10,7 @@ export const corePreferences = pgTable("core_preferences", {
     .references(() => user.id, { onDelete: "cascade" }),
   /** Module ids the owner chose for "My services", in display order. */
   pinnedServices: text("pinned_services").array().notNull().default(sql`'{}'::text[]`),
+  /** One-off hints the owner closed (e.g. "get-started"). */
+  dismissedHints: text("dismissed_hints").array().notNull().default(sql`'{}'::text[]`),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 })

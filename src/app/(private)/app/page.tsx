@@ -1,9 +1,12 @@
 import { Suspense } from "react"
+import { Page } from "@/components/motion"
 import Link from "next/link"
 import { ArrowUpRight } from "@/components/icons"
 import { Skeleton } from "@/components/ui/skeleton"
 import { YearRuler } from "@/components/year-ruler"
 import { ServiceGrid } from "@/components/services/service-grid"
+import { GetStarted } from "@/components/shell/get-started"
+import { getSetup } from "@/core/onboarding"
 import { requireViewer } from "@/core/auth"
 import { modulesFor, type ViewerContext, type WidgetDef } from "@/core/module"
 import { calendarDate } from "@/lib/time"
@@ -11,30 +14,35 @@ import { modules } from "@/modules/_registry"
 
 export default function TodayPage() {
   return (
-    <div className="grid w-full gap-3 md:gap-4">
-      <Suspense fallback={<HeaderSkeleton />}>
-        <TodayHeader />
-      </Suspense>
-      <section aria-labelledby="my-services" className="grid gap-2.5">
-        <div className="flex items-center justify-between">
-          <h2 id="my-services" className="text-eyebrow text-text-accent">
-            My services
-          </h2>
-          <Link
-            href="/app/services"
-            className="text-caption rounded text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            All services
-          </Link>
-        </div>
-        <Suspense fallback={<Skeleton className="h-24 rounded-xl" />}>
-          <ServiceGrid which="pinned" variant="tile" />
+    <Page>
+      <div className="grid w-full gap-3 md:gap-4">
+        <Suspense fallback={<HeaderSkeleton />}>
+          <TodayHeader />
         </Suspense>
-      </section>
-      <Suspense fallback={<WidgetsSkeleton />}>
-        <Widgets />
-      </Suspense>
-    </div>
+        <Suspense fallback={null}>
+          <Setup />
+        </Suspense>
+        <section aria-labelledby="my-services" className="grid gap-2.5">
+          <div className="flex items-center justify-between">
+            <h2 id="my-services" className="text-eyebrow text-text-accent">
+              My services
+            </h2>
+            <Link
+              href="/app/services"
+              className="text-caption rounded text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              All services
+            </Link>
+          </div>
+          <Suspense fallback={<Skeleton className="h-24 rounded-xl" />}>
+            <ServiceGrid which="pinned" variant="tile" />
+          </Suspense>
+        </section>
+        <Suspense fallback={<WidgetsSkeleton />}>
+          <Widgets />
+        </Suspense>
+      </div>
+    </Page>
   )
 }
 
@@ -151,4 +159,10 @@ function WidgetsSkeleton() {
       ))}
     </div>
   )
+}
+
+async function Setup() {
+  const { steps, dismissed } = await getSetup()
+  if (dismissed || steps.every((s) => s.done)) return null
+  return <GetStarted steps={steps} />
 }

@@ -92,6 +92,13 @@
       "when": 1794831745939,
       "tag": "0012_core_preferences_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794832373924,
+      "tag": "0013_core_dismissed_hints",
+      "breakpoints": true
     }
   ]
 }

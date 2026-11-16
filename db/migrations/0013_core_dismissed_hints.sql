@@ -1,0 +1,1 @@
+ALTER TABLE "core_preferences" ADD COLUMN "dismissed_hints" text[] DEFAULT '{}'::text[] NOT NULL;

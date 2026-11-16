@@ -51,3 +51,20 @@ async function savePinned(ids: string[]) {
   )
   revalidatePath("/app", "layout")
 }
+
+/** Hides a one-off hint (e.g. the "Get started" checklist) for good. */
+export async function dismissHint(hint: string) {
+  const id = z.string().min(1).max(40).parse(hint)
+  // A first-ever row must keep the current (default) services, not an empty list.
+  const { pinnedIds } = await getServices()
+  await asViewer((tx) =>
+    tx
+      .insert(corePreferences)
+      .values({ dismissedHints: [id], pinnedServices: pinnedIds })
+      .onConflictDoUpdate({
+        target: corePreferences.ownerId,
+        set: { dismissedHints: sql`array(select distinct unnest(core_preferences.dismissed_hints || excluded.dismissed_hints))` },
+      }),
+  )
+  revalidatePath("/app")
+}

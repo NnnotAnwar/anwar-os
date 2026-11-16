@@ -44,7 +44,7 @@ export function ServiceCard(props: ServiceCardProps) {
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         className={cn(
-          "glass group relative grid h-full w-full content-start gap-2.5 rounded-xl text-left transition-[background-color] duration-150 outline-none hover:[--glass-bg:color-mix(in_srgb,var(--glass)_60%,white)] focus-visible:ring-3 focus-visible:ring-ring/50 dark:hover:[--glass-bg:rgb(255_255_255/0.08)]",
+          "glass press group relative grid h-full w-full content-start gap-2.5 rounded-xl text-left outline-none hover:[--glass-bg:color-mix(in_srgb,var(--glass)_60%,white)] focus-visible:ring-3 focus-visible:ring-ring/50 dark:hover:[--glass-bg:rgb(255_255_255/0.08)]",
           variant === "tile" ? "justify-items-center p-3 text-center" : "p-3.5",
         )}
       >
@@ -99,18 +99,21 @@ function ServiceSheet({
     })
   }
 
-  const close = () => onOpenChange(false)
+  function close() {
+    onOpenChange(false)
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          "glass glass-menu gap-0 p-0 sm:max-w-md",
+          "glass glass-menu sheet gap-0 p-0 sm:max-w-md",
           // Bottom sheet on phones, centred panel from 640px (Planuj Glass Modal).
           "max-sm:top-auto max-sm:bottom-0 max-sm:max-w-full max-sm:translate-y-0 max-sm:rounded-b-none max-sm:pb-[env(safe-area-inset-bottom)]",
         )}
       >
-        <div className="flex items-start gap-3 p-4 pb-3">
+        <SheetHandle onDismiss={close} />
+        <div className="flex items-start gap-3 p-4 pb-3 max-sm:pt-1">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground [&_svg]:size-5">
             {icon}
           </span>
@@ -199,5 +202,49 @@ function ServiceSheet({
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * The grab handle on phones. Dragging it down moves the sheet with the finger;
+ * past 80 px (or a quick flick) it closes, otherwise it springs back.
+ */
+function SheetHandle({ onDismiss }: { onDismiss: () => void }) {
+  const [start, setStart] = useState<{ y: number; t: number } | null>(null)
+
+  function sheetOf(el: HTMLElement) {
+    return el.closest<HTMLElement>("[data-slot=dialog-content]")
+  }
+
+  return (
+    <div
+      aria-hidden
+      className="flex touch-none justify-center pt-2 pb-1 sm:hidden"
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId)
+        setStart({ y: e.clientY, t: e.timeStamp })
+      }}
+      onPointerMove={(e) => {
+        if (!start) return
+        const sheet = sheetOf(e.currentTarget)
+        if (sheet) sheet.style.transform = `translateY(${Math.max(0, e.clientY - start.y)}px)`
+      }}
+      onPointerUp={(e) => {
+        if (!start) return
+        const dy = e.clientY - start.y
+        const velocity = dy / Math.max(1, e.timeStamp - start.t)
+        const sheet = sheetOf(e.currentTarget)
+        setStart(null)
+        if (dy > 80 || velocity > 0.6) {
+          onDismiss()
+        } else if (sheet) {
+          sheet.style.transition = "transform 220ms var(--ease-out)"
+          sheet.style.transform = ""
+          setTimeout(() => (sheet.style.transition = ""), 240)
+        }
+      }}
+    >
+      <span className="h-1.5 w-10 rounded-full bg-muted-foreground/35" />
+    </div>
   )
 }

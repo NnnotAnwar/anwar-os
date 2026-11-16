@@ -3,6 +3,7 @@
 import { Suspense, type ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { NAV_TAB } from "@/components/motion"
 import { cn } from "@/lib/utils"
 
 type LinkProps = {
@@ -37,6 +38,7 @@ export const NavLink = withActiveState(function NavLinkView({ href, icon, active
   return (
     <Link
       href={href}
+      transitionTypes={NAV_TAB}
       aria-current={active ? "page" : undefined}
       className={cn(
         "text-meta flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-muted-foreground transition-colors duration-150 outline-none hover:bg-track hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 [&_svg]:size-4 [&_svg]:shrink-0",
@@ -54,6 +56,7 @@ export const TabLink = withActiveState(function TabLinkView({ href, icon, active
   return (
     <Link
       href={href}
+      transitionTypes={NAV_TAB}
       aria-current={active ? "page" : undefined}
       className={cn(
         "flex flex-1 flex-col items-center gap-1 py-2 text-[11px] text-muted-foreground outline-none focus-visible:text-foreground [&_svg]:size-5",

@@ -2,7 +2,7 @@
 
 import { useTransition } from "react"
 import Link from "next/link"
-import { LogOut, Monitor, Moon, Settings, Sun } from "@/components/icons"
+import { House, LogOut, Monitor, Moon, Settings, Sun } from "@/components/icons"
 import { useTheme } from "next-themes"
 import {
   DropdownMenu,
@@ -61,6 +61,10 @@ export function UserMenu({ name, email, role, variant }: Props) {
         <DropdownMenuItem render={<Link href="/app/settings" />}>
           <Settings />
           Settings
+        </DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/" />}>
+          <House />
+          Public site
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>

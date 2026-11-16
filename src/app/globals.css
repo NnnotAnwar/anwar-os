@@ -361,3 +361,146 @@
 .ruler-sun {
   animation: ruler-land 360ms cubic-bezier(0.2, 0.7, 0.2, 1) 520ms both;
 }
+
+/*
+ * Motion (Planuj Glass: small and quick, no bounces). Tokens are shared by view
+ * transitions, sheets and micro-interactions. See src/components/motion.
+ */
+:root {
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.3, 0.64, 1);
+  --duration-exit: 140ms;
+  --duration-enter: 200ms;
+  --duration-move: 320ms;
+}
+
+@keyframes vt-fade {
+  from {
+    opacity: 0;
+    filter: blur(2px);
+  }
+}
+@keyframes vt-slide-x {
+  from {
+    translate: var(--vt-offset) 0;
+  }
+}
+@keyframes vt-slide-y {
+  from {
+    translate: 0 var(--vt-offset, 8px);
+  }
+}
+
+/* Deeper / back: a 40px horizontal shift is enough to read direction. */
+::view-transition-old(.nav-forward) {
+  --vt-offset: -40px;
+  animation:
+    var(--duration-exit) ease-in both vt-fade reverse,
+    var(--duration-move) var(--ease-in-out) both vt-slide-x reverse;
+}
+::view-transition-new(.nav-forward) {
+  --vt-offset: 40px;
+  animation:
+    var(--duration-enter) var(--ease-out) var(--duration-exit) both vt-fade,
+    var(--duration-move) var(--ease-in-out) both vt-slide-x;
+}
+::view-transition-old(.nav-back) {
+  --vt-offset: 40px;
+  animation:
+    var(--duration-exit) ease-in both vt-fade reverse,
+    var(--duration-move) var(--ease-in-out) both vt-slide-x reverse;
+}
+::view-transition-new(.nav-back) {
+  --vt-offset: -40px;
+  animation:
+    var(--duration-enter) var(--ease-out) var(--duration-exit) both vt-fade,
+    var(--duration-move) var(--ease-in-out) both vt-slide-x;
+}
+
+/* Sibling sections (tab bar, sidebar): a quick crossfade with a hint of rise. */
+::view-transition-old(.nav-tab) {
+  animation: var(--duration-exit) ease-in both vt-fade reverse;
+}
+::view-transition-new(.nav-tab) {
+  --vt-offset: 6px;
+  animation:
+    var(--duration-enter) var(--ease-out) both vt-fade,
+    var(--duration-move) var(--ease-out) both vt-slide-y;
+}
+
+/* Suspense hand-over: the skeleton dips out, the content rises in. */
+::view-transition-old(.skeleton-out) {
+  animation: var(--duration-exit) ease-in both vt-fade reverse;
+}
+::view-transition-new(.reveal) {
+  --vt-offset: 8px;
+  animation:
+    var(--duration-enter) var(--ease-out) var(--duration-exit) both vt-fade,
+    var(--duration-move) var(--ease-out) both vt-slide-y;
+}
+
+/* Shared elements (card → detail). */
+::view-transition-group(.morph) {
+  animation-duration: 360ms;
+  animation-timing-function: var(--ease-in-out);
+}
+
+/* The app chrome stays still while pages move under it. */
+::view-transition-group(root) {
+  animation-duration: var(--duration-move);
+}
+
+/* Press feedback for cards and tiles (buttons already scale to 98%). */
+.press {
+  transition:
+    transform 160ms var(--ease-out),
+    background-color 150ms ease;
+}
+.press:active {
+  transform: scale(0.97);
+}
+
+/* Bottom sheet (phones): slide up from the edge; drag handle on top. */
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+@media (width < 40rem) {
+  .sheet[data-open] {
+    animation: sheet-in 280ms var(--ease-out) both !important;
+  }
+  .sheet[data-closed] {
+    animation: sheet-out 200ms ease-in both !important;
+  }
+}
+
+/* A completed checkbox / a starred item: one small, satisfying pop. */
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.animate-pop {
+  animation: pop 260ms var(--ease-spring) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

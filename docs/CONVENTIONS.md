@@ -67,6 +67,27 @@ Shared with Planuj Směny. Tokens in `src/app/globals.css`.
 - `cn()` from `@/lib/utils` (it knows the type styles). Check 375 px (no
   horizontal scroll, 44 px touch targets) and dark mode.
 
+## Motion and interaction
+
+One vocabulary, in `src/components/motion` + "Motion" in `globals.css`:
+
+- Wrap each page's content in `<Page>` (in `page.tsx`, not layouts).
+- Links into detail: `transitionTypes={NAV_FORWARD}`; back links:
+  `transitionTypes={NAV_BACK}`; sibling sections: `NAV_TAB` (the sidebar and tab
+  bar already do this).
+- Streamed content: `<Reveal>` around the content, `<SkeletonExit>` around its
+  skeleton. Shared elements across screens: `<Morph name="project-123">` on both.
+- Pressable cards/tiles: add `press`. A completed or starred item: `animate-pop`.
+- Dialogs that act as bottom sheets on phones: add `sheet` (slide up) and a grab
+  handle (see `ServiceSheet` in `src/components/services/service-card.tsx`).
+- Durations/easings: `--duration-exit/enter/move`, `--ease-out`, `--ease-spring`.
+  No bounces on layout, no parallax; `prefers-reduced-motion` disables it all.
+- Keyboard: app-wide `g` + letter and `?` live in the shell
+  (`keyboard-shortcuts.tsx`); module keys only on their own pages, never when the
+  focus is in a field, and listed in the page (a small "Shortcuts" hint).
+- Guidance: highlight the one next step (see `GetStarted`), empty states with one
+  primary action, hints in `text-caption`. The user should never wonder where to tap.
+
 ## Working in parallel (agents)
 
 - Branch from `main` in your own worktree; commit there; never push or merge.

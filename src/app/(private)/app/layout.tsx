@@ -1,8 +1,9 @@
 import { Suspense } from "react"
-import { Plus, Settings, SquaresFour, SunHorizon } from "@/components/icons"
+import { House, Plus, Settings, SquaresFour, SunHorizon } from "@/components/icons"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CommandPalette } from "@/components/shell/command-palette"
 import { CreateMenu } from "@/components/shell/create-menu"
+import { KeyboardShortcuts } from "@/components/shell/keyboard-shortcuts"
 import { NavLink, TabLink } from "@/components/shell/nav-link"
 import { SearchIconTrigger, SearchTrigger } from "@/components/shell/search-trigger"
 import { UserMenu } from "@/components/shell/user-menu"
@@ -36,6 +37,9 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
           </Suspense>
         </nav>
         <div className="mt-auto grid gap-0.5 border-t border-hairline pt-3">
+          <NavLink href="/" icon={<House />}>
+            Public site
+          </NavLink>
           <NavLink href="/app/settings" icon={<Settings />}>
             Settings
           </NavLink>
@@ -73,6 +77,9 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
       </Suspense>
       <Suspense fallback={null}>
         <Palette />
+      </Suspense>
+      <Suspense fallback={null}>
+        <Shortcuts />
       </Suspense>
     </div>
   )
@@ -150,4 +157,21 @@ async function Palette() {
   ]
   const creates = mods.flatMap((m) => (m.create ? [{ ...m.create, icon: <Plus /> }] : []))
   return <CommandPalette nav={nav} creates={creates} />
+}
+
+/** `g` + letter: Today, Services, then each module by its first free letter. */
+async function Shortcuts() {
+  const { mods } = await visibleModules()
+  const used = new Set(["t", "s"])
+  const targets = [
+    { key: "t", label: "Today", href: "/app" },
+    { key: "s", label: "Services", href: "/app/services" },
+  ]
+  for (const m of mods) {
+    const key = [...m.name.toLowerCase()].find((c) => /[a-z]/.test(c) && !used.has(c))
+    if (!key) continue
+    used.add(key)
+    targets.push({ key, label: m.name, href: m.nav[0]!.href })
+  }
+  return <KeyboardShortcuts targets={targets} />
 }
