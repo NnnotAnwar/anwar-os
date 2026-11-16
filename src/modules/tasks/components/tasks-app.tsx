@@ -307,7 +307,7 @@ export function TasksApp({
                         today={today}
                         locale={locale}
                         listName={view === "lists" ? null : listName(task.listId)}
-                        showDue={view === "lists" || view === "done" || (view === "today" && task.dueDate !== today)}
+                        showDue={view === "lists" || (view === "today" && task.dueDate !== today)}
                         focused={focusedId === task.id}
                         editing={renamingId === task.id}
                         onFocusRow={() => setFocusedId(task.id)}
