@@ -81,7 +81,6 @@ export const ACCEPT = [...Object.keys(TYPES).map((ext) => `.${ext}`), ...ALLOWED
 /** Strips paths and control characters; never returns an empty name. */
 export function cleanFileName(name: string, fallback = "Untitled") {
   const base = name.split(/[/\\]/).pop() ?? ""
-  // eslint-disable-next-line no-control-regex
   const cleaned = base.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim()
   if (!cleaned || cleaned === "." || cleaned === "..") return fallback
   if (cleaned.length <= 255) return cleaned

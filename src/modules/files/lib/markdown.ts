@@ -12,7 +12,6 @@ const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:/i
 export function isSafeUrl(url: string) {
   // Browsers ignore control characters and whitespace inside a scheme
   // ("java\tscript:"), so judge the URL with them removed.
-  // eslint-disable-next-line no-control-regex
   const compact = url.replace(/[\u0000- \u007f]/g, "")
   if (SAFE_URL.test(compact)) return true
   if (compact.startsWith("//")) return false
@@ -27,7 +26,7 @@ const defaultLinkOpen =
 
 md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   const token = tokens[idx]!
-  const href = token.attrGet("href") ?? ""
+  const href = String(token.attrGet("href") ?? "")
   if (/^https?:/i.test(href)) {
     token.attrSet("target", "_blank")
     token.attrSet("rel", "noopener noreferrer nofollow")
