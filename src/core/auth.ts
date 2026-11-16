@@ -1,4 +1,5 @@
 import "server-only"
+import { AsyncLocalStorage } from "node:async_hooks"
 import { cache } from "react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
@@ -50,8 +51,25 @@ export async function requireViewer(): Promise<Viewer> {
   return viewer
 }
 
+// Set only by actAs(): server-to-server callers that authenticated some other
+// way (e.g. the HMAC-signed osbot API) and act for one known user.
+const actingAs = new AsyncLocalStorage<string>()
+
+/**
+ * Runs `fn` so that every asViewer() inside it (module actions included) acts
+ * as `userId` instead of reading the session cookie. Only for trusted
+ * server-side entry points that have already authenticated the caller; RLS
+ * still scopes every query to that user.
+ */
+export function actAs<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+  if (!userId) throw new Error("actAs needs a user id")
+  return actingAs.run(userId, fn)
+}
+
 /** Runs database work as the signed-in viewer, so RLS scopes every query to them. */
 export async function asViewer<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+  const actor = actingAs.getStore()
+  if (actor) return withViewer(actor, fn)
   const viewer = await requireViewer()
   return withViewer(viewer.id, fn)
 }
