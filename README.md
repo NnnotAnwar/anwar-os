@@ -6,7 +6,7 @@ products on mock data.
 
 Built with Next.js 16 (App Router, Cache Components), PostgreSQL 17 with
 row-level security (Drizzle ORM), Better Auth, and Tailwind CSS 4 with shadcn/ui.
-Self-hosted on a Hetzner server with Docker Compose.
+Self-hosted on a Hetzner server (Docker Compose + Caddy); see [docs/DEPLOY.md](docs/DEPLOY.md).
 
 **Status:** phases 0–1 done (module system, Notes, own Postgres + Better Auth with
 optional TOTP two-factor). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and
