@@ -331,7 +331,7 @@ function EditorForm({
                 onClick={() => set("reminders", on ? f.reminders.filter((x) => x !== m) : [...f.reminders, m].sort((a, b) => a - b))}
                 className={cn(
                   "text-small h-7 rounded-full px-2.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50",
-                  on ? "bg-secondary text-secondary-foreground" : "bg-field text-muted-foreground hover:text-foreground",
+                  on ? "bg-primary text-primary-foreground" : "bg-field text-muted-foreground hover:text-foreground",
                 )}
               >
                 {reminderLabel(m)}

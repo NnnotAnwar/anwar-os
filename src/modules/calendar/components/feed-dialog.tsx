@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
-import { Copy, RefreshCw, Rss } from "@/components/icons"
+import { Copy, Refresh, Rss } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -84,7 +84,7 @@ export function FeedDialog({ initial }: { initial: FeedInfo }) {
             ) : (
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" onClick={() => setConfirmRotate(true)}>
-                  <RefreshCw />
+                  <Refresh />
                   New address
                 </Button>
                 <Button type="button" variant="ghost" onClick={turnOff} disabled={pending} className="text-destructive">

@@ -1,6 +1,9 @@
 import { formatIsoDate, type LocalDate } from "./zoned"
 
 export const views = ["month", "week", "agenda"] as const
+
+/** How far ahead the agenda looks. */
+export const AGENDA_DAYS = 60
 export type View = (typeof views)[number]
 
 /** /app/calendar?view=month&date=2026-11-16[&event=<id>|&new=1] */

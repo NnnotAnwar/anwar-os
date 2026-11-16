@@ -43,10 +43,18 @@ export function MonthView({
   const grid = useRef<HTMLDivElement>(null)
   const selectedIso = formatIsoDate(selected)
 
+  // After a keyboard move, focus follows the selection — including after the
+  // grid for another month arrives from the server.
+  const anchorIso = formatIsoDate(anchor)
+  const handled = useRef(0)
   useEffect(() => {
-    if (focusKey === 0) return
-    grid.current?.querySelector<HTMLElement>(`[data-date="${selectedIso}"]`)?.focus()
-  }, [focusKey, selectedIso])
+    if (focusKey === handled.current) return
+    const cell = grid.current?.querySelector<HTMLElement>(`[data-date="${selectedIso}"]`)
+    if (!cell) return
+    cell.focus()
+    // Until the server sends the selected month, the cell may be replaced.
+    if (selected.month === anchor.month) handled.current = focusKey
+  }, [focusKey, selectedIso, anchorIso, selected.month, anchor.month])
 
   function onKeyDown(e: KeyboardEvent) {
     if (e.metaKey || e.ctrlKey || e.altKey) return
@@ -122,6 +130,7 @@ export function MonthView({
                         <button
                           type="button"
                           tabIndex={-1}
+                          aria-label={`Open ${o.title}`}
                           onClick={() => onOpen(o.eventId)}
                           className={cn(
                             "text-caption pointer-events-auto flex w-full items-center gap-1 truncate rounded-md px-1 py-0.5 text-left hover:bg-white/60 dark:hover:bg-white/10",

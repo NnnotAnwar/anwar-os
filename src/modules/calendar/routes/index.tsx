@@ -4,9 +4,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shell/page-header"
 import { requireViewer } from "@/core/auth"
 import { actions } from "../actions"
-import { AGENDA_DAYS, CalendarApp } from "../components/calendar-app"
+import { CalendarApp } from "../components/calendar-app"
 import { monthGrid, startOfWeek } from "../lib/days"
-import { views, type View } from "../lib/links"
+import { AGENDA_DAYS, views, type View } from "../lib/links"
 import { addDays, formatIsoDate, parseIsoDate, startOfLocalDay, wallClock, type LocalDate } from "../lib/zoned"
 
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined)

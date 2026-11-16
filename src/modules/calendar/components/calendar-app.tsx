@@ -10,7 +10,7 @@ import { removeWithUndo } from "@/lib/undo-toast"
 import { cn } from "@/lib/utils"
 import { addMonths, groupByDay, sameDay, startOfWeek } from "../lib/days"
 import { dateLocale, formatDayMonth, formatMonthYear, formatWeekdayLong } from "../lib/format"
-import { calendarHref, type View } from "../lib/links"
+import { AGENDA_DAYS, calendarHref, type View } from "../lib/links"
 import { parseQuickAdd } from "../lib/quick-add"
 import { addDays, formatIsoDate, formatTime, parseIsoDate, utcMidnight, type LocalDate } from "../lib/zoned"
 import type { FeedInfo, Occurrence } from "../schema"
@@ -21,8 +21,6 @@ import { EventRow } from "./event-row"
 import { FeedDialog } from "./feed-dialog"
 import { MonthView } from "./month-view"
 import { WeekView } from "./week-view"
-
-export const AGENDA_DAYS = 60
 
 type Props = {
   view: View
@@ -165,8 +163,7 @@ export function CalendarApp(props: Props) {
       setQuickError(null)
       const when = `${formatDayMonth(utcMidnight(draft.date), locale, "UTC")}${draft.time ? ` at ${formatTime(draft.time.start)}` : ""}`
       toast.success(`Added “${draft.title}” on ${when}`)
-      if (view === "month" && draft.date.month !== anchor.month) go({ date: draft.date })
-      else setSelected(draft.date)
+      // The selection stays put, so several quick adds land on the same day.
     })
   }
 
@@ -201,7 +198,7 @@ export function CalendarApp(props: Props) {
             Today
           </Link>
         </div>
-        <h2 className="text-card-title min-w-0 flex-1 truncate tabular-nums" aria-live="polite">
+        <h2 className="text-card-title min-w-0 flex-1 truncate tabular-nums max-sm:order-first max-sm:basis-full" aria-live="polite">
           {title}
         </h2>
         <nav aria-label="View" className="segmented">

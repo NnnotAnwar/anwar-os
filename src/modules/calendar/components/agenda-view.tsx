@@ -69,7 +69,7 @@ export function AgendaView({
               {insertAt === events.length && (
                 <li>
                   <NowLine />
-                  {events.length === 0 && <p className="text-meta px-2 py-2 text-muted-foreground">Nothing else today.</p>}
+                  {events.length === 0 && <p className="text-meta px-2 py-2 text-muted-foreground">Nothing planned today.</p>}
                 </li>
               )}
             </ul>
