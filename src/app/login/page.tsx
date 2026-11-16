@@ -1,5 +1,7 @@
 import { Suspense } from "react"
 import Link from "next/link"
+import { redirect } from "next/navigation"
+import { getViewer } from "@/core/auth"
 import { LoginForm } from "./login-form"
 
 export const metadata = { title: "Sign in" }
@@ -30,5 +32,7 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
 
 async function LoginFormWithNext({ searchParams }: Pick<PageProps<"/login">, "searchParams">) {
   const { next } = await searchParams
+  // Already signed in (a valid session, not just a cookie): go straight to the app.
+  if (await getViewer()) redirect(typeof next === "string" && next.startsWith("/app") ? next : "/app")
   return <LoginForm next={typeof next === "string" ? next : undefined} />
 }

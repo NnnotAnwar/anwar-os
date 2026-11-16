@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { Wordmark } from "@/components/shell/wordmark"
+import { AccountLink } from "@/components/site/account-link"
 import { SiteFooter } from "@/components/site/site-footer"
 import { SiteNav } from "@/components/site/site-nav"
 
@@ -21,10 +22,11 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
         Skip to content
       </a>
       <header className="glass top-3 z-30 mx-3 mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl px-2 py-2 sm:px-3 md:sticky md:mx-6 md:px-4 print:hidden">
-        <div className="flex h-8 items-center px-1">
+        <div className="order-1 flex h-8 items-center px-1">
           <Wordmark href="/" />
         </div>
-        <SiteNav className="-mx-1 md:ml-auto" />
+        <AccountLink className="order-2 ml-auto md:order-3 md:ml-0" />
+        <SiteNav className="order-3 -mx-1 basis-full md:order-2 md:ml-auto md:basis-auto" />
       </header>
       <main id="main" className="mx-auto w-full max-w-5xl flex-1 px-3 pt-6 pb-12 md:px-6 md:pt-10 print:p-0">
         {children}
