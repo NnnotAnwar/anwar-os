@@ -1,0 +1,39 @@
+name: Infra
+
+# Static checks for the server files: shellcheck for every script, compose and
+# Caddyfile validation. Cheap, and runs only when infra changes.
+
+on:
+  pull_request:
+    paths: ["infra/**", "Dockerfile", ".dockerignore", "db/init/**", ".github/workflows/infra.yml"]
+  push:
+    branches: [main]
+    paths: ["infra/**", "Dockerfile", ".dockerignore", ".github/workflows/infra.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: shellcheck, compose, Caddyfile
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: shellcheck
+        run: shellcheck --version && shellcheck -x infra/*.sh infra/backup/*.sh
+
+      - name: compose config
+        run: |
+          cp infra/.env.example infra/.env
+          sed -i -e 's/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=ci/' \
+                 -e 's/^OS_APP_PASSWORD=$/OS_APP_PASSWORD=ci/' \
+                 -e 's/^BETTER_AUTH_SECRET=$/BETTER_AUTH_SECRET=ci/' infra/.env
+          docker compose -f infra/compose.prod.yml --env-file infra/.env config --quiet
+          COMPOSE_PROFILES=bots docker compose -f infra/compose.prod.yml --env-file infra/.env config --quiet
+
+      - name: Caddyfile
+        run: |
+          docker run --rm -e DOMAIN=anwarnnnot.com -e ACME_EMAIL=ci@example.com \
+            -v "$PWD/infra/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2.10-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
