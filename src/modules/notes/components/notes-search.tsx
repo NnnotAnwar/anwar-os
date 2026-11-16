@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition, type Ref } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { Search, X } from "@/components/icons"
 import { cn } from "@/lib/utils"
 
 /** Filters the list through `?q=`, so a search survives reloads and can be linked. */
-export function NotesSearch({ initialQuery }: { initialQuery: string }) {
+export function NotesSearch({ initialQuery, inputRef }: { initialQuery: string; inputRef?: Ref<HTMLInputElement> }) {
   const router = useRouter()
   const pathname = usePathname()
   const [value, setValue] = useState(initialQuery)
@@ -34,6 +34,7 @@ export function NotesSearch({ initialQuery }: { initialQuery: string }) {
         )}
       />
       <input
+        ref={inputRef}
         type="search"
         value={value}
         onChange={(e) => update(e.target.value)}

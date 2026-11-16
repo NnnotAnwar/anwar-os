@@ -1,22 +1,39 @@
 import { Suspense } from "react"
 import Link from "next/link"
-import { NotebookPen, Plus } from "@/components/icons"
+import { NotePencilDuo, Plus } from "@/components/icons"
+import { Page, Reveal, SkeletonExit } from "@/components/motion"
+import { EmptyState } from "@/components/list/shortcut-hint"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shell/page-header"
 import { requireViewer } from "@/core/auth"
 import { actions } from "../actions"
-import { NoteList } from "../components/note-list"
-import { NotesSearch } from "../components/notes-search"
+import { NotesBrowser } from "../components/notes-browser"
 
 export default function NotesPage({ searchParams }: PageProps<"/app/notes">) {
   return (
-    <div className="mx-auto grid w-full max-w-3xl gap-6">
-      <PageHeader title="Notes" />
-      <Suspense fallback={<NotesSkeleton />}>
-        <NotesBody searchParams={searchParams} />
-      </Suspense>
-    </div>
+    <Page>
+      <div className="mx-auto grid w-full max-w-3xl gap-6">
+        <PageHeader
+          title="Notes"
+          actions={
+            <Link href="/app/notes/new" className={buttonVariants({ size: "lg" })}>
+              <Plus />
+              New note
+            </Link>
+          }
+        />
+        <Suspense
+          fallback={
+            <SkeletonExit>
+              <NotesSkeleton />
+            </SkeletonExit>
+          }
+        >
+          <NotesBody searchParams={searchParams} />
+        </Suspense>
+      </div>
+    </Page>
   )
 }
 
@@ -25,72 +42,50 @@ async function NotesBody({ searchParams }: Pick<PageProps<"/app/notes">, "search
   const query = typeof q === "string" ? q.trim().slice(0, 100) : ""
   const viewer = await requireViewer()
   const notes = await actions.list.handler({ limit: 200, query: query || undefined })
-  const now = new Date()
 
-  const pinned = query ? [] : notes.filter((n) => n.pinned)
-  const rest = query ? notes : notes.filter((n) => !n.pinned)
-
-  if (!query && notes.length === 0) return <EmptyState />
+  if (!query && notes.length === 0) {
+    return (
+      <Reveal>
+        <EmptyState
+          icon={NotePencilDuo}
+          title="Your notes will live here"
+          action={
+            <Link href="/app/notes/new" className={buttonVariants({ size: "lg" })}>
+              <Plus />
+              Write the first note
+            </Link>
+          }
+        >
+          Ideas, meeting notes, shopping lists — pin the important ones and they show up on Today.
+        </EmptyState>
+      </Reveal>
+    )
+  }
 
   return (
-    <div className="grid gap-6">
-      <NotesSearch initialQuery={query} />
-      {query && (
-        <p className="font-mono text-xs text-muted-foreground" role="status">
-          {notes.length === 0
-            ? `Nothing matches “${query}”. Try fewer words.`
-            : `${notes.length} ${notes.length === 1 ? "note matches" : "notes match"} “${query}”`}
-        </p>
-      )}
-      {pinned.length > 0 && (
-        <section className="grid gap-2" aria-labelledby="pinned-heading">
-          <h2 id="pinned-heading" className="font-mono text-[11px] tracking-wider text-muted-foreground uppercase">
-            Pinned
-          </h2>
-          <NoteList notes={pinned} locale={viewer.locale} now={now} />
-        </section>
-      )}
-      {rest.length > 0 && (
-        <section className="grid gap-2" aria-labelledby="all-heading">
-          {pinned.length > 0 && (
-            <h2 id="all-heading" className="font-mono text-[11px] tracking-wider text-muted-foreground uppercase">
-              Everything else · {rest.length}
-            </h2>
-          )}
-          <NoteList notes={rest} locale={viewer.locale} now={now} query={query || undefined} />
-        </section>
-      )}
-    </div>
+    <Reveal>
+      <NotesBrowser notes={notes} query={query} locale={viewer.locale} now={new Date().toISOString()} />
+    </Reveal>
   )
 }
 
-function EmptyState() {
-  return (
-    <div className="grid justify-items-start gap-4 rounded-xl border border-dashed p-8">
-      <NotebookPen className="size-6 text-text-accent" aria-hidden />
-      <div className="grid gap-1">
-        <p className="font-medium">Your notes will live here</p>
-        <p className="max-w-prose text-sm text-muted-foreground">
-          Ideas, meeting notes, things to remember. Pin the important ones and they show up on Today.
-        </p>
-      </div>
-      <Link href="/app/notes/new" className={buttonVariants()}>
-        <Plus />
-        Write the first note
-      </Link>
-    </div>
-  )
-}
-
+/** Mirrors the loaded list: filter row, a section label, two-line rows. */
 function NotesSkeleton() {
   return (
-    <div className="grid gap-6" aria-hidden>
-      <Skeleton className="h-10 w-full" />
-      <div className="grid gap-px overflow-hidden rounded-xl border">
-        {Array.from({ length: 5 }, (_, i) => (
-          <div key={i} className="grid gap-2 bg-card px-4 py-3.5">
-            <Skeleton className="h-4 w-1/3" />
-            <Skeleton className="h-3.5 w-2/3" />
+    <div className="grid gap-4" aria-hidden>
+      <div className="flex gap-2">
+        <Skeleton className="h-9 flex-1 rounded-lg" />
+        <Skeleton className="h-9 w-16 rounded-lg" />
+      </div>
+      <Skeleton className="h-3 w-20" />
+      <div className="glass grid divide-y divide-hairline overflow-hidden rounded-xl">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className="flex min-h-14 items-center gap-3 px-4 py-2.5">
+            <div className="grid flex-1 gap-1.5">
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-3.5 w-2/3" />
+            </div>
+            <Skeleton className="h-3 w-10" />
           </div>
         ))}
       </div>

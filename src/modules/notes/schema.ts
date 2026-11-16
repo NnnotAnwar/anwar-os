@@ -1,3 +1,4 @@
+import { markdownToText } from "@/lib/markdown"
 import { z } from "zod"
 
 export const noteFields = {
@@ -16,6 +17,9 @@ export const setPinnedInput = z.object({ id: z.uuid(), pinned: z.boolean() })
 
 export const noteIdInput = z.object({ id: z.uuid() })
 
+export const noteIdsInput = z.object({ ids: z.array(z.uuid()).min(1).max(200) })
+export const pinNotesInput = z.object({ ids: z.array(z.uuid()).min(1).max(200), pinned: z.boolean() })
+
 export const listNotesInput = z.object({
   limit: z.number().int().min(1).max(200).default(100),
   query: z.string().trim().max(100).optional(),
@@ -32,7 +36,8 @@ export type Note = {
 
 /** A one-line preview of the body, centered on `query` when it matches. */
 export function excerpt(body: string, query?: string, length = 120) {
-  const flat = body.replace(/\s+/g, " ").trim()
+  // Checklist boxes and markdown marks are noise in a one-line preview.
+  const flat = markdownToText(body.replace(/^\s*[-*+]\s+\[[ xX]\]\s*/gm, "· ")).replace(/^· /, "")
   if (!flat) return ""
   const at = query ? flat.toLowerCase().indexOf(query.toLowerCase()) : -1
   const start = at > 40 ? at - 40 : 0
