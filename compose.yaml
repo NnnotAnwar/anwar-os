@@ -1,5 +1,7 @@
 # Local development services. Production lives in infra/compose.prod.yml.
 #   docker compose up -d db      start Postgres on localhost:55432
+#   docker compose up -d s3      S3-compatible storage on localhost:55434 (files);
+#                                s3-init creates the bucket and its CORS rule once
 services:
   db:
     image: postgres:17-alpine
@@ -20,5 +22,44 @@ services:
       timeout: 3s
       retries: 20
 
+  # S3-compatible object storage for the files module (production uses Hetzner
+  # Object Storage). RustFS stands in for MinIO, whose images are no longer
+  # published on Docker Hub; the app only speaks the S3 API.
+  s3:
+    image: rustfs/rustfs:1.0.5
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY_ID:-devaccesskey}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_ACCESS_KEY:-devsecretkey123}
+      RUSTFS_CONSOLE_ENABLE: "true"
+    ports:
+      - "127.0.0.1:55434:9000"
+      - "127.0.0.1:55435:9001"
+    volumes:
+      - s3-data:/data
+
+  # One-shot: bucket + CORS for presigned browser uploads (same as `pnpm s3:setup`).
+  s3-init:
+    image: amazon/aws-cli:2.40.3
+    depends_on:
+      - s3
+    restart: "no"
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-devaccesskey}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-devsecretkey123}
+      AWS_DEFAULT_REGION: us-east-1
+      BUCKET: ${S3_BUCKET:-anwar-os-dev}
+      ORIGIN: ${BETTER_AUTH_URL:-http://localhost:3000}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        api="aws --endpoint-url http://s3:9000 s3api"
+        for i in $$(seq 1 30); do $$api list-buckets >/dev/null 2>&1 && break; sleep 1; done
+        $$api head-bucket --bucket "$$BUCKET" 2>/dev/null || $$api create-bucket --bucket "$$BUCKET"
+        $$api put-bucket-cors --bucket "$$BUCKET" --cors-configuration "{\"CORSRules\":[{\"AllowedOrigins\":[\"$$ORIGIN\"],\"AllowedMethods\":[\"PUT\",\"GET\",\"HEAD\"],\"AllowedHeaders\":[\"content-type\"],\"ExposeHeaders\":[\"etag\"],\"MaxAgeSeconds\":3600}]}"
+        echo "Bucket $$BUCKET ready for $$ORIGIN"
+
 volumes:
   db-data:
+  s3-data:
