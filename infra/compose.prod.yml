@@ -1,0 +1,236 @@
+# anwar.os production stack. Lives on the server at /opt/anwar-os/repo/infra/
+# (a checkout of this repo) next to a private .env — see infra/.env.example and
+# docs/DEPLOY.md. Run every command from this directory:
+#
+#   docker compose -f compose.prod.yml up -d          first start (migrates, then web)
+#   ./deploy.sh <git-sha>                             normal deploy / rollback
+#
+# Networks
+#   edge      caddy <-> web. Not internal: Caddy needs egress for ACME, web for
+#             outbound APIs (object storage, Telegram, mail).
+#   internal  web/migrate/bots <-> db. `internal: true` = no route to the
+#             internet; Postgres is never published on a host port.
+#   egress    outbound-only network for bots (Telegram API). Nothing listens on it.
+#
+# Profiles
+#   bots      the Telegram bots. Off until configured: set COMPOSE_PROFILES=bots
+#             in .env (docs/DEPLOY.md, "Expense bot").
+#
+# Labels (read by ops-agent in phase 5, ARCHITECTURE.md §8)
+#   os.managed=true     shows up in the control panel (status, logs, restart)
+#   os.protected=true   visible, but the panel refuses stop/deploy for it
+#   os.role=<role>      grouping for the panel: edge | app | data | bot
+#   os.kind, os.name    set by bot images too (os.kind=bot, os.name=expenses)
+# One-shot jobs (migrate) carry os.managed=false so the panel ignores them.
+
+name: anwar-os
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    <<: *hardening
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # certificates + ACME account: keep across rebuilds
+      - caddy_config:/config
+    networks:
+      - edge
+    depends_on:
+      - web
+    healthcheck:
+      # Admin API listens on localhost:2019 inside the container only.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: *logging
+    labels:
+      os.managed: "true"
+      os.protected: "true"
+      os.role: edge
+
+  web:
+    image: ghcr.io/nnnotanwar/anwar-os-web:${WEB_TAG:-latest}
+    restart: unless-stopped
+    init: true # reap zombies, forward SIGTERM so Next drains in-flight requests
+    stop_grace_period: 30s
+    <<: *hardening
+    cap_drop:
+      - ALL
+    environment:
+      NODE_ENV: production
+      # Passwords are hex (openssl rand -hex 32), so they're URL-safe here.
+      DATABASE_URL: postgres://os_app:${OS_APP_PASSWORD:?set OS_APP_PASSWORD in .env}@db:5432/anwar_os
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
+      BETTER_AUTH_URL: https://${DOMAIN:?set DOMAIN in .env}
+      # Hetzner Object Storage for the files module (phase 4). Unused until then.
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+    expose:
+      - "3000"
+    networks:
+      - edge
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # Same probe as the image HEALTHCHECK (200 only when Postgres answers),
+      # with fast polling while starting so `up --wait` (the deploy gate)
+      # returns quickly.
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
+    logging: *logging
+    labels:
+      os.managed: "true"
+      os.protected: "true"
+      os.role: app
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    <<: *hardening
+    shm_size: 256mb
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: anwar_os
+      # Read by db/init/01-roles.sh on first start (empty data dir) to create the
+      # os_app login role (no superuser, no BYPASSRLS).
+      OS_APP_PASSWORD: ${OS_APP_PASSWORD:?set OS_APP_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Init scripts only run when the data directory is empty (first start or
+      # a rebuilt server before restore).
+      - ../db/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d anwar_os"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+    logging: *logging
+    labels:
+      os.managed: "true"
+      os.protected: "true"
+      os.role: data
+
+  # One-shot: applies pending Drizzle migrations (db/migrations) as `postgres`,
+  # then exits. Runs before web on `up` (web waits for it to complete), and
+  # explicitly via `docker compose run --rm migrate` in deploy.sh, so a failed
+  # migration stops the deploy before the new web container replaces the old.
+  # Same image runs `pnpm owner:create` (docs/DEPLOY.md, "First owner").
+  migrate:
+    image: ghcr.io/nnnotanwar/anwar-os-migrate:${WEB_TAG:-latest}
+    restart: "no"
+    <<: *hardening
+    environment:
+      MIGRATION_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/anwar_os
+    networks:
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+    logging: *logging
+    labels:
+      os.managed: "false"
+
+  # Expense bot (bots/expenses/README.md). Long polling, nothing exposed: it
+  # reaches Postgres on `internal` and Telegram on `egress`. Its role + schema
+  # come from bots/expenses/db/bootstrap.sql, which deploy.sh re-applies
+  # (idempotent) before starting it; the bot migrates its own tables.
+  bot-expenses:
+    image: ghcr.io/nnnotanwar/anwar-os-bot-expenses:${BOT_EXPENSES_TAG:-latest}
+    profiles: [bots]
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp # heartbeat file read by the image HEALTHCHECK
+    cap_drop:
+      - ALL
+    <<: *hardening
+    mem_limit: 128m
+    stop_grace_period: 15s
+    environment:
+      # Not `:?` on purpose: compose interpolates every service even when its
+      # profile is off, and the stack must start before the bot is configured.
+      BOT_TOKEN: ${BOT_EXPENSES_TOKEN:-}
+      DATABASE_URL: postgresql://bot_expenses:${BOT_EXPENSES_DB_PASSWORD:-}@db:5432/anwar_os
+    networks:
+      - internal
+      - egress
+    depends_on:
+      db:
+        condition: service_healthy
+    logging: *logging
+    labels:
+      os.managed: "true"
+      os.kind: bot
+      os.name: expenses
+      os.role: bot
+
+  # Phase 5 (ARCHITECTURE.md §8): the only container with the Docker socket.
+  # Reachable from web only (HMAC-signed requests), never published.
+  # ops-agent:
+  #   image: ghcr.io/nnnotanwar/anwar-os-ops-agent:${OPS_AGENT_TAG:-latest}
+  #   restart: unless-stopped
+  #   <<: *hardening
+  #   environment:
+  #     OPS_AGENT_HMAC_SECRET: ${OPS_AGENT_HMAC_SECRET:?set OPS_AGENT_HMAC_SECRET in .env}
+  #     COMPOSE_PROJECT_NAME: anwar-os
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #     - ./:/srv/infra:ro # to run `docker compose pull/up` for one service
+  #   networks:
+  #     - internal
+  #   logging: *logging
+  #   labels:
+  #     os.managed: "true"
+  #     os.protected: "true"
+  #     os.role: edge
+
+networks:
+  edge: {}
+  internal:
+    internal: true
+  egress: {}
+
+volumes:
+  pgdata: {}
+  caddy_data: {}
+  caddy_config: {}
