@@ -97,6 +97,9 @@ One vocabulary, in `src/components/motion` + "Motion" in `globals.css`:
   (`-v "$PWD/db/init:/docker-entrypoint-initdb.d:ro" postgres:17-alpine`), your
   own dev server port, and `BETTER_AUTH_URL=http://127.0.0.1:<port>` (serve on
   127.0.0.1) so auth cookies don't collide with other sessions on localhost.
+  Passkeys refuse IP addresses: to test them use
+  `BETTER_AUTH_URL=http://<name>.localhost:<port>` (still served on 127.0.0.1;
+  cookies stay separate) and open that URL.
 - Browser pane: open your own tab; never navigate a tab you didn't open.
 - Before reporting: rebase on `main`; `pnpm lint`, `pnpm typecheck`,
   `pnpm test`, `pnpm test:db`, `pnpm build` pass.

@@ -188,9 +188,41 @@ docker compose -f compose.prod.yml run --rm migrate pnpm owner:create you@exampl
 # prompts for a password (min 12 chars)
 ```
 
-Sign in at `https://anwarnnnot.com/login`, then **Settings → enable two-factor
-authentication** and store the backup codes. Phase 2 is done when `/app` works with
+Sign in at `https://anwarnnnot.com/login`, then in **Settings → Sign-in methods**:
+set up two-factor (store the backup codes), and add a passkey on each device you
+use (a passkey sign-in counts as two factors, so it skips the code). Optionally
+connect Google (see "Google sign-in" below). Phase 2 is done when `/app` works with
 2FA and a backup has been restored (step 11).
+
+### Google sign-in (optional)
+
+Google can sign the owner in only after the Google account was connected in
+Settings while signed in; it never creates a user and never matches accounts by
+email. With 2FA on, the code is still asked after Google. Leave
+`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` empty to hide Google entirely.
+
+In [Google Cloud Console](https://console.cloud.google.com/):
+
+1. Create (or pick) a project, e.g. `anwar-os`.
+2. **APIs & Services → OAuth consent screen** (Google Auth Platform → Branding):
+   app name `anwar.os`, support email, authorized domain `anwarnnnot.com`,
+   developer contact. **Audience:** External. Scopes: only `openid`, `email`,
+   `profile` (the defaults; no verification needed). While the app is in
+   *Testing*, add your Google address under **Test users**; or press
+   **Publish app** (basic scopes publish without review).
+3. **Credentials → Create credentials → OAuth client ID → Web application**,
+   name `anwar.os web`:
+   - Authorized JavaScript origins: `https://anwarnnnot.com`
+   - Authorized redirect URIs: `https://anwarnnnot.com/api/auth/callback/google`
+   - (for local testing, a second client with `http://localhost:3000` and
+     `http://localhost:3000/api/auth/callback/google`)
+4. Copy the client ID and secret into `infra/.env` as `GOOGLE_CLIENT_ID` and
+   `GOOGLE_CLIENT_SECRET`, save them in your password manager, redeploy.
+5. Sign in, **Settings → Sign-in methods → Google → Connect** (needs a sign-in
+   from the last hour; otherwise "Confirm it's you" first). The Google account's
+   email must be verified; it may differ from the owner email.
+
+To revoke: Settings → Disconnect, and/or delete the client in Cloud Console.
 
 ## 9. Automatic deploys from GitHub
 
