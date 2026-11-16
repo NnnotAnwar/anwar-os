@@ -17,10 +17,9 @@ export function MfaForm({ next }: { next?: string }) {
         <Input
           id="code"
           name="code"
-          inputMode="numeric"
           autoComplete="one-time-code"
-          pattern="\d{6}"
-          maxLength={6}
+          spellCheck={false}
+          maxLength={32}
           required
           autoFocus
         />

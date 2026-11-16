@@ -1,322 +1,292 @@
-# anwarnnnot — Architecture
+# anwar.os — Architecture
 
-Anwar's personal operating system and public portfolio: one place for his data,
-tools and apps, plus a public showcase where visitors can try his products on mock data.
+Anwar's personal operating system and public face: CV, projects, ideas and useful
+links for visitors; notes, files, calendar, tools and a control panel for his
+Telegram bots and projects for himself. Everything runs on his own Hetzner server
+under his own domain.
 
-_Status: design draft · 2026-10-30 · nothing built yet._
+_v2 · 2026-11-16. Changed from v1: self-hosted on Hetzner with plain Postgres and
+Better Auth instead of Supabase + Vercel; new modules (CV, ideas, files, feedback,
+calendar, tools, bots, ops control panel); roadmap rewritten._
 
 ---
 
 ## 1. Principles
 
-1. **Modules, not features.** Every capability (notes, budget, links…) is a module
-   with one folder, one manifest and its own tables. The core never reaches into a
-   module's internals; it only reads what the manifest declares.
-2. **Multi-user from row one.** Every table has `owner_id` and RLS. The owner, a
-   demo visitor and a future registered user all go through the same code path;
-   only their role and data differ.
-3. **Actions are the API.** Every write or query a module offers is a typed
-   *action* (a zod schema plus a handler). The UI, server actions, quick-capture,
-   the AI assistant and the MCP server all call the same actions, so later
-   features become wiring rather than rewrites.
-4. **Boring, managed infra.** Next.js on Vercel, Postgres/Auth/Storage on Supabase,
-   with no extra services until one is clearly needed.
-5. **Don't absorb mature apps.** Apps with their own users and lifecycle (Shift
-   Planner) stay separate and integrate through narrow contracts (§8).
+1. **Own the stack.** One server, one domain, Docker Compose. No managed platform
+   is required to run the site; external services are optional add-ons.
+2. **Modules, not features.** Every capability is a folder in `src/modules/<id>`
+   with one manifest. The shell (nav, ⌘K, Today widgets, search) reads manifests and
+   never reaches into module internals. *(Implemented in phase 0.)*
+3. **Multi-user from row one, enforced by Postgres.** Every table has `owner_id` and
+   row-level security. The app connects as a role that cannot bypass RLS, so a bug in
+   a query can't leak another user's rows.
+4. **Actions are the API.** Module operations are typed actions (zod in, result out,
+   LLM-readable description). UI, Telegram capture, the AI assistant and MCP all call
+   the same actions.
+5. **The internet-facing app never holds root.** Container control goes through a
+   small internal agent with a whitelist, never by mounting the Docker socket into
+   the web app.
+6. **Boring and recoverable.** Nightly encrypted backups that are actually restored
+   in a test, infrastructure as files in the repo, one command to rebuild the server.
 
 ---
 
 ## 2. Stack
 
-| Concern | Choice |
-|---|---|
-| Framework | Next.js (App Router, latest stable), TypeScript strict, React Server Components |
-| UI | Tailwind CSS v4 + shadcn/ui, lucide icons, ⌘K command palette (`cmdk`) |
-| Data | Supabase Postgres + RLS, `@supabase/ssr` for cookie-based auth |
-| Validation | zod (shared by actions, forms, AI tools and MCP tools) |
-| Client state | Server Components first; TanStack Query only where live client state is needed |
-| Tests | Vitest (units, action handlers), Playwright (zones, auth, demo flow), pgTAP for RLS |
-| Tooling | pnpm, ESLint, Prettier, GitHub Actions CI |
-| Hosting | Vercel (preview per PR), Supabase cloud (one prod project; local Docker for dev) |
-
-Development starts **local-first**: `supabase start` plus migrations in the repo, with a
-cloud project linked only when the first deploy happens.
-
----
-
-## 3. Zones and routing
-
-```
-src/app/
-  (public)/                 ← visitors, statically rendered where possible
-    page.tsx                  /             landing
-    about/                    /about
-    projects/[slug]/          /projects     showcase + case studies
-    publications/             /publications
-    links/                    /links
-    demo/                     /demo         "try it" hub → starts a demo session
-  (private)/app/            ← requires a session (owner, demo or future user)
-    layout.tsx                shell: sidebar from module registry, ⌘K, capture
-    page.tsx                  /app          dashboard (widgets from modules)
-    inbox/                    /app/inbox
-    search/                   /app/search
-    [module]/...              /app/notes, /app/budget, …
-  api/
-    mcp/                      MCP endpoint (phase 4)
-    calendar/[token].ics      private ICS feed (phase 2)
-  login/
-proxy.ts (middleware)       ← refreshes the Supabase session; gates /app/*
-```
-
-- Public pages pull portfolio content from **MDX files in the repo** (`content/`):
-  versioned, no CMS, reviewable in PRs. Projects can link to a live demo.
-- `/app` shows a persistent **demo banner** whenever the session is a demo user.
-
----
-
-## 4. Auth and roles
-
-`profiles.role` ∈ `owner | demo | user`.
-
-| Role | Created by | Can do |
+| Concern | Choice | Notes |
 |---|---|---|
-| `owner` | seeded once (Anwar's account) | everything, all modules |
-| `demo` | Supabase **anonymous sign-in** from `/demo` | modules flagged `demoable`, own sandbox only |
-| `user` | public sign-up (future, disabled now) | modules flagged `public` |
+| Web app | Next.js 16 (App Router, Cache Components), TypeScript | unchanged from phase 0 |
+| UI | Tailwind 4, shadcn/ui (Base UI), cmdk | design tokens in `globals.css` |
+| Database | PostgreSQL 17 (container) | one instance: app schema + one schema per bot |
+| Data access | Drizzle ORM + postgres.js | schema in TS; RLS/functions in SQL migrations |
+| Auth | Better Auth (email + password, `two-factor`, later `anonymous`) | sessions stored in Postgres |
+| Files | S3-compatible: Hetzner Object Storage (prod), MinIO (local) | see open decision 2 |
+| Bots | Python 3 + aiogram, one container per bot | read/write their own schema |
+| Reverse proxy / TLS | Caddy | automatic Let's Encrypt certificates |
+| Container control | `ops-agent` (internal service, §8) | the only thing with the Docker socket |
+| CI/CD | GitHub Actions → images in GHCR → deploy on server | |
+| Tests | Vitest (unit + RLS integration against real Postgres), Playwright (flows) | pgTAP tests ported to Vitest |
 
-- Email sign-up stays **disabled** in Supabase config. Owner signs in with email and
-  password plus TOTP MFA (Supabase supports it natively).
-- Anonymous sign-ins are protected with **Cloudflare Turnstile** (built into Supabase Auth)
-  and rate limits.
-- Authorization lives in RLS. Role checks in the UI only hide things; they are never
-  the only guard.
+### What changes from phase 0
 
----
+| Phase 0 (Supabase) | v2 (own Postgres) |
+|---|---|
+| `@supabase/ssr` clients, `getClaims()` | Better Auth `auth.api.getSession()` in the DAL, cookie check in `proxy.ts` |
+| `auth.uid()` in policies | `app.current_user_id()` reading `current_setting('app.user_id')` |
+| `auth.users` | Better Auth tables (`user`, `session`, `account`, `two_factor`) |
+| Supabase TOTP MFA | Better Auth `two-factor` plugin (TOTP + backup codes) |
+| `supabase db reset` / `supabase test db` | `docker compose` Postgres, `drizzle-kit migrate`, Vitest RLS suite |
+| Vercel previews | none by default; local compose mirrors prod (open decision 4) |
 
-## 5. Module system
-
-```
-src/modules/
-  notes/
-    manifest.ts        ← the only file the core imports
-    actions.ts         ← typed actions (zod in → result out)
-    queries.ts         ← server-side reads
-    components/        ← module UI
-    routes/            ← page components mounted under /app/notes
-    widgets/           ← dashboard widgets
-    search.ts          ← how rows become search documents
-    demo-seed.ts       ← mock data for demo sessions
-  budget/ …
-  _registry.ts         ← import { notes } from './notes/manifest'; export const modules = [...]
-supabase/migrations/   ← one migration set per module, filenames prefixed by module
-```
-
-```ts
-// src/core/module.ts (implemented fields; capture/calendar/demoSeed come later)
-export type ModuleManifest = {
-  id: string                           // also the table prefix and route segment
-  name: string
-  description: string
-  icon: LucideIcon
-  nav: NavItem[]                       // sidebar, mobile tabs, ⌘K "Go to"
-  access: { demoable: boolean; public: boolean }
-  create?: { label; href }             // header "+" button and ⌘K "Create"
-  widgets?: WidgetDef[]                // Today tiles; lazy async Server Components
-  search?: () => Promise<SearchProvider>             // ⌘K global search
-  actions?: () => Promise<Record<string, ActionDef>> // zod input + handler + LLM description
-  // later: capture?: CaptureTarget; calendar?: CalendarSource; demoSeed?: (userId) => Promise<void>
-}
-```
-
-Everything server-side (`widgets`, `search`, `actions`) is loaded lazily, so the
-registry can be imported by client code without pulling in database calls.
-
-Adding a module means creating a folder, writing a migration and adding one line to
-`_registry.ts`. Sidebar, dashboard, search, capture, calendar, demo, AI and MCP all
-pick it up from the manifest.
-
-**Action descriptions are written for an LLM from day one.** They become tool
-descriptions in phase 4 at no extra cost.
+The module contract, shell, design system and Notes UI stay as they are. Only the
+data layer under `actions.ts` and the auth layer change.
 
 ---
 
-## 6. Data model
+## 3. Infrastructure
 
-### Conventions (every module table)
+```
+                 DNS: anwar.<tld>  A/AAAA → server IP
+                                │
+┌───────────────────────────── Hetzner VPS (Ubuntu LTS) ─────────────────────────────┐
+│  ufw: 22 (keys only), 80, 443        unattended-upgrades        fail2ban            │
+│                                                                                     │
+│  caddy ──► web (Next.js, :3000) ──► postgres (:5432, internal network only)         │
+│             │                         ▲   ▲                                         │
+│             └─(HMAC)─► ops-agent ─────┘   │ docker.sock (read/write, agent only)    │
+│                                           │                                         │
+│  bot-expenses (aiogram) ──────────────────┘  bot-osbot (notifications, capture) ... │
+│                                                                                     │
+│  backup (cron): pg_dump → age-encrypted → off-site (Storage Box / Object Storage)   │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Server size:** the stack is light (Next ~300 MB, Postgres ~200 MB, each bot
+  ~60 MB, Caddy ~30 MB). A 4 GB ARM or x86 instance is enough; 8 GB gives headroom
+  for builds and future services.
+- **Provisioning as code:** `infra/` holds `compose.prod.yml`, `Caddyfile`, a
+  `bootstrap.sh` that hardens a fresh Ubuntu box (user, SSH keys only, ufw,
+  unattended upgrades, Docker), and the backup script. Rebuilding the server is
+  bootstrap → copy `.env` → `docker compose up -d` → restore last dump.
+- **DNS:** apex `anwar.<tld>` for everything (public and `/app` share one origin, so
+  auth cookies stay simple). Optional `status.` subdomain later.
+- **Secrets:** a root-only `.env` on the server, never in git. CI only gets a
+  deploy key scoped to pulling images.
+- **Backups:** nightly `pg_dump` + object-storage sync, encrypted with `age`, kept
+  7 daily / 4 weekly / 6 monthly. A monthly CI job restores the latest dump into a
+  throwaway Postgres and runs the RLS suite against it. Untested backups don't count.
+- **Deploys:** push to `main` → Actions builds `ghcr.io/nnnotanwar/anwar-os-web:<sha>`
+  → SSH step runs `docker compose pull web && docker compose up -d web` with a
+  healthcheck gate. Bots deploy the same way, or from the control panel (§8).
+
+---
+
+## 4. Zones and routes
+
+**Public** (anyone, mostly static):
+
+| Route | Content |
+|---|---|
+| `/` | landing: who Anwar is, featured projects, latest public ideas |
+| `/cv` | résumé from structured data; print stylesheet = clean PDF |
+| `/projects`, `/projects/[slug]` | showcase and case studies; links to live demos |
+| `/ideas` | ideas he chose to publish, with status |
+| `/links` | curated public bookmarks |
+| `/tools/*` | calculators: calories, basic, statistics, compound growth |
+| `/feedback` | complaints and suggestions to Anwar, anonymous allowed |
+
+**Private** (`/app`, owner only): Today, notes, ideas, links, files, calendar,
+feedback inbox, projects, bots, ops, tools with saved results, settings.
+
+---
+
+## 5. Auth
+
+- **Better Auth** with email + password and the `two-factor` plugin (TOTP + backup
+  codes). Sessions live in Postgres; cookie is `httpOnly`, `secure`, `sameSite=lax`.
+- **Sign-up disabled.** The owner is created by `pnpm owner:create` (as in phase 0).
+  `user.role` ∈ `owner | demo | user`, writable only by the server.
+- **Demo mode (later):** Better Auth `anonymous` plugin creates throwaway users with
+  role `demo`; a nightly job deletes them and cascades their rows.
+- **Checks:** `proxy.ts` does a cheap cookie presence check to redirect `/app` for
+  signed-out visitors; the DAL (`requireViewer`) validates the session against the
+  database on every request. RLS is the final guard.
+
+---
+
+## 6. Data model and RLS
+
+### Roles and per-request identity
+
+| Postgres role | Used by | Rights |
+|---|---|---|
+| `os_migrator` | migrations only | owns schemas and tables |
+| `os_app` | the web app at runtime | DML on app tables; **no BYPASSRLS** |
+| `bot_<name>` | each bot | only its own schema |
+| `os_readonly` | backups, stats views | SELECT only |
+
+Every database call from the app runs inside `withViewer(viewerId, tx => …)`, which
+opens a transaction and runs `select set_config('app.user_id', $1, true)`. Policies
+use `app.current_user_id()`:
 
 ```sql
-id          uuid primary key default gen_random_uuid(),
-owner_id    uuid not null default auth.uid() references auth.users on delete cascade,
-created_at  timestamptz not null default now(),
-updated_at  timestamptz not null default now()   -- trigger-maintained
--- RLS: enable; policy for all using (owner_id = (select auth.uid()))
---      with check (owner_id = (select auth.uid()));
--- index on (owner_id, …) for every list query
+create function app.current_user_id() returns text
+language sql stable as $$ select nullif(current_setting('app.user_id', true), '') $$;
+
+create policy "notes: own rows" on notes_notes for all to os_app
+  using (owner_id = app.current_user_id())
+  with check (owner_id = app.current_user_id());
 ```
 
-- Tables live in `public`, prefixed by module (`notes_notes`, `budget_transactions`).
-  Per-module Postgres schemas look tidy, but each one has to be exposed to the API
-  separately, so prefixes are simpler.
-- Deleting a user cascades. That single fact makes demo cleanup and future GDPR
-  deletion trivial.
-- Types are generated (`supabase gen types`) into `src/core/db.types.ts`.
+Because the setting is transaction-local, a pooled connection can never carry one
+viewer's identity into another request.
 
-### Core tables
+### Conventions (unchanged)
 
-| Table | Purpose |
-|---|---|
-| `profiles` | role, display name, locale, base currency, timezone |
-| `inbox_items` | quick capture: raw text/URL/file, `status` (new/processed/archived), `processed_into` (module + id) |
-| `search_documents` | one row per searchable entity: `module`, `entity_id`, `title`, `body`, `tsv tsvector`, later `embedding vector` |
-| `tags`, `entity_tags` | cross-module tagging |
-| `files` | Supabase Storage objects (private bucket, path prefixed by `owner_id`) |
-| `calendar_tokens` | secret tokens for the private ICS feed |
-| `integrations` | external connections (Google Calendar, Shift Planner), encrypted tokens via Supabase Vault |
+Every module table has `id`, `owner_id` (FK to `user`, cascade), `created_at`,
+`updated_at` (trigger), an `(owner_id, …)` index for list queries, RLS on, and a
+module prefix (`notes_*`, `links_*`). Money is integer minor units + ISO currency.
 
-### First-party modules
+### Public writes
 
-| Module | Tables (sketch) |
-|---|---|
-| **notes** | `notes_notes` (title, markdown body, pinned) |
-| **links** | `links_links` (url, title, description, favicon, is_public). Public ones also feed `/links` |
-| **dates** | `dates_events` (title, date, recurrence rule, remind_before) for birthdays, deadlines, renewals |
-| **docs** | `docs_documents` (title, file_id, kind, expires_on) for passport, contracts, insurance |
-| **budget** | see below |
-
-**Budget**
-
-- `budget_accounts`: name, type (cash/bank/savings/investment), currency
-- `budget_categories`: name, kind (income/expense), parent_id
-- `budget_transactions`: account_id, category_id, `amount_minor bigint`, currency, occurred_on, note
-- `budget_recurring`: template plus rrule (salary, rent, subscriptions) that generates transactions
-- `budget_goals`: savings goals (target, deadline, linked account)
-- `budget_plans`: capital-growth plan (starting capital, monthly contribution, expected return,
-  horizon). Projections are **computed, not stored**, and compared against actual
-  balances month by month.
-
-Money is always integer minor units plus an ISO currency (CZK by default). Never floats.
+The feedback form is the only anonymous write. It goes through
+`app.submit_feedback(...)`, a `security definer` function in a non-exposed schema
+that validates lengths, checks the rate-limit table, and inserts with
+`owner_id` = the site owner. `os_app` can execute it without a viewer; it cannot
+insert into `feedback_items` directly.
 
 ### Search
 
-Each module's `search.ts` maps rows to `search_documents`. A DB trigger per module
-table keeps them in sync, so search never touches module tables. Phase 1 uses Postgres
-full-text search (`websearch_to_tsquery`, `simple` config because the content mixes
-EN/CS/RU). Phase 4 adds a `pgvector` embedding column to the same table for semantic
-search and AI retrieval.
+`search_documents` (module, entity id, title, body, `tsvector` with the `simple`
+config because content mixes EN/CS/RU) kept in sync by triggers; ⌘K queries it.
+`pgvector` embeddings are added to the same table in the AI phase.
 
 ---
 
-## 7. Demo mode
+## 7. Modules
 
-1. A visitor clicks **Try it** on `/demo` or a project page, and Turnstile runs.
-2. `signInAnonymously()` creates a real `auth.users` row, and a trigger creates a
-   `profiles` row with `role = 'demo'`.
-3. A server action runs `demoSeed(userId)` for every `demoable` module, inserting
-   realistic mock data owned by that user.
-4. The visitor lands in `/app` with the demo banner and full read/write on their
-   sandbox. RLS isolates them from everyone else automatically.
-5. A `pg_cron` job deletes demo users older than 24 h, and cascades remove their data.
+| Module | Zone | What it does | Phase |
+|---|---|---|---|
+| **notes** | private | autosaving notes, pin, filter, search | ✅ 0 |
+| **cv** | public + editor | experience, education, skills, languages as structured rows; `/cv` page, print/PDF | 3 |
+| **projects** | public + private | showcase with case studies; private side links each project to its services in ops | 3 |
+| **ideas** | private, opt-in public | backlog with status (raw → exploring → building → shipped / dropped), tags, publish toggle | 3 |
+| **links** | private, opt-in public | bookmarks with tags; title/description/favicon fetched on save; public ones feed `/links` | 3 |
+| **feedback** | public form + private inbox | anonymous complaints/suggestions, optional contact; statuses, reply notes, Telegram alert | 3 |
+| **tools** | public + saved results | calories (Mifflin–St Jeor BMR, TDEE, macros), basic calculator, statistics (mean, median, SD, percentiles from pasted numbers), compound growth. Pure client-side math with unit tests | 3 |
+| **files** | private | knowledge base: uploads to object storage, folders + tags, markdown documents, previews, full-text search (PDF text extraction later) | 4 |
+| **calendar** | private | events with recurrence and reminders, important dates; private ICS feed; Google Calendar import later | 4 |
+| **bots** | private | registry of Telegram bots; per-bot stats from each bot's schema (users, messages, domain data such as expenses) | 5 |
+| **ops** | private | control panel for every managed service (§8) | 5 |
+| **budget** | private | accounts, transactions, goals, capital-growth plan (from v1) | 6 |
 
-No separate demo code path or "fake" UI is needed, and nothing has to be rebuilt when
-real sign-up opens: `user` is just another role.
-
----
-
-## 8. Shift Planner integration
-
-`planuj-smeny-app` (v1.9, Vite + React + Capacitor, its own Supabase project with
-46 migrations, org/role multi-tenancy, push notifications, native iOS/Android builds)
-is a **team product with its own users**. Folding it into this Next.js app would mean
-porting the routing, Capacitor shell and native builds, and merging two auth systems,
-all for no user-visible gain. It **stays a separate repo, deployment and database**.
-
-Integration happens in levels:
-
-| Level | What | How |
-|---|---|---|
-| L1 Launcher | Tile in `/app` sidebar + case study on `/projects/shift-planner` | Link to its deployed URL. Done in phase 1. |
-| L2 Widget | "Next shift / hours this month" card on the OS dashboard; shifts appear in the OS calendar | A **read-only RPC** in the planner DB (`get_my_shift_summary()`), called server-side from this app with a per-user token stored in `integrations` (Vault). This app never gets planner write access. |
-| L3 Demo | Visitors try the planner | A seeded **demo org** on the planner's own deployment with a public demo login, reset nightly by its own cron. The portfolio links to it. |
-| L4 (optional) Shared sign-in | One login for both | Only if it starts to hurt. Supabase third-party auth or OAuth between projects. Not planned. |
-
-The OS treats external apps as **external modules**: a manifest with `kind: 'external'`,
-nav and widgets, plus an adapter instead of local tables. Future standalone apps
-plug in the same way.
+Each row is one folder, one manifest line, one migration set. Modules that have a
+public side expose public routes from `src/app/(public)/…` as thin re-exports, the
+same way private routes do today.
 
 ---
 
-## 9. Cross-cutting features
+## 8. Control panel (ops) and bots
 
-- **Quick capture.** A global shortcut (`c`) and a ⌘K "Capture…" command write to
-  `inbox_items`. In the inbox, one click turns an item into a note, link, date or
-  transaction through that module's `capture` handler. Later inputs: PWA share target,
-  a Telegram bot (reusing `py-telegram`) and an MCP tool. All of them write to the same table.
-- **Global search.** ⌘K queries `search_documents`, ranked and grouped by module.
-- **Calendar sync.**
-  - *Out* (phase 2): a private ICS feed `/api/calendar/<token>.ics` aggregates every
-    module's `calendar` source (dates, recurring payments, shifts). Any calendar app
-    can subscribe. One-way and simple, with no OAuth.
-  - *In* (phase 3): Google Calendar read sync via OAuth into `integrations`, shown on
-    the dashboard agenda.
-- **Dashboard.** A grid of module widgets with layout stored per user in `profiles`.
+### ops-agent
 
----
+A small internal HTTP service (one container, ~150 lines of Go or Node) that is
+the **only** process with `/var/run/docker.sock`. It is not reachable from the
+internet; only `web` can call it, signing each request with an HMAC secret.
 
-## 10. Long-term (2–3 years)
-
-| Capability | Design hook already in place |
+| Endpoint | Does |
 |---|---|
-| **AI assistant** ("how much did I spend on food in Sept?", "when does my passport expire?") | Claude API with tool use, where tools = module actions with read scopes. Retrieval via `search_documents` + pgvector. Lives at `/app/assistant`, server-side only. |
-| **Own MCP server** (Claude reads and updates the app) | `/api/mcp` (Streamable HTTP) exposes module actions as MCP tools. Auth via OAuth: Supabase can act as the OAuth authorization server, so Claude connects as the owner and RLS still applies. Write tools are opt-in per module. |
-| **PWA** | Web manifest + service worker (Serwist), offline shell, share target → inbox, web push for date reminders. Responsive layout is required from phase 1 so this is additive. |
-| **Public sign-up** | Enable sign-up, add onboarding that picks `public` modules, and add billing/limits if needed. Schema and RLS already support it. |
+| `GET /services` | containers labelled `os.managed=true`: state, health, uptime, image tag, restart count |
+| `GET /services/:name/logs?tail=200` | last log lines (stdout/stderr) |
+| `POST /services/:name/{start,stop,restart}` | lifecycle |
+| `POST /services/:name/deploy` `{ tag }` | `docker compose pull` + recreate that one service, waits for healthcheck, rolls back to the previous tag on failure |
+
+Only labelled services can be touched; `postgres`, `caddy`, `ops-agent` itself and
+`web` are excluded from stop and deploy from the UI. Every call is written to
+`ops_events` (who, what, when, result) and shown in the panel.
+
+### Panel (in `/app/ops`)
+
+- Service cards: status dot, uptime, last deploy, CPU/RAM.
+- Log viewer with follow mode.
+- Start / stop / restart with confirmation.
+- Deploy: picks from the latest image tags in GHCR (commit message shown).
+- Projects link to their services, so "Planuj Směny" shows its deploy state.
+
+### Bots
+
+- Each bot gets its own repo or `bots/<name>/` folder with a Dockerfile, its own
+  Postgres schema and login role, and a `heartbeat` row it updates every minute
+  (the panel's "alive" signal for polling bots).
+- `py-telegram` (expense bot) is migrated from SQLite to its `bot_expenses` schema
+  and containerized in phase 5.
+- **osbot**: Anwar's own bot for the platform. It sends feedback and ops alerts and
+  does quick capture (forward a message → note / link / idea).
+- Stats views (`bot_expenses.stats_daily`, …) are granted to `os_app` read-only.
+
+### Planuj Směny
+
+Stays a separate product on its own Supabase project. In ops it appears as an
+external service (health URL + Vercel or server deploy state); on Today it gets the
+"next shift" widget through its read-only RPC (v1 plan, unchanged).
 
 ---
 
-## 11. Repository layout
+## 9. Long-term
 
-```
-anwarnnnot/
-  content/                 MDX: about, projects, publications
-  docs/                    this file, ADRs (docs/adr/NNN-*.md)
-  public/
-  src/
-    app/                   routes (§3)
-    core/                  module contract, registry helpers, auth, supabase clients, db types
-    modules/               one folder per module (§5)
-    components/ui/         shadcn components
-    lib/                   generic utilities (money, dates, rrule)
-  supabase/
-    config.toml
-    migrations/            core_*.sql, notes_*.sql, budget_*.sql …
-    seed.sql               local dev data (owner account + sample content)
-    tests/                 pgTAP RLS tests
-  e2e/                     Playwright
-```
-
-Conventions: server actions call module actions. Module actions use the request-scoped
-Supabase client (never the service role) so RLS is always on. The service role is used
-only by cron/admin code in `src/core/admin/`.
+- **AI assistant** over module actions + `search_documents` embeddings (Claude API).
+- **MCP server** at `/api/mcp` exposing module actions as tools, OAuth via Better Auth.
+- **PWA**: installable, share target → inbox, push for reminders.
+- **Public sign-up** for tools/products, using the multi-user schema already in place.
 
 ---
 
-## 12. Roadmap
+## 10. Roadmap
 
 | Phase | Scope | Done when |
 |---|---|---|
-| **0 Foundation** | Next.js + Tailwind + shadcn scaffold, local Supabase, core migrations (`profiles`, roles, RLS conventions), owner login + MFA, `/app` shell driven by the module registry, CI, Vercel preview | Owner can log in; a stub module appears in nav via its manifest; RLS tests pass |
-| **1 Public + first modules** | Landing/About/Projects/Links from MDX; **notes**, **links**, **dates** modules; inbox + ⌘K search; Shift Planner L1 tile | Site is live on a domain; owner uses notes/links/dates daily |
-| **2 Budget + demo** | **budget** module (accounts, transactions, categories, recurring, goals, growth plan); demo mode (anonymous + seed + cleanup); ICS feed; **docs** module | A visitor can try Budget on mock data; demo users are auto-cleaned |
-| **3 Integrations** | Shift Planner L2 widget + calendar; Google Calendar import; PWA install + share target | Dashboard shows next shift and today's agenda; app installs on phone |
-| **4 AI + MCP** | pgvector embeddings, assistant, `/api/mcp` with OAuth | Claude (desktop/Code) can query and add budget entries via MCP |
-| **5 Open up (optional)** | Public sign-up, onboarding, limits | A stranger can use Budget with their own data |
+| **0 Foundation** ✅ | Next.js shell, module system, Notes, design system (on Supabase, local) | done 2026-11-03 |
+| **1 Own data layer** | Docker Compose (Postgres + MinIO) for dev; Drizzle schema + SQL migrations with RLS via `app.user_id`; Better Auth (password + TOTP); port Notes actions and the 12 RLS tests; remove Supabase | app behaves exactly as now with no Supabase dependency; RLS suite green in CI |
+| **2 Server live** | Order the Hetzner VPS; `infra/bootstrap.sh`; DNS; Caddy + HTTPS; `compose.prod.yml`; CI build → GHCR → deploy; backups + first restore test | `https://anwar.<tld>/app` works with 2FA; a backup has been restored |
+| **3 Public face** | cv, projects, ideas, links, feedback (+ osbot alerts), tools; real landing page | a stranger can read the CV, try a calculator and leave feedback that reaches Telegram |
+| **4 Knowledge** | files (object storage), calendar + ICS, unified `search_documents` | Anwar keeps documents and dates here instead of elsewhere |
+| **5 Control panel** | ops-agent, bots containerized and on Postgres, status/logs/actions/deploy, bot stats | a bot can be redeployed from the phone |
+| **6 Budget + demo** | budget module, anonymous demo sessions | visitors can try Budget on mock data |
+| **7 AI, MCP, PWA** | §9 | Claude can query and add entries via MCP |
 
 ---
 
-## 13. Open decisions
+## 11. Open decisions
 
-1. **Domain.** Which one, and do public and private share it (`/app`) or use a subdomain (`app.`)? Same domain is the default; it's simpler for auth cookies.
-2. **Languages.** Does the public site ship EN only, or EN/CS/RU? This decides whether i18n routing goes in phase 1.
-3. **Bank import for budget.** Manual entry plus CSV import first. Czech bank APIs (e.g. Fio has a free token API) are a phase-2+ question.
-4. **Old prototypes.** `my-dashboard` (Gemini task manager) and `my-super-app` (Dexie, local-first). Is anything worth porting as modules, or are they retired?
-5. **Shift Planner demo login.** Confirm a public demo account on the planner deployment is acceptable (L3).
+1. **Domain.** Which name (`anwar.<tld>`)? Needed in phase 2.
+2. **File storage.** Hetzner Object Storage (separate from the server, survives a
+   rebuild; small monthly cost) vs a volume on the server (free, but backups must
+   include it). Recommendation: Object Storage.
+3. **Spam protection for `/feedback`.** Self-hosted proof-of-work (ALTCHA) + rate
+   limits fits "own host"; Cloudflare Turnstile is stronger but third-party.
+   Recommendation: ALTCHA + per-IP limits.
+4. **Previews.** Without Vercel there are no per-PR previews. Option: a second
+   compose project on the same server at `staging.` deployed from a branch.
+5. **Server.** Location (Falkenstein/Nuremberg/Helsinki) and ARM vs x86; ARM is
+   cheaper per GB, but all images (incl. bots) must build for `arm64`.

@@ -14,9 +14,10 @@ jobs:
     name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
     env:
-      # Build-time placeholders; real values live in Vercel env settings.
-      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:55321
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
+      # Build-time placeholders: nothing connects to a database during the build.
+      DATABASE_URL: postgres://os_app:ci@127.0.0.1:55432/anwar_os
+      BETTER_AUTH_SECRET: ci-placeholder-secret-not-used-for-anything
+      BETTER_AUTH_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -33,6 +34,11 @@ jobs:
   database:
     name: Migrations + RLS tests
     runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: ci
+      OS_APP_PASSWORD: ci
+      DATABASE_URL: postgres://os_app:ci@127.0.0.1:55432/anwar_os
+      MIGRATION_DATABASE_URL: postgres://postgres:ci@127.0.0.1:55432/anwar_os
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -41,7 +47,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Only the database is needed for pgTAP; skip the other services.
-      - run: pnpm exec supabase db start
-      - run: pnpm db:test
-      - run: pnpm exec supabase db advisors --local
+      # Same Postgres image and role setup as local development.
+      - run: docker compose up -d --wait db
+      - run: pnpm db:migrate
+      - run: pnpm test:db

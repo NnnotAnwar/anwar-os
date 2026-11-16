@@ -21,8 +21,8 @@ export async function createNote(input: { title: string; body: string }): Promis
   if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) }
 
   try {
-    const { id } = await actions.create.handler(parsed.data)
-    return { ok: true, id, updatedAt: new Date().toISOString() }
+    const { id, updatedAt } = await actions.create.handler(parsed.data)
+    return { ok: true, id, updatedAt }
   } catch {
     return { ok: false, error: "The note wasn't created. Check your connection; it retries on the next edit." }
   }

@@ -41,6 +41,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# supabase CLI working files (local branch state, generated container secrets)
-/supabase/.branches
-/supabase/.temp
+
+# agent worktrees (each is its own checkout)
+/.claude/worktrees

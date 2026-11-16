@@ -1,4 +1,7 @@
+import { Suspense } from "react"
+import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shell/page-header"
+import { requireViewer } from "@/core/auth"
 import { MfaSettings } from "./mfa-settings"
 
 export const metadata = { title: "Settings" }
@@ -17,9 +20,16 @@ export default function SettingsPage() {
           </p>
         </div>
         <div className="rounded-xl border bg-card p-5">
-          <MfaSettings />
+          <Suspense fallback={<Skeleton className="h-8 w-44" />}>
+            <MfaStatus />
+          </Suspense>
         </div>
       </section>
     </div>
   )
+}
+
+async function MfaStatus() {
+  const viewer = await requireViewer()
+  return <MfaSettings enabled={viewer.twoFactorEnabled} />
 }

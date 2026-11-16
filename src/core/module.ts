@@ -1,9 +1,9 @@
 import type { LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 import type { z } from "zod"
-import type { Database } from "@/core/db.types"
+import type { AppRole } from "@/db/schema"
 
-export type AppRole = Database["public"]["Enums"]["app_role"]
+export type { AppRole }
 
 export type NavItem = {
   label: string

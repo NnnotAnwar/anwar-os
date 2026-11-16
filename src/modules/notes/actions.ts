@@ -1,7 +1,9 @@
 import "server-only"
+import { and, desc, eq, ilike, or } from "drizzle-orm"
+import { asViewer } from "@/core/auth"
 import { defineAction } from "@/core/module"
-import { createClient } from "@/lib/supabase/server"
-import { ilikeContains } from "@/lib/postgrest"
+import { notesNotes } from "@/db/schema"
+import { likeContains } from "@/lib/sql-like"
 import {
   createNoteInput,
   listNotesInput,
@@ -11,90 +13,98 @@ import {
   type Note,
 } from "./schema"
 
-const COLUMNS = "id, title, body, pinned, updated_at"
+const columns = {
+  id: notesNotes.id,
+  title: notesNotes.title,
+  body: notesNotes.body,
+  pinned: notesNotes.pinned,
+  updatedAt: notesNotes.updatedAt,
+}
 
-// Module actions use the request-scoped client, so RLS scopes every call to the
-// signed-in user. The same definitions will back AI and MCP tools (phase 4).
+function toNote(row: { id: string; title: string; body: string; pinned: boolean; updatedAt: Date }): Note {
+  return { id: row.id, title: row.title, body: row.body, pinned: row.pinned, updated_at: row.updatedAt.toISOString() }
+}
+
+// Every action runs through asViewer(), so RLS scopes it to the signed-in user.
+// The same definitions will back AI and MCP tools (phase 7).
 export const actions = {
   list: defineAction({
     description:
       "List the user's notes, pinned first, then most recently edited. Optionally filter by text in the title or body, or by pinned state.",
     kind: "read",
     input: listNotesInput,
-    async handler({ limit, query, pinned }): Promise<Note[]> {
-      const supabase = await createClient()
-      let request = supabase
-        .from("notes_notes")
-        .select(COLUMNS)
-        .order("pinned", { ascending: false })
-        .order("updated_at", { ascending: false })
-        .limit(limit)
-      if (query) {
-        const pattern = ilikeContains(query)
-        request = request.or(`title.ilike.${pattern},body.ilike.${pattern}`)
-      }
-      if (pinned !== undefined) request = request.eq("pinned", pinned)
-      const { data, error } = await request
-      if (error) throw error
-      return data
-    },
+    handler: ({ limit, query, pinned }): Promise<Note[]> =>
+      asViewer(async (tx) => {
+        const pattern = query ? likeContains(query) : null
+        const rows = await tx
+          .select(columns)
+          .from(notesNotes)
+          .where(
+            and(
+              pattern ? or(ilike(notesNotes.title, pattern), ilike(notesNotes.body, pattern)) : undefined,
+              pinned === undefined ? undefined : eq(notesNotes.pinned, pinned),
+            ),
+          )
+          .orderBy(desc(notesNotes.pinned), desc(notesNotes.updatedAt))
+          .limit(limit)
+        return rows.map(toNote)
+      }),
   }),
   get: defineAction({
     description: "Get one note by id, including its full body. Returns null if it doesn't exist.",
     kind: "read",
     input: noteIdInput,
-    async handler({ id }): Promise<Note | null> {
-      const supabase = await createClient()
-      const { data, error } = await supabase.from("notes_notes").select(COLUMNS).eq("id", id).maybeSingle()
-      if (error) throw error
-      return data
-    },
+    handler: ({ id }): Promise<Note | null> =>
+      asViewer(async (tx) => {
+        const [row] = await tx.select(columns).from(notesNotes).where(eq(notesNotes.id, id))
+        return row ? toNote(row) : null
+      }),
   }),
   create: defineAction({
     description: "Create a note with a title and an optional plain-text or markdown body.",
     kind: "write",
     input: createNoteInput,
-    async handler(input): Promise<{ id: string }> {
-      const supabase = await createClient()
-      const { data, error } = await supabase.from("notes_notes").insert(input).select("id").single()
-      if (error) throw error
-      return data
-    },
+    handler: (input): Promise<{ id: string; updatedAt: string }> =>
+      asViewer(async (tx) => {
+        // owner_id defaults to app.current_user_id(); RLS checks it matches.
+        const [row] = await tx
+          .insert(notesNotes)
+          .values(input)
+          .returning({ id: notesNotes.id, updatedAt: notesNotes.updatedAt })
+        return { id: row!.id, updatedAt: row!.updatedAt.toISOString() }
+      }),
   }),
   update: defineAction({
     description: "Replace a note's title and body.",
     kind: "write",
     input: updateNoteInput,
-    async handler({ id, title, body }): Promise<{ updated_at: string }> {
-      const supabase = await createClient()
-      const { data, error } = await supabase
-        .from("notes_notes")
-        .update({ title, body })
-        .eq("id", id)
-        .select("updated_at")
-        .single()
-      if (error) throw error
-      return data
-    },
+    handler: ({ id, title, body }): Promise<{ updated_at: string }> =>
+      asViewer(async (tx) => {
+        const [row] = await tx
+          .update(notesNotes)
+          .set({ title, body })
+          .where(eq(notesNotes.id, id))
+          .returning({ updatedAt: notesNotes.updatedAt })
+        if (!row) throw new Error("Note not found")
+        return { updated_at: row.updatedAt.toISOString() }
+      }),
   }),
   setPinned: defineAction({
     description: "Pin a note to the top of the list and the dashboard, or unpin it.",
     kind: "write",
     input: setPinnedInput,
-    async handler({ id, pinned }): Promise<void> {
-      const supabase = await createClient()
-      const { error } = await supabase.from("notes_notes").update({ pinned }).eq("id", id)
-      if (error) throw error
-    },
+    handler: ({ id, pinned }): Promise<void> =>
+      asViewer(async (tx) => {
+        await tx.update(notesNotes).set({ pinned }).where(eq(notesNotes.id, id))
+      }),
   }),
   delete: defineAction({
     description: "Permanently delete one of the user's notes by id.",
     kind: "write",
     input: noteIdInput,
-    async handler({ id }): Promise<void> {
-      const supabase = await createClient()
-      const { error } = await supabase.from("notes_notes").delete().eq("id", id)
-      if (error) throw error
-    },
+    handler: ({ id }): Promise<void> =>
+      asViewer(async (tx) => {
+        await tx.delete(notesNotes).where(eq(notesNotes.id, id))
+      }),
   }),
 }

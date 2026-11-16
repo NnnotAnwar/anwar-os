@@ -4,11 +4,12 @@ Anwar's personal operating system and public portfolio: one place for his notes,
 dates, documents, budget and apps, plus a public site where visitors can try his
 products on mock data.
 
-Built with Next.js 16 (App Router, Cache Components), Supabase (Postgres + Auth +
-RLS) and Tailwind CSS 4 with shadcn/ui. Deployed on Vercel.
+Built with Next.js 16 (App Router, Cache Components), PostgreSQL 17 with
+row-level security (Drizzle ORM), Better Auth, and Tailwind CSS 4 with shadcn/ui.
+Self-hosted on a Hetzner server with Docker Compose.
 
-**Status:** phase 0 done (foundation, owner sign-in with optional TOTP, module
-system, Notes). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and
+**Status:** phases 0–1 done (module system, Notes, own Postgres + Better Auth with
+optional TOTP two-factor). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and
 roadmap.
 
 ## What's inside
@@ -23,19 +24,16 @@ roadmap.
 
 ## Local setup
 
-Requirements: Node 24+, pnpm 10, Docker (for the local Supabase stack).
+Requirements: Node 24+, pnpm 10, Docker.
 
 ```bash
 pnpm install
-pnpm db:start                      # local Supabase on ports 55321–55329
-cp .env.example .env.local         # then fill in the values below
-pnpm exec supabase status -o env   # prints API_URL, PUBLISHABLE_KEY, SECRET_KEY
+cp .env.example .env.local         # then set BETTER_AUTH_SECRET (openssl rand -base64 32)
+pnpm db:up                         # Postgres 17 on localhost:55432
+pnpm db:migrate                    # apply db/migrations
 pnpm owner:create you@example.com  # sign-ups are disabled; this creates the owner
 pnpm dev                           # http://localhost:3000
 ```
-
-The local ports are moved off Supabase's defaults so this stack can run next to
-other local Supabase projects.
 
 ## Scripts
 
@@ -44,16 +42,19 @@ other local Supabase projects.
 | `pnpm dev` / `pnpm build` | Next.js dev server / production build |
 | `pnpm lint` / `pnpm typecheck` | ESLint / route types + `tsc` |
 | `pnpm test` | Unit tests (Vitest) |
-| `pnpm db:test` | Row-level security tests (pgTAP) against the local database |
-| `pnpm db:reset` | Recreate the local database from migrations |
-| `pnpm db:types` | Regenerate `src/core/db.types.ts` from the local schema |
+| `pnpm test:db` | Row-level security tests against the local Postgres |
+| `pnpm db:up` / `pnpm db:down` | Start / stop the local Postgres container |
+| `pnpm db:generate` | Generate a migration from `src/db/schema` (`--custom` for SQL like RLS) |
+| `pnpm db:migrate` | Apply pending migrations |
 | `pnpm owner:create <email>` | Create or promote the owner account |
 
 ## Security model
 
-- Every table has `owner_id` and row-level security; the app always queries as
-  the signed-in user, never with the service key.
-- Public sign-up is disabled. The owner is created with `pnpm owner:create`,
-  and roles can't be changed by users (column-level grants, tested in
-  `supabase/tests/rls.test.sql`).
-- The secret key is only read by `scripts/create-owner.mts` from `.env.local`.
+- The app connects to Postgres as `os_app`, which is not a superuser and cannot
+  bypass row-level security. Every query runs in a transaction that sets
+  `app.user_id`; policies only show and accept the viewer's own rows.
+- Every module table has `owner_id` and RLS; `db/tests/rls.test.ts` tries to break it.
+- Public sign-up is disabled, `os_app` can't insert users or change roles (column
+  grants). The owner is created with `pnpm owner:create` using the migration role.
+- Sessions are httpOnly cookies validated against the database on every request;
+  optional TOTP two-factor with backup codes.

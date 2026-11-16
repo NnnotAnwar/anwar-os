@@ -1,87 +1,70 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createClient } from "@/lib/supabase/client"
+import { confirmTwoFactorSetup, startTwoFactorSetup, turnOffTwoFactor } from "@/core/auth-actions"
 
-type Status =
-  | { kind: "loading" }
+type Step =
   | { kind: "off" }
-  | { kind: "enrolling"; factorId: string; qr: string; secret: string }
-  | { kind: "on"; factorId: string }
+  | { kind: "password"; intent: "enable" | "disable" }
+  | { kind: "scan"; qrSvg: string; secret: string; backupCodes: string[] }
+  | { kind: "on" }
 
-async function fetchStatus(): Promise<Status> {
-  const { data } = await createClient().auth.mfa.listFactors()
-  const verified = data?.totp.find((f) => f.status === "verified")
-  return verified ? { kind: "on", factorId: verified.id } : { kind: "off" }
-}
-
-export function MfaSettings() {
-  const [status, setStatus] = useState<Status>({ kind: "loading" })
+export function MfaSettings({ enabled }: { enabled: boolean }) {
+  const router = useRouter()
+  const [step, setStep] = useState<Step>(enabled ? { kind: "on" } : { kind: "off" })
+  const [password, setPassword] = useState("")
   const [code, setCode] = useState("")
-  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+  const [pending, startTransition] = useTransition()
 
-  const load = useCallback(() => fetchStatus().then(setStatus), [])
-
-  useEffect(() => {
-    let active = true
-    fetchStatus().then((next) => {
-      if (active) setStatus(next)
-    })
-    return () => {
-      active = false
-    }
-  }, [])
-
-  async function startEnroll() {
-    setBusy(true)
-    const supabase = createClient()
-    // Clear abandoned enrollments so a new one can start cleanly.
-    const { data: existing } = await supabase.auth.mfa.listFactors()
-    for (const f of existing?.all ?? []) {
-      if (f.status === "unverified") await supabase.auth.mfa.unenroll({ factorId: f.id })
-    }
-    const { data, error } = await supabase.auth.mfa.enroll({
-      factorType: "totp",
-      friendlyName: `Authenticator ${new Date().toISOString().slice(0, 10)}`,
-    })
-    setBusy(false)
-    if (error) return toast.error(error.message)
-    setStatus({ kind: "enrolling", factorId: data.id, qr: data.totp.qr_code, secret: data.totp.secret })
-  }
-
-  async function confirmEnroll(factorId: string) {
-    setBusy(true)
-    const supabase = createClient()
-    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code })
-    setBusy(false)
-    if (error) return toast.error("That code didn't work. Try the next one.")
+  function reset(next: Step) {
+    setStep(next)
+    setPassword("")
     setCode("")
-    toast.success("Two-factor authentication is on.")
-    setStatus({ kind: "on", factorId })
+    setError(undefined)
   }
 
-  async function disable(factorId: string) {
-    setBusy(true)
-    const supabase = createClient()
-    const { error } = await supabase.auth.mfa.unenroll({ factorId })
-    setBusy(false)
-    if (error) return toast.error(error.message)
-    toast.success("Two-factor authentication is off.")
-    setStatus({ kind: "off" })
+  function submitPassword(intent: "enable" | "disable") {
+    startTransition(async () => {
+      if (intent === "enable") {
+        const result = await startTwoFactorSetup(password)
+        if (!result.ok) return setError(result.error)
+        reset({ kind: "scan", qrSvg: result.qrSvg, secret: result.secret, backupCodes: result.backupCodes })
+      } else {
+        const result = await turnOffTwoFactor(password)
+        if (!result.ok) return setError(result.error)
+        reset({ kind: "off" })
+        toast.success("Two-factor sign-in is off.")
+        router.refresh()
+      }
+    })
   }
 
-  switch (status.kind) {
-    case "loading":
-      return <p className="text-sm text-muted-foreground">Checking…</p>
+  function confirm() {
+    startTransition(async () => {
+      const result = await confirmTwoFactorSetup(code)
+      if (!result.ok) return setError(result.error)
+      reset({ kind: "on" })
+      toast.success("Two-factor sign-in is on.")
+      router.refresh()
+    })
+  }
+
+  const errorLine = error && (
+    <p role="alert" className="text-sm text-destructive">
+      {error}
+    </p>
+  )
+
+  switch (step.kind) {
     case "off":
       return (
-        <Button onClick={startEnroll} disabled={busy}>
-          Set up authenticator
-        </Button>
+        <Button onClick={() => reset({ kind: "password", intent: "enable" })}>Set up authenticator</Button>
       )
     case "on":
       return (
@@ -90,29 +73,77 @@ export function MfaSettings() {
             <span className="font-medium text-foreground">On.</span>{" "}
             <span className="text-muted-foreground">A code is required at every sign-in.</span>
           </p>
-          <Button variant="destructive" onClick={() => disable(status.factorId)} disabled={busy}>
+          <Button variant="destructive" onClick={() => reset({ kind: "password", intent: "disable" })}>
             Turn off
           </Button>
         </div>
       )
-    case "enrolling":
+    case "password":
+      return (
+        <form
+          className="grid max-w-sm gap-3"
+          onSubmit={(e) => {
+            e.preventDefault()
+            submitPassword(step.intent)
+          }}
+        >
+          <div className="grid gap-1.5">
+            <Label htmlFor="mfa-password">Confirm your password</Label>
+            <Input
+              id="mfa-password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoFocus
+            />
+          </div>
+          {errorLine}
+          <div className="flex gap-2">
+            <Button type="submit" variant={step.intent === "disable" ? "destructive" : "default"} disabled={pending}>
+              {step.intent === "enable" ? "Continue" : "Turn off two-factor"}
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => reset(enabled ? { kind: "on" } : { kind: "off" })}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      )
+    case "scan":
       return (
         <form
           className="grid gap-4"
           onSubmit={(e) => {
             e.preventDefault()
-            void confirmEnroll(status.factorId)
+            confirm()
           }}
         >
           <p className="text-sm text-muted-foreground">
             Scan this QR code with your authenticator app, then enter the 6-digit code it shows.
           </p>
-          {/* Supabase returns the QR as an SVG data URL; next/image adds nothing here. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={status.qr} alt="TOTP QR code" className="size-44 rounded-lg bg-white p-2" />
+          <div
+            role="img"
+            aria-label="TOTP QR code"
+            className="size-44 rounded-lg bg-white p-2 [&_svg]:size-full"
+            // Generated on the server by the qrcode package from the TOTP URI.
+            dangerouslySetInnerHTML={{ __html: step.qrSvg }}
+          />
           <p className="text-xs break-all text-muted-foreground">
-            Can&apos;t scan? Enter this key manually: <code className="font-mono">{status.secret}</code>
+            Can&apos;t scan? Enter this key manually: <code className="font-mono">{step.secret}</code>
           </p>
+          <details className="text-sm">
+            <summary className="cursor-pointer font-medium">Backup codes</summary>
+            <p className="mt-2 text-muted-foreground">
+              Each works once if you lose your phone. Store them in your password manager now; they won&apos;t
+              be shown again.
+            </p>
+            <ul className="mt-2 grid grid-cols-2 gap-1 font-mono text-xs sm:grid-cols-5">
+              {step.backupCodes.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+          </details>
           <div className="grid max-w-48 gap-1.5">
             <Label htmlFor="enroll-code">Code</Label>
             <Input
@@ -126,11 +157,12 @@ export function MfaSettings() {
               required
             />
           </div>
+          {errorLine}
           <div className="flex gap-2">
-            <Button type="submit" disabled={busy || code.length !== 6}>
+            <Button type="submit" disabled={pending || code.length !== 6}>
               Verify and turn on
             </Button>
-            <Button type="button" variant="ghost" onClick={() => void load()} disabled={busy}>
+            <Button type="button" variant="ghost" onClick={() => reset({ kind: "off" })} disabled={pending}>
               Cancel
             </Button>
           </div>
