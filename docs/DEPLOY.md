@@ -1,0 +1,366 @@
+# Deploying anwar.os
+
+From "order the server" to "`https://anwarnnnot.com` is live with a tested backup".
+Architecture background: [ARCHITECTURE.md §3](ARCHITECTURE.md#3-infrastructure).
+
+| | |
+|---|---|
+| Server | Hetzner Cloud **CAX21** (arm64, 4 vCPU / 8 GB), Ubuntu 24.04, Falkenstein or Nuremberg |
+| Domain | `anwarnnnot.com` (registered at Vercel, DNS managed in Vercel) |
+| Files + backups | Hetzner Object Storage, same location as the server |
+| Images | `ghcr.io/nnnotanwar/anwar-os-{web,migrate,bot-expenses}:<sha>`, linux/arm64 + linux/amd64 |
+
+## What's in the repo
+
+| Path | Role |
+|---|---|
+| `Dockerfile` | `runner` target: Next.js standalone server (~75 MB compressed). `migrator` target: runs `pnpm db:migrate` / `pnpm owner:create` |
+| `infra/compose.prod.yml` | `caddy`, `web`, `db`, `migrate` (one-shot), `bot-expenses` (profile `bots`), `ops-agent` placeholder |
+| `infra/Caddyfile` | TLS, security headers, compression, www → apex |
+| `infra/.env.example` | every variable, documented. The real `.env` lives only on the server |
+| `infra/bootstrap.sh` | hardens a fresh Ubuntu 24.04 (idempotent) |
+| `infra/deploy.sh` | deploy / rollback / status on the server |
+| `infra/ci-gate.sh` | SSH forced command for the CI key |
+| `infra/backup/` | `backup.sh`, `restore.sh`, systemd service + timer |
+| `.github/workflows/deploy.yml` | build multi-arch images → GHCR → `deploy.sh <sha>` over SSH |
+| `.github/workflows/infra.yml` | shellcheck + compose + Caddyfile validation |
+
+On the server everything lives in a checkout of this repo at `/opt/anwar-os/repo`
+(public repo, cloned over HTTPS, no credentials). `deploy.sh` checks out the exact
+commit it deploys, so the compose file, Caddyfile and `db/init` always match the
+images. Run compose commands from `/opt/anwar-os/repo/infra`; this alias helps:
+
+```sh
+echo "alias dc='docker compose -f /opt/anwar-os/repo/infra/compose.prod.yml --env-file /opt/anwar-os/repo/infra/.env'" >> ~/.bash_aliases
+```
+
+---
+
+## 1. Before you start (on your laptop)
+
+1. **SSH key** for yourself, if you don't have one: `ssh-keygen -t ed25519`.
+2. **age key pair for backups** (`brew install age`):
+   ```sh
+   age-keygen -o ~/anwar-os-backup.key     # prints "Public key: age1..."
+   ```
+   Store `anwar-os-backup.key` in your password manager **and** somewhere offline
+   (printed, or a USB stick). Without it the backups are unreadable. Only the
+   public `age1...` line goes on the server.
+3. A **separate SSH key for CI** (step 9): `ssh-keygen -t ed25519 -f ~/.ssh/anwar-os-ci -C github-actions-deploy -N ""`.
+
+## 2. Order the server
+
+Hetzner Cloud console → your project → **Add server**:
+
+- Location: **Falkenstein (fsn1)** or **Nuremberg (nbg1)**. Use the same one for
+  Object Storage.
+- Image: **Ubuntu 24.04**. Type: **Arm64 (Ampere) → CAX21**.
+- Networking: public IPv4 + IPv6.
+- SSH key: add your **personal** public key (bootstrap copies it to the `deploy` user).
+- Optional: Hetzner **Backups** (+20 %, whole-disk snapshots; complements, doesn't
+  replace, the database backups) and a Hetzner **Firewall** allowing only TCP 22,
+  80, 443 and UDP 443 (defense in depth on top of ufw).
+- Name: `anwar-os`.
+
+Note the IPv4 and IPv6 addresses (`<IPV4>`, `<IPV6>`; for IPv6 use the `::1`
+address of the assigned /64).
+
+## 3. DNS records (Vercel)
+
+The domain was bought at Vercel, so its nameservers are Vercel's. Add the records
+in the Vercel dashboard → **Domains → anwarnnnot.com → DNS Records**, or with the
+CLI:
+
+| Name | Type | Value | TTL |
+|---|---|---|---|
+| `@` (apex) | A | `<IPV4>` | 60 at first, later 3600 |
+| `@` | AAAA | `<IPV6>` | same |
+| `www` | A | `<IPV4>` | same |
+| `www` | AAAA | `<IPV6>` | same |
+| `@` | CAA | `0 issue "letsencrypt.org"` | optional, limits who may issue certs |
+
+```sh
+vercel dns add anwarnnnot.com @ A <IPV4>
+vercel dns add anwarnnnot.com @ AAAA <IPV6>
+vercel dns add anwarnnnot.com www A <IPV4>
+vercel dns add anwarnnnot.com www AAAA <IPV6>
+vercel dns add anwarnnnot.com @ CAA '0 issue "letsencrypt.org"'
+```
+
+- If the domain is attached to a Vercel **project**, remove it there first
+  (Project → Settings → Domains); otherwise Vercel keeps serving its own default
+  A/ALIAS/CNAME records (`76.76.21.21`, `cname.vercel-dns.com`) for the apex/www.
+  Delete any such records so only the ones above remain.
+- Keep the MX/TXT records if you use the domain for email.
+- `www` is redirected to the apex by Caddy (it needs its own certificate, hence its
+  own records).
+- Check from your laptop before the first start: `dig +short anwarnnnot.com A`,
+  `dig +short www.anwarnnnot.com AAAA` must return the server's addresses.
+
+## 4. Bootstrap the server
+
+```sh
+scp infra/bootstrap.sh root@<IPV4>:
+ssh root@<IPV4> 'bash bootstrap.sh'            # uses root's authorized_keys
+# or pass a key explicitly: bash bootstrap.sh "ssh-ed25519 AAAA... you@laptop"
+```
+
+It creates the `deploy` user (sudo without password — it has no password — and in
+the `docker` group), disables root login and password auth, enables ufw (22 rate
+limited, 80, 443/tcp, 443/udp), unattended security upgrades (reboots at 04:30 when
+needed), fail2ban for sshd, Docker Engine + compose plugin from Docker's apt repo
+(arm64 or amd64), timezone Europe/Prague, swap if RAM < 4 GB (not on a CAX21),
+installs `age`, `rclone`, `git`, and clones the repo to `/opt/anwar-os/repo`.
+
+**Before closing the root session**, open a new terminal and check
+`ssh deploy@<IPV4>` works. Re-running the script is safe.
+
+Docker publishes ports through its own iptables rules, bypassing ufw. That's fine
+here (only Caddy publishes 80/443), but never add `ports:` to `db` or other
+services; keep them on the internal network.
+
+## 5. Object Storage
+
+Hetzner Cloud console → **Object Storage**, same location as the server:
+
+1. Create two **private** buckets, e.g. `anwar-os-files` (app files, phase 4) and
+   `anwar-os-backups`. (One bucket also works: backups then go under
+   `BACKUP_PREFIX`, default `postgres/`.)
+2. **Security → S3 credentials → Generate**. Note the access key and secret
+   (shown once). Hetzner credentials are project-wide; for a hard separation keep
+   backups in a different Hetzner project with its own key and set
+   `BACKUP_S3_ACCESS_KEY_ID` / `BACKUP_S3_SECRET_ACCESS_KEY`.
+3. Endpoint: `https://fsn1.your-objectstorage.com` (or `nbg1`), region `fsn1`.
+
+## 6. Configure `.env`
+
+```sh
+ssh deploy@<IPV4>
+cd /opt/anwar-os/repo/infra
+cp .env.example .env && chmod 600 .env
+nano .env
+```
+
+Fill in (`.env.example` explains each one): `DOMAIN=anwarnnnot.com`, `ACME_EMAIL`,
+`POSTGRES_PASSWORD` and `OS_APP_PASSWORD` (`openssl rand -hex 32`),
+`BETTER_AUTH_SECRET` (`openssl rand -base64 32`), the `S3_*` values,
+`BACKUP_S3_BUCKET`, `BACKUP_AGE_RECIPIENT` (the `age1...` public key). Leave the bot
+section for later. Save a copy of the finished file in your password manager.
+
+`.env` belongs to `deploy` with mode 600. `deploy` is root-equivalent anyway (docker
+group), so this is the "root-only" secret file from the architecture in practice;
+the backup timer reads it as root.
+
+## 7. First deploy
+
+Images must exist in GHCR first: merge to `main` (or run the **Deploy** workflow
+manually) and wait for the "Publish multi-arch tags" job. The deploy job is skipped
+until the `DEPLOY_*` secrets exist (step 9).
+
+**Registry access.** GHCR packages start private. Either make the three packages
+public (GitHub → your profile → Packages → each package → Package settings →
+Change visibility; the code is public anyway), or log the server in once with a
+classic PAT that has only `read:packages`:
+
+```sh
+echo <PAT> | docker login ghcr.io -u NnnotAnwar --password-stdin   # as deploy
+```
+
+Then, as `deploy`:
+
+```sh
+/opt/anwar-os/repo/infra/deploy.sh <full commit sha from main>
+```
+
+This starts Postgres (creating `os_app` via `db/init/01-roles.sh` on the empty
+volume), runs migrations, starts `web` and waits for `/api/health`, then starts
+Caddy, which requests certificates for `anwarnnnot.com` and `www.anwarnnnot.com`
+(watch with `dc logs -f caddy`). Open `https://anwarnnnot.com`.
+
+## 8. First owner
+
+Sign-up is disabled; create the owner with the migrate image (it has the full
+toolchain and `MIGRATION_DATABASE_URL`):
+
+```sh
+cd /opt/anwar-os/repo/infra
+docker compose -f compose.prod.yml run --rm migrate pnpm owner:create you@example.com
+# prompts for a password (min 12 chars)
+```
+
+Sign in at `https://anwarnnnot.com/login`, then **Settings → enable two-factor
+authentication** and store the backup codes. Phase 2 is done when `/app` works with
+2FA and a backup has been restored (step 11).
+
+## 9. Automatic deploys from GitHub
+
+1. On the server, add the CI key with a forced command, so it can only run
+   `deploy.sh` for commits already on `main` (never get a shell):
+   ```sh
+   echo 'command="/opt/anwar-os/repo/infra/ci-gate.sh",restrict ssh-ed25519 AAAA...(contents of anwar-os-ci.pub) github-actions-deploy' >> ~/.ssh/authorized_keys
+   ```
+2. Repository → Settings → Secrets and variables → Actions, **repository** secrets
+   (not environment secrets: the plan job checks for them):
+   - `DEPLOY_HOST` = `<IPV4>` (or `anwarnnnot.com`)
+   - `DEPLOY_USER` = `deploy`
+   - `DEPLOY_SSH_KEY` = contents of `~/.ssh/anwar-os-ci` (private key)
+   - `DEPLOY_KNOWN_HOSTS` = output of `ssh-keyscan -t ed25519 <IPV4>`, after
+     checking the fingerprint matches `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`
+     on the server (without it, CI trusts the host key on first use and warns)
+   - optional `DEPLOY_PORT` if SSH isn't on 22
+3. Variables: `PUBLIC_URL` = `https://anwarnnnot.com` (enables the post-deploy smoke test).
+4. Optional: Settings → Environments → `production` → required reviewers, if you
+   want to approve each deploy.
+
+From now on every push to `main` builds `web`, `migrate` and `bot-expenses` for
+arm64 + amd64 on native runners, tags them `:<sha>` and `:latest`, and runs
+`deploy.sh <sha>`:
+
+1. `git checkout <sha>` (must be on `origin/main`), set `WEB_TAG` (and
+   `BOT_EXPENSES_TAG` if bots are on) in `.env`, pull images.
+2. `docker compose run --rm migrate`. If it fails, web is never touched.
+3. Recreate `web`, wait for its healthcheck (`/api/health` = Postgres reachable).
+   If it doesn't become healthy, the previous commit and image are restored.
+4. Reload Caddy, record the sha in `infra/.deploy-history`, then deploy the bot.
+
+The images carry no secrets and no environment; one image runs anywhere.
+
+## 10. Backups
+
+Install the nightly timer (03:15 Prague time, ±15 min) as `deploy`:
+
+```sh
+cd /opt/anwar-os/repo
+sudo install -m 644 infra/backup/anwar-os-backup.service infra/backup/anwar-os-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now anwar-os-backup.timer
+sudo systemctl start anwar-os-backup.service        # run one now
+journalctl -u anwar-os-backup.service -n 30         # "backup OK: ..."
+```
+
+What it does: `pg_dump --format=custom` inside the `db` container, streamed through
+`age` (no plaintext on disk) to `/var/backups/anwar-os/` (2 newest kept locally),
+uploaded with rclone to `s3://<BACKUP_S3_BUCKET>/postgres/daily/`. The first backup
+of each ISO week and month is also copied to `weekly/` and `monthly/`. Retention:
+7 daily, 4 weekly, 6 monthly (`BACKUP_KEEP_*`).
+
+Optional but recommended: create a free check at healthchecks.io (daily period,
+2 h grace) and put its URL in `BACKUP_PING_URL`, so you hear about a backup that
+silently stopped.
+
+**Storage Box instead of Object Storage:** order a Storage Box, create a
+sub-account with SSH key login, put the private key at `/root/.ssh/storagebox`, and
+set `BACKUP_TARGET=sftp` plus the `BACKUP_SFTP_*` variables in `.env`. Everything
+else is the same (rclone speaks both).
+
+Not in the database backup: `.env` (password manager), Caddy's certificates
+(re-issued automatically), container images (rebuilt by CI), and app files in
+Object Storage (phase 4; enable bucket versioning or a second sync then).
+
+## 11. Restore drill (do it now, then monthly)
+
+Untested backups don't count. The drill restores into a scratch database next to
+production and never touches the live one:
+
+```sh
+scp ~/anwar-os-backup.key deploy@<IPV4>:/tmp/k     # from the laptop
+ssh deploy@<IPV4>
+sudo /opt/anwar-os/repo/infra/backup/restore.sh -i /tmp/k latest
+# downloads daily/<newest>, decrypts, pg_restore into anwar_os_restore,
+# prints every table with its row count, drops the scratch database
+shred -u /tmp/k
+```
+
+Check the row counts look right (`auth.user` has your owner, notes are there).
+`restore.sh -i /tmp/k weekly/anwar_os-2026-W47.dump.age` restores a specific file;
+a local path works too.
+
+Laptop variant (keeps the private key off the server):
+
+```sh
+export RCLONE_CONFIG_HOS_TYPE=s3 RCLONE_CONFIG_HOS_PROVIDER=Other \
+  RCLONE_CONFIG_HOS_ENDPOINT=https://fsn1.your-objectstorage.com \
+  RCLONE_CONFIG_HOS_ACCESS_KEY_ID=... RCLONE_CONFIG_HOS_SECRET_ACCESS_KEY=...
+rclone lsf hos:anwar-os-backups/postgres/daily/
+rclone copyto hos:anwar-os-backups/postgres/daily/<file> ./b.age
+docker run -d --name restore-test -e POSTGRES_PASSWORD=x postgres:17-alpine
+sleep 5
+# --no-owner/--no-acl: the app roles don't exist in this throwaway cluster
+age -d -i ~/anwar-os-backup.key b.age \
+  | docker exec -i restore-test pg_restore -U postgres -d postgres --create --no-owner --no-acl
+docker exec restore-test psql -U postgres -d anwar_os -c 'select count(*) from auth."user"'
+docker rm -f restore-test && rm b.age
+```
+
+### Real restore (data loss, bad migration)
+
+```sh
+sudo /opt/anwar-os/repo/infra/backup/restore.sh -i /tmp/k --into-live latest
+```
+
+Stops `web` (and the bot), saves an encrypted safety dump of the current database
+to `/var/backups/anwar-os/pre-restore-*.dump.age`, drops and recreates `anwar_os`
+from the backup (including database-level grants), re-applies the bot's role
+password, starts everything and waits for health.
+
+### Rebuild the server from scratch
+
+New server → steps 2–6 (restore `.env` from the password manager, update DNS if the
+IP changed) → `deploy.sh <sha>` (creates an empty, migrated database) →
+`restore.sh --into-live latest` → install the backup timer. Caddy gets new
+certificates on its own.
+
+## 12. Rollback
+
+- **Automatic:** a deploy whose `web` container fails its healthcheck restores the
+  previous commit and image itself; the workflow run goes red.
+- **Previous release:** `ssh deploy@<IPV4> /opt/anwar-os/repo/infra/deploy.sh rollback`
+  (the sha before the current one in `.deploy-history`).
+- **Any earlier release:** `deploy.sh <sha>`, or GitHub → Actions → Deploy →
+  **Run workflow** with `sha` set (skips the build, redeploys that image; works from
+  the phone).
+- `deploy.sh status` shows the deployed commit, tags, containers and last deploys.
+
+Migrations are **not** rolled back. Keep them expand/contract (add first, drop in a
+later release), so the previous image works against the newer schema. If a
+migration destroyed data, restore the pre-deploy backup (`--into-live`) and then
+deploy the previous sha.
+
+## 13. Expense bot
+
+1. Stop the old `py-telegram` bot (only one process may poll a token).
+2. In `.env`: `BOT_EXPENSES_TOKEN`, `BOT_EXPENSES_DB_PASSWORD` (`openssl rand -hex 24`),
+   `COMPOSE_PROFILES=bots`.
+3. `deploy.sh <current sha>`. With the profile on, deploy.sh applies
+   `bots/expenses/db/bootstrap.sql` (role `bot_expenses`, schema, grants;
+   idempotent, also syncs the password), starts `bot-expenses` and waits for its
+   heartbeat healthcheck. The bot migrates its own tables at startup.
+4. Optional import of the old SQLite data (see `bots/expenses/README.md`):
+   ```sh
+   cd /opt/anwar-os/repo/infra
+   docker compose -f compose.prod.yml run --rm -v /path/to/expenses.db:/data/expenses.db:ro \
+     bot-expenses python scripts/import_sqlite.py /data/expenses.db --dry-run
+   ```
+
+A bot that fails its healthcheck is rolled back to its previous tag; web stays on
+the new release.
+
+## 14. Day-2 notes
+
+- Logs: `dc logs -f web`, `dc logs --tail 200 caddy`. Docker rotates them
+  (10 MB × 5 per container).
+- `dc ps` shows health; `/api/health` is public for uptime monitors.
+- **Labels:** services carry `os.managed=true` (listed by the phase-5 ops-agent),
+  `os.protected=true` (visible but not stoppable/deployable from the panel: caddy,
+  web, db), `os.role` (edge/app/data/bot); bot images add `os.kind=bot` and
+  `os.name`. One-shot jobs are `os.managed=false`.
+- Updating Caddy: bump the tag in `compose.prod.yml`, deploy. Postgres minor
+  updates: `dc pull db && dc up -d db`. A **major** upgrade (17 → 18) needs a dump
+  and restore into a new volume; don't just change the tag.
+- Rotating `BETTER_AUTH_SECRET` signs everyone out. Rotating a database password:
+  `ALTER ROLE ... PASSWORD` first (via `dc exec db psql -U postgres`), then `.env`,
+  then `deploy.sh <current sha>`.
+- IPv6 visitors reach Caddy through Docker's userland proxy, so Caddy logs show a
+  Docker gateway address for them instead of the real client IP.
+- CSP is not set yet (see the comment in `infra/Caddyfile`); the right place is a
+  nonce-based policy in `src/proxy.ts`.
