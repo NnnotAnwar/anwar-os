@@ -12,6 +12,7 @@ import { requireViewer, type Viewer } from "@/core/auth"
 import { modulesFor } from "@/core/module"
 import { getServices } from "@/core/services"
 import { modules } from "@/modules/_registry"
+import { CaptureSheet } from "@/modules/inbox/components/capture-sheet"
 
 export const metadata = { title: { absolute: "Today · anwar.os", template: "%s · anwar.os" } }
 
@@ -81,6 +82,7 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
       <Suspense fallback={null}>
         <Shortcuts />
       </Suspense>
+      <CaptureSheet />
     </div>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef } from "react"
 
 /** Same rule as the shell's shortcuts: no page keys while the focus is in a field. */
 export function isTyping(target: EventTarget | null) {
@@ -24,5 +24,9 @@ export function useAfterG() {
     window.addEventListener("keydown", onKey, true)
     return () => window.removeEventListener("keydown", onKey, true)
   }, [])
-  return (e: KeyboardEvent) => e.key === "g" || (lastG.current > 0 && e.timeStamp - lastG.current < 1200 && e.timeStamp !== lastG.current)
+  return useCallback(
+    (e: KeyboardEvent) =>
+      e.key === "g" || (lastG.current > 0 && e.timeStamp - lastG.current < 1200 && e.timeStamp !== lastG.current),
+    [],
+  )
 }

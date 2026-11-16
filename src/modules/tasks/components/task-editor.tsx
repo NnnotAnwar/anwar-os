@@ -10,7 +10,7 @@ import { repeatLabel } from "../lib/format"
 import { priorityLabels, taskPriorities, type ProjectOption, type Task, type TaskList, type TaskPriority } from "../schema"
 import { getProjectOptions } from "../server-actions"
 import { quickDates } from "./schedule-sheet"
-import { Sheet } from "./sheet"
+import { Sheet } from "@/components/sheet"
 
 export type TaskPatch = Partial<Pick<Task, "title" | "notes" | "dueDate" | "dueTime" | "priority" | "listId" | "projectId" | "rrule">>
 
