@@ -1,0 +1,40 @@
+# Keep the build context small and secret-free. The image is built from source +
+# lockfile; everything below is either rebuilt inside, irrelevant, or private.
+
+# dependencies and build output (rebuilt in the image)
+node_modules
+.pnpm-store
+.next
+out
+build
+coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# secrets: never bake env files into an image
+.env*
+!.env.example
+*.pem
+
+# VCS, editors, agents, CI
+.git
+.gitignore
+.github
+.claude
+.vscode
+.idea
+.DS_Store
+*.log
+
+# server/ops files: changing them must not invalidate the image cache
+Dockerfile
+.dockerignore
+infra
+docs
+compose.yaml
+compose.*.yaml
+compose.*.yml
+*.md
+
+# bots build from their own context (bots/<name>/Dockerfile)
+bots
