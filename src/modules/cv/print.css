@@ -1,0 +1,55 @@
+/*
+ * Print stylesheet for /cv: the browser's "Save as PDF" turns the page into a
+ * plain A4 résumé. Site chrome carries `print:hidden`; here the glass, canvas
+ * and dark theme give way to black ink on white paper.
+ */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 15mm 14mm 15mm;
+  }
+
+  :root,
+  .dark {
+    --foreground: #111;
+    --muted-foreground: #4a4a4a;
+    --text-accent: #111;
+    --hairline: #d4d4d4;
+    --border: #d4d4d4;
+    color-scheme: light;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+    font-size: 10pt;
+  }
+
+  .cv-sheet,
+  .cv-sheet .glass {
+    background: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding: 0 !important;
+  }
+
+  .cv-sheet .glass::before {
+    display: none !important;
+  }
+
+  .cv-sheet a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+
+  .cv-entry,
+  .cv-section-head {
+    break-inside: avoid;
+  }
+
+  .cv-section-head {
+    break-after: avoid;
+  }
+}
