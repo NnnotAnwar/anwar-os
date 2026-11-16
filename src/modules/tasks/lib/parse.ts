@@ -34,7 +34,6 @@ export type ParsedTask = {
 const L = String.raw`(?<![\p{L}\p{N}])`
 const R = String.raw`(?![\p{L}\p{N}])`
 
-type Lexeme = { re: RegExp; words: string[] }
 
 function alt(words: string[]) {
   return [...words].sort((a, b) => b.length - a.length).join("|")

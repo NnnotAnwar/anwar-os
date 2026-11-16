@@ -209,7 +209,7 @@ function ServiceSheet({
  * The grab handle on phones. Dragging it down moves the sheet with the finger;
  * past 80 px (or a quick flick) it closes, otherwise it springs back.
  */
-function SheetHandle({ onDismiss }: { onDismiss: () => void }) {
+export function SheetHandle({ onDismiss }: { onDismiss: () => void }) {
   const [start, setStart] = useState<{ y: number; t: number } | null>(null)
 
   function sheetOf(el: HTMLElement) {

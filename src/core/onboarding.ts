@@ -20,10 +20,11 @@ async function exists(query: ReturnType<typeof sql>) {
  */
 export async function getSetup(): Promise<{ steps: SetupStep[]; dismissed: boolean }> {
   const viewer = await requireViewer()
-  const [prefs, note, event, cv] = await Promise.all([
+  const [prefs, task, note, event, cv] = await Promise.all([
     asViewer((tx) =>
       tx.execute<{ dismissed_hints: string[] }>(sql`select dismissed_hints from core_preferences limit 1`),
     ).catch(() => []),
+    exists(sql`select 1 from tasks_tasks limit 1`),
     exists(sql`select 1 from notes_notes limit 1`),
     exists(sql`select 1 from calendar_events limit 1`),
     exists(sql`select 1 from cv_profile where is_public limit 1`),
@@ -44,6 +45,7 @@ export async function getSetup(): Promise<{ steps: SetupStep[]; dismissed: boole
       href: "/app/settings",
       done: viewer.twoFactorEnabled,
     },
+    { id: "task", label: "Add your first task", hint: "Plain words work: “Call the bank tomorrow 10:00”.", href: "/app/tasks?new=1", done: task },
     { id: "note", label: "Write your first note", hint: "Anything — it saves as you type.", href: "/app/notes/new", done: note },
     { id: "event", label: "Add an event", hint: "Birthdays, exams, deadlines.", href: "/app/calendar?new=1", done: event },
     { id: "cv", label: "Publish your CV", hint: "Visitors read it at /cv.", href: "/app/cv", done: cv },
