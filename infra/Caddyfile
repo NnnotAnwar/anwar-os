@@ -1,0 +1,60 @@
+# anwar.os edge. DOMAIN (anwarnnnot.com) and ACME_EMAIL come from infra/.env
+# via compose.
+# Caddy gets and renews the Let's Encrypt certificate on its own once DNS points
+# here and ports 80/443 are open. Reload after editing:
+#   docker compose -f compose.prod.yml exec caddy caddy reload --config /etc/caddy/Caddyfile
+{
+	email {$ACME_EMAIL}
+}
+
+(security_headers) {
+	header {
+		# HTTPS only for a year. Add "; preload" and submit to hstspreload.org
+		# only once you're sure every subdomain will always have TLS.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Cross-Origin-Opener-Policy "same-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		-Server
+		-X-Powered-By
+
+		# Content-Security-Policy: deliberately NOT set here. Next.js injects
+		# inline bootstrap scripts, so a static CSP either breaks the app or needs
+		# 'unsafe-inline'. The right place is a nonce-based CSP generated per request
+		# in src/proxy.ts (Next docs: guides/content-security-policy). Until then you
+		# can collect violations without enforcing anything by uncommenting the line
+		# below. Third-party origins in use: the Satoshi stylesheet from
+		# api.fontshare.com and its fonts from cdn.fontshare.com (Inter is
+		# self-hosted by next/font, so 'self' covers it).
+		# Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://api.fontshare.com; img-src 'self' data: blob:; font-src 'self' https://cdn.fontshare.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+	}
+}
+
+{$DOMAIN} {
+	import security_headers
+
+	# zstd/gzip for text responses. Streaming (Suspense / PPR) still works:
+	# responses without Content-Length are flushed as they arrive.
+	encode zstd gzip
+
+	reverse_proxy web:3000 {
+		# Next drains in-flight requests on SIGTERM; give Caddy a few retries
+		# while a container is being recreated during a deploy.
+		lb_try_duration 10s
+		lb_try_interval 250ms
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# www -> apex. Needs the www A/AAAA records (docs/DEPLOY.md, "DNS"); without
+# them Caddy keeps retrying the www certificate (the apex is unaffected).
+www.{$DOMAIN} {
+	import security_headers
+	redir https://{$DOMAIN}{uri} permanent
+}
