@@ -49,3 +49,7 @@ next-env.d.ts
 bots/**/__pycache__
 .venv
 *.db
+
+# server-side deploy state (infra/deploy.sh)
+/infra/.deploy-history
+/infra/.deploy.lock
