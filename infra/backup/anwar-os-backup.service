@@ -1,0 +1,16 @@
+# Installed by docs/DEPLOY.md ("Backups"):
+#   sudo install -m 644 infra/backup/anwar-os-backup.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now anwar-os-backup.timer
+[Unit]
+Description=anwar.os encrypted Postgres backup
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/anwar-os/repo/infra/backup/backup.sh
+# Backups are background work: don't compete with the site.
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=1h
