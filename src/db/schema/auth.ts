@@ -89,3 +89,25 @@ export const twoFactor = authSchema.table(
   },
   (t) => [index("two_factor_user_id_idx").on(t.userId), index("two_factor_secret_idx").on(t.secret)],
 )
+
+// WebAuthn credentials (Better Auth passkey plugin). The public key is not a
+// secret; a credential ID identifies one credential on one authenticator.
+export const passkey = authSchema.table(
+  "passkey",
+  {
+    id: text("id").primaryKey(),
+    name: text("name"),
+    publicKey: text("public_key").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    credentialID: text("credential_id").notNull().unique(),
+    counter: integer("counter").notNull().default(0),
+    deviceType: text("device_type").notNull(),
+    backedUp: boolean("backed_up").notNull(),
+    transports: text("transports"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    aaguid: text("aaguid"),
+  },
+  (t) => [index("passkey_user_id_idx").on(t.userId)],
+)
