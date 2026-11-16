@@ -155,7 +155,7 @@ export function IdeaList({ ideas, locale, now }: { ideas: Idea[]; locale: string
             href={`/app/ideas/${idea.id}`}
             className="grid min-w-0 flex-1 basis-full gap-0.5 rounded-lg px-1 py-1 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 sm:basis-auto"
           >
-            <span className={`text-body-strong ${cn("truncate", idea.status === "dropped" && "text-muted-foreground line-through")}`}>
+            <span className={cn("text-body-strong truncate", idea.status === "dropped" && "text-muted-foreground line-through")}>
               {idea.title}
             </span>
             <span className="text-caption flex min-w-0 items-center gap-1.5 text-muted-foreground">

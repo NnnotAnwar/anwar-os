@@ -118,11 +118,11 @@ export function SaveStatus({
     <p
       role="status"
       aria-live="polite"
-      className={`text-caption ${cn(
-        "truncate text-muted-foreground tabular-nums",
+      className={cn(
+        "text-caption truncate text-muted-foreground tabular-nums",
         status.kind === "error" && "text-destructive",
         className,
-      )}`}
+      )}
     >
       {text}
     </p>

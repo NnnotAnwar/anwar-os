@@ -74,10 +74,10 @@ async function Board({ searchParams }: Pick<PageProps<"/app/ideas">, "searchPara
                   href={f.value ? `/app/ideas?status=${f.value}` : "/app/ideas"}
                   aria-current={active ? "page" : undefined}
                   scroll={false}
-                  className={`text-small ${cn(
-                    "flex h-7 items-center gap-1.5 rounded-lg px-2.5 whitespace-nowrap text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                  className={cn(
+                    "text-small flex h-7 items-center gap-1.5 rounded-lg px-2.5 whitespace-nowrap text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
                     active && "segment-active text-foreground",
-                  )}`}
+                  )}
                 >
                   {f.label}
                   <span className="text-caption tabular-nums opacity-70">{f.count}</span>

@@ -14,10 +14,10 @@ function NavItems({ pathname }: { pathname: string | null }) {
         <Link
           href={href}
           aria-current={active ? "page" : undefined}
-          className={`text-meta ${cn(
-            "flex h-8 items-center rounded-lg px-2 text-muted-foreground sm:px-2.5 outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+          className={cn(
+            "text-meta flex h-8 items-center rounded-lg px-2 text-muted-foreground sm:px-2.5 outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
             active && "segment-active text-foreground",
-          )}`}
+          )}
         >
           {label}
         </Link>

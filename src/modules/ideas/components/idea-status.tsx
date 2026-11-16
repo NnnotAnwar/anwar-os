@@ -12,7 +12,7 @@ const tone: Record<IdeaStatus, string> = {
 /** The pipeline as one accent ramp: neutral while raw, tinted while building, filled once shipped. */
 export function IdeaStatusPill({ status, className }: { status: IdeaStatus; className?: string }) {
   return (
-    <span className={`text-micro ${cn("inline-flex h-5 shrink-0 items-center rounded-md px-1.5", tone[status], className)}`}>
+    <span className={cn("text-micro inline-flex h-5 shrink-0 items-center rounded-md px-1.5", tone[status], className)}>
       {ideaStatusLabels[status]}
     </span>
   )
