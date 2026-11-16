@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useTransition } from "react"
-import { usePathname, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { TrayArrowDown } from "@/components/icons"
 import { Sheet } from "@/components/sheet"
@@ -22,7 +22,6 @@ export function openCapture() {
  */
 export function CaptureSheet() {
   const router = useRouter()
-  const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const afterG = useAfterG()
 
@@ -55,7 +54,8 @@ export function CaptureSheet() {
           onDone={() => {
             setOpen(false)
             toast.success("Captured to inbox", {
-              action: pathname.startsWith("/app/inbox") ? undefined : { label: "Open inbox", onClick: () => router.push("/app/inbox") },
+              // Read at save time: usePathname() would make the shell dynamic.
+              action: window.location.pathname.startsWith("/app/inbox") ? undefined : { label: "Open inbox", onClick: () => router.push("/app/inbox") },
             })
           }}
         />
@@ -117,7 +117,7 @@ export function CaptureForm({ onDone, compact = false, autoFocus = true }: { onD
               submit()
             }
           }}
-          placeholder={compact ? "Capture anything — a thought, a to-do, a link" : "e.g. Ask Petra about the shift swap · https://…"}
+          placeholder={compact ? "Capture a thought, a to-do, a link" : "e.g. Ask Petra about the shift swap · https://…"}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? "capture-error" : undefined}
           className={

@@ -269,9 +269,9 @@ export function TasksApp({
         dueToday={view === "today"}
         placeholder={
           view === "lists" && data.selectedListId
-            ? `Add to ${listName(data.selectedListId)} — e.g. Essay draft fri !high`
+            ? `Add to ${listName(data.selectedListId)} — try “fri !high”`
             : view === "today"
-              ? "Add for today — e.g. Call the bank 10:00 !high #University"
+              ? "Add for today — try “10:00 !high #List”"
               : undefined
         }
         onAdded={onAdded}

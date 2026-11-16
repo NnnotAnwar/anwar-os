@@ -92,7 +92,7 @@ export const QuickAdd = forwardRef<
               e.currentTarget.blur()
             }
           }}
-          placeholder={placeholder ?? "e.g. Call the bank tomorrow 10:00 !high #University"}
+          placeholder={placeholder ?? "Add a task — try “tomorrow 10:00 !high”"}
           maxLength={500}
           autoComplete="off"
           enterKeyHint="done"
