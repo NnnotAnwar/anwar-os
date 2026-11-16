@@ -1,16 +1,14 @@
 import { Suspense } from "react"
-import Link from "next/link"
 import { CalendarDays, Plus, Settings } from "@/components/icons"
-import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CommandPalette } from "@/components/shell/command-palette"
+import { CreateMenu } from "@/components/shell/create-menu"
 import { NavLink, TabLink } from "@/components/shell/nav-link"
 import { SearchIconTrigger, SearchTrigger } from "@/components/shell/search-trigger"
 import { UserMenu } from "@/components/shell/user-menu"
 import { Wordmark } from "@/components/shell/wordmark"
 import { requireViewer, type Viewer } from "@/core/auth"
 import { modulesFor } from "@/core/module"
-import { cn } from "@/lib/utils"
 import { modules } from "@/modules/_registry"
 
 export const metadata = { title: { absolute: "Today · anwar.os", template: "%s · anwar.os" } }
@@ -106,15 +104,8 @@ async function ViewerMenu({ variant }: { variant: "full" | "compact" }) {
 
 async function CreateButton() {
   const { mods } = await visibleModules()
-  const create = mods.find((m) => m.create)?.create
-  if (!create) return null
-  return (
-    <Link href={create.href} className={cn(buttonVariants(), "gap-1.5")}>
-      <Plus />
-      <span className="hidden sm:inline">{create.label}</span>
-      <span className="sr-only sm:hidden">{create.label}</span>
-    </Link>
-  )
+  const items = mods.flatMap((m) => (m.create ? [{ ...m.create, icon: <m.icon /> }] : []))
+  return <CreateMenu items={items} />
 }
 
 async function MobileTabs() {

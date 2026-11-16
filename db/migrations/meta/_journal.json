@@ -50,6 +50,20 @@
       "when": 1794811024131,
       "tag": "0006_feedback_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794811294596,
+      "tag": "0007_public_face_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794811295208,
+      "tag": "0008_public_face_rls",
+      "breakpoints": true
     }
   ]
 }
