@@ -115,3 +115,7 @@ export const Rss = bold(P.Rss)
 export const CalendarPlus = bold(P.CalendarPlus)
 export const CalendarDuo = bold(P.CalendarBlank, "duotone")
 export const Clock = bold(P.Clock)
+
+// shell
+export const SunHorizon = bold(P.SunHorizon)
+export const DotsGrid = bold(P.DotsNine)

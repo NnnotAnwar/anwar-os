@@ -11,7 +11,8 @@ import { feedback } from "./feedback/manifest"
 
 // Adding a module: create src/modules/<id>/, a migration prefixed <id>_,
 // a thin route file under src/app/(private)/app/<id>/, and one line here.
-const registered = [notes, tools, links, feedback, cv, projects, ideas, files, calendar] as const satisfies readonly ModuleManifest[]
+// Order is priority: the first three get phone tabs; the rest sit under "More".
+const registered = [notes, calendar, files, links, ideas, projects, cv, feedback, tools] as const satisfies readonly ModuleManifest[]
 
 export type ModuleId = (typeof registered)[number]["id"]
 

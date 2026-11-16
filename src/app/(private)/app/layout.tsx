@@ -1,8 +1,9 @@
 import { Suspense } from "react"
-import { CalendarDays, Plus, Settings } from "@/components/icons"
+import { Plus, Settings, SunHorizon } from "@/components/icons"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CommandPalette } from "@/components/shell/command-palette"
 import { CreateMenu } from "@/components/shell/create-menu"
+import { MoreMenu } from "@/components/shell/more-menu"
 import { NavLink, TabLink } from "@/components/shell/nav-link"
 import { SearchIconTrigger, SearchTrigger } from "@/components/shell/search-trigger"
 import { UserMenu } from "@/components/shell/user-menu"
@@ -23,7 +24,7 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
           <Wordmark />
         </div>
         <nav aria-label="Main" className="grid gap-0.5">
-          <NavLink href="/app" exact icon={<CalendarDays />}>
+          <NavLink href="/app" exact icon={<SunHorizon />}>
             Today
           </NavLink>
           <Suspense fallback={<NavSkeleton />}>
@@ -110,13 +111,18 @@ async function CreateButton() {
 
 async function MobileTabs() {
   const { mods } = await visibleModules()
-  const tabs = mods.flatMap((m) => m.nav.slice(0, 1).map((item) => ({ ...item, Icon: m.icon }))).slice(0, 3)
+  const entries = mods.flatMap((m) => m.nav.slice(0, 1).map((item) => ({ ...item, Icon: m.icon })))
+  const tabs = entries.slice(0, 3)
+  const more = [
+    ...entries.slice(3).map(({ href, label, Icon }) => ({ href, label, icon: <Icon /> })),
+    { href: "/app/settings", label: "Settings", icon: <Settings /> },
+  ]
   return (
     <nav
       aria-label="Main"
       className="glass glass-menu fixed inset-x-0 bottom-0 z-30 flex rounded-none pb-[env(safe-area-inset-bottom)] md:hidden"
     >
-      <TabLink href="/app" exact icon={<CalendarDays />}>
+      <TabLink href="/app" exact icon={<SunHorizon />}>
         Today
       </TabLink>
       {tabs.map(({ href, label, Icon }) => (
@@ -124,9 +130,7 @@ async function MobileTabs() {
           {label}
         </TabLink>
       ))}
-      <TabLink href="/app/settings" icon={<Settings />}>
-        Settings
-      </TabLink>
+      <MoreMenu items={more} />
     </nav>
   )
 }
@@ -134,7 +138,7 @@ async function MobileTabs() {
 async function Palette() {
   const { mods } = await visibleModules()
   const nav = [
-    { label: "Today", href: "/app", icon: <CalendarDays /> },
+    { label: "Today", href: "/app", icon: <SunHorizon /> },
     ...mods.flatMap((m) => m.nav.map((item) => ({ ...item, icon: <m.icon /> }))),
     { label: "Settings", href: "/app/settings", icon: <Settings /> },
   ]
