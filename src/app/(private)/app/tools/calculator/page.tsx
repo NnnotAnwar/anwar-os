@@ -1,0 +1,8 @@
+import { toolMetadata } from "@/modules/tools/catalog"
+import { ToolPage } from "@/modules/tools/routes/tool"
+
+export const metadata = toolMetadata("calculator")
+
+export default function CalculatorPage() {
+  return <ToolPage slug="calculator" base="/app/tools" />
+}

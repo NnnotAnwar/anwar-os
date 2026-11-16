@@ -1,8 +1,13 @@
 import type { ModuleManifest } from "@/core/module"
 import { notes } from "./notes/manifest"
+import { tools } from "./tools/manifest"
 
 // Adding a module: create src/modules/<id>/, a migration prefixed <id>_,
 // a thin route file under src/app/(private)/app/<id>/, and one line here.
-export const modules = [notes] as const satisfies readonly ModuleManifest[]
+const registered = [notes, tools] as const satisfies readonly ModuleManifest[]
 
-export type ModuleId = (typeof modules)[number]["id"]
+export type ModuleId = (typeof registered)[number]["id"]
+
+// Widened to the contract so optional fields (create, widgets, …) stay readable
+// on every entry, not only on the modules that happen to define them.
+export const modules: readonly (ModuleManifest & { id: ModuleId })[] = registered
