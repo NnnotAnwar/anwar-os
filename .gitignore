@@ -44,3 +44,8 @@ next-env.d.ts
 # supabase CLI working files (local branch state, generated container secrets)
 /supabase/.branches
 /supabase/.temp
+
+# python bots
+bots/**/__pycache__
+.venv
+*.db
