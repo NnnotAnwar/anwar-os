@@ -1,29 +1,39 @@
 import Link from "next/link"
 import { ArrowUpRight } from "@/components/icons"
+import { Morph, NAV_FORWARD } from "@/components/motion"
 import type { PublicProject } from "../schema"
 import { StatusPill } from "./status-pill"
+
+/** Shared-element names: the card's cover and title morph into the case-study hero. */
+export const morphNames = (id: string) => ({ cover: `project-cover-${id}`, title: `project-title-${id}` })
 
 /** Public grid card: optional cover, title, summary, stack. The whole card is the link. */
 export function ProjectCard({ project, headingLevel = "h2" }: { project: PublicProject; headingLevel?: "h2" | "h3" }) {
   const Heading = headingLevel
+  const names = morphNames(project.id)
   return (
     <Link
       href={`/projects/${project.slug}`}
-      className="group glass grid h-full content-start overflow-hidden rounded-xl outline-none transition-shadow hover:[--glass-shadow:var(--shadow-glass-lg)] focus-visible:ring-3 focus-visible:ring-ring/50"
+      transitionTypes={NAV_FORWARD}
+      className="press group glass grid h-full content-start overflow-hidden rounded-xl outline-none transition-shadow hover:[--glass-shadow:var(--shadow-glass-lg)] focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       {project.coverUrl && (
-        // Owner-supplied hosts: next/image would need each one allow-listed.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={project.coverUrl}
-          alt=""
-          loading="lazy"
-          className="aspect-video w-full border-b border-hairline object-cover"
-        />
+        <Morph name={names.cover}>
+          {/* Owner-supplied hosts: next/image would need each one allow-listed. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={project.coverUrl}
+            alt=""
+            loading="lazy"
+            className="aspect-video w-full border-b border-hairline object-cover transition-transform duration-500 ease-out group-hover:scale-[1.02]"
+          />
+        </Morph>
       )}
       <div className="grid gap-2 p-4">
         <div className="flex items-start justify-between gap-3">
-          <Heading className="text-card-title">{project.title}</Heading>
+          <Morph name={names.title}>
+            <Heading className="text-card-title w-fit">{project.title}</Heading>
+          </Morph>
           <ArrowUpRight className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-text-accent" />
         </div>
         {project.summary && <p className="text-meta text-pretty text-muted-foreground">{project.summary}</p>}

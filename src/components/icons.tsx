@@ -166,3 +166,10 @@ export const Pause = bold(P.Pause)
 export const Play = bold(P.Play)
 // osbot
 export const TelegramLogo = bold(P.TelegramLogo)
+// public site: header menu, case studies, tools
+export const MenuIcon = bold(P.List)
+export const TableIcon = bold(P.Table)
+export const ChartLine = bold(P.ChartLine)
+export const Hourglass = bold(P.HourglassMedium)
+export const SidebarIcon = bold(P.SidebarSimple)
+export const DownloadLine = bold(P.ArrowLineDown)
