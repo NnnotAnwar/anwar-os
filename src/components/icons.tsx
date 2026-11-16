@@ -128,3 +128,9 @@ export const Compass = bold(P.Compass)
 export const ListBullets = bold(P.ListBullets)
 export const Rows = bold(P.Rows)
 export const SignIn = bold(P.SignIn)
+
+// sign-in methods
+export const Fingerprint = bold(P.Fingerprint)
+export const KeyIcon = bold(P.Key)
+export const PasswordIcon = bold(P.Password)
+export const ShieldCheck = bold(P.ShieldCheck)

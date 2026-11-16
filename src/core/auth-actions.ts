@@ -1,23 +1,28 @@
 "use server"
 
+import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import QRCode from "qrcode"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
+import { safeNext } from "@/lib/safe-next"
 
 export type AuthFormState = { error?: string }
+
+/**
+ * A new or ended session changes what every private page shows (including
+ * whether the sign-in is recent): drop the client router's cached copies.
+ */
+function dropCachedPages() {
+  revalidatePath("/app", "layout")
+}
 
 const credentials = z.object({
   email: z.email(),
   password: z.string().min(1),
   next: z.string().optional(),
 })
-
-/** Only allow redirects back into the private zone (no open redirects). */
-function safeNext(next: string | undefined) {
-  return next && /^\/app(\/[\w\-/]*)?$/.test(next) ? next : "/app"
-}
 
 export async function signIn(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const parsed = credentials.safeParse(Object.fromEntries(formData))
@@ -37,6 +42,7 @@ export async function signIn(_prev: AuthFormState, formData: FormData): Promise<
 
   const next = safeNext(parsed.data.next)
   if (needsSecondFactor) redirect(`/login/mfa?next=${encodeURIComponent(next)}`)
+  dropCachedPages()
   redirect(next)
 }
 
@@ -60,11 +66,13 @@ export async function verifyMfa(_prev: AuthFormState, formData: FormData): Promi
   } catch {
     return { error: "That code didn't work. Wait for the next one or use a backup code." }
   }
+  dropCachedPages()
   redirect(safeNext(parsed.data.next))
 }
 
 export async function signOut() {
   await auth.api.signOut({ headers: await headers() })
+  dropCachedPages()
   redirect("/login")
 }
 
@@ -103,6 +111,67 @@ export async function confirmTwoFactorSetup(code: string): Promise<{ ok: boolean
     return { ok: true }
   } catch {
     return { ok: false, error: "That code didn't work. Try the next one." }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sign-in methods (settings page). Adding a passkey and connecting Google run
+// in the browser (src/lib/auth-client.ts); these are the server-side parts.
+// ---------------------------------------------------------------------------
+
+export type MethodResult = { ok: true } | { ok: false; error: string; reauth?: boolean }
+
+function isNotFresh(e: unknown) {
+  const body = (e as { body?: { code?: string } })?.body
+  return body?.code === "SESSION_NOT_FRESH"
+}
+
+const reauthError: MethodResult = {
+  ok: false,
+  reauth: true,
+  error: "For your security, sign in again before changing how you sign in.",
+}
+
+/** Signs out and sends the owner back to Settings through the sign-in page. */
+export async function confirmIdentity() {
+  await auth.api.signOut({ headers: await headers() })
+  dropCachedPages()
+  redirect("/login?next=/app/settings&reauth=1")
+}
+
+export async function disconnectGoogle(): Promise<MethodResult> {
+  const requestHeaders = await headers()
+  try {
+    const accounts = await auth.api.listUserAccounts({ headers: requestHeaders })
+    const google = accounts.find((a) => a.providerId === "google")
+    if (!google) return { ok: true }
+    await auth.api.unlinkAccount({ body: { accountId: google.id }, headers: requestHeaders })
+    return { ok: true }
+  } catch (e) {
+    if (isNotFresh(e)) return reauthError
+    return { ok: false, error: "Couldn't disconnect Google. Try again." }
+  }
+}
+
+const passkeyName = z.string().trim().min(1, "Give the passkey a name.").max(60, "Keep the name under 60 characters.")
+
+export async function renamePasskey(id: string, rawName: string): Promise<MethodResult> {
+  const parsed = passkeyName.safeParse(rawName)
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]!.message }
+  try {
+    await auth.api.updatePasskey({ body: { id, name: parsed.data }, headers: await headers() })
+    return { ok: true }
+  } catch {
+    return { ok: false, error: "Couldn't rename the passkey." }
+  }
+}
+
+export async function removePasskey(id: string): Promise<MethodResult> {
+  try {
+    await auth.api.deletePasskey({ body: { id }, headers: await headers() })
+    return { ok: true }
+  } catch {
+    return { ok: false, error: "Couldn't remove the passkey." }
   }
 }
 

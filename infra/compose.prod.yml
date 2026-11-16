@@ -81,6 +81,10 @@ services:
       DATABASE_URL: postgres://os_app:${OS_APP_PASSWORD:?set OS_APP_PASSWORD in .env}@db:5432/anwar_os
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
       BETTER_AUTH_URL: https://${DOMAIN:?set DOMAIN in .env}
+      # Optional Google sign-in (empty = hidden). Passkeys need nothing extra:
+      # their relying party ID is the hostname of BETTER_AUTH_URL.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       # Hetzner Object Storage for the files module (phase 4). Unused until then.
       S3_ENDPOINT: ${S3_ENDPOINT:-}
       S3_REGION: ${S3_REGION:-}

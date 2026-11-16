@@ -2,8 +2,8 @@ import { Suspense } from "react"
 import { Page } from "@/components/motion"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shell/page-header"
-import { requireViewer } from "@/core/auth"
-import { MfaSettings } from "./mfa-settings"
+import { getSignInMethods } from "@/core/sign-in-methods"
+import { SignInMethods } from "./sign-in-methods"
 
 export const metadata = { title: "Settings" }
 
@@ -12,18 +12,18 @@ export default function SettingsPage() {
     <Page>
       <div className="mx-auto grid w-full max-w-3xl gap-8">
         <PageHeader title="Settings" />
-        <section aria-labelledby="security-heading" className="grid gap-4 md:grid-cols-[14rem_1fr] md:gap-8">
+        <section aria-labelledby="sign-in-heading" className="grid gap-4 md:grid-cols-[14rem_1fr] md:gap-8">
           <div className="grid content-start gap-1">
-            <h2 id="security-heading" className="font-medium">
-              Two-factor sign-in
+            <h2 id="sign-in-heading" className="font-medium">
+              Sign-in methods
             </h2>
             <p className="text-sm text-muted-foreground">
-              Ask for a 6-digit code from an authenticator app every time you sign in.
+              How you get into anwar.os. A passkey is the fastest way in and can&apos;t be phished.
             </p>
           </div>
           <div className="glass rounded-xl p-5">
-            <Suspense fallback={<Skeleton className="h-8 w-44" />}>
-              <MfaStatus />
+            <Suspense fallback={<MethodsSkeleton />}>
+              <Methods />
             </Suspense>
           </div>
         </section>
@@ -32,7 +32,24 @@ export default function SettingsPage() {
   )
 }
 
-async function MfaStatus() {
-  const viewer = await requireViewer()
-  return <MfaSettings enabled={viewer.twoFactorEnabled} />
+async function Methods() {
+  const methods = await getSignInMethods()
+  // Routes keep their client state across navigations: start over per session.
+  return <SignInMethods key={methods.sessionKey} methods={methods} />
+}
+
+function MethodsSkeleton() {
+  return (
+    <div className="grid gap-5">
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="flex items-center gap-3">
+          <Skeleton className="size-9 rounded-lg" />
+          <div className="grid flex-1 gap-1.5">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-3 w-48" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }

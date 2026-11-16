@@ -125,6 +125,18 @@ feedback inbox, projects, bots, ops, tools with saved results, settings.
 
 - **Better Auth** with email + password and the `two-factor` plugin (TOTP + backup
   codes). Sessions live in Postgres; cookie is `httpOnly`, `secure`, `sameSite=lax`.
+  Config in `src/lib/auth-config.ts`.
+- **Passkeys** (`@better-auth/passkey`, table `auth.passkey`): discoverable, user
+  verification required, so a passkey sign-in counts as two factors and skips the
+  TOTP step. rpID = hostname of `BETTER_AUTH_URL` (never an IP address).
+- **Google** (optional, `GOOGLE_CLIENT_*`): link-only. Connected from Settings while
+  signed in (verified Google email required); a Google sign-in never creates a user
+  or links by email. 2FA is still enforced after it (an after-hook on the OAuth
+  callback, since the 2FA plugin only guards password routes). ID-token sign-in is
+  closed.
+- **Recent sign-in:** adding a passkey or connecting/disconnecting Google needs a
+  session younger than one hour (`session.freshAge`); Settings offers "Confirm it's
+  you" (sign out and back in).
 - **Sign-up disabled.** The owner is created by `pnpm owner:create` (as in phase 0).
   `user.role` ∈ `owner | demo | user`, writable only by the server.
 - **Demo mode (later):** Better Auth `anonymous` plugin creates throwaway users with

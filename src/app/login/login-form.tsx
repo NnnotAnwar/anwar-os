@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { signIn, type AuthFormState } from "@/core/auth-actions"
 
-export function LoginForm({ next }: { next?: string }) {
+/** Email + password. `secondary` when a passkey is the better way in on this device. */
+export function LoginForm({ next, secondary = false }: { next?: string; secondary?: boolean }) {
   const [state, action, pending] = useActionState<AuthFormState, FormData>(signIn, {})
 
   return (
@@ -14,7 +15,8 @@ export function LoginForm({ next }: { next?: string }) {
       {next && <input type="hidden" name="next" value={next} />}
       <div className="grid gap-1.5">
         <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" autoComplete="username" required />
+        {/* "webauthn" lets the browser offer saved passkeys right in this field. */}
+        <Input id="email" name="email" type="email" autoComplete="username webauthn" required />
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="password">Password</Label>
@@ -31,7 +33,7 @@ export function LoginForm({ next }: { next?: string }) {
           {state.error}
         </p>
       )}
-      <Button type="submit" size="lg" disabled={pending}>
+      <Button type="submit" size="lg" variant={secondary ? "secondary" : "default"} className="h-11" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
       </Button>
     </form>
