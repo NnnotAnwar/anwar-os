@@ -43,6 +43,7 @@ describe("parseTask", () => {
       expect(parse("Pack tonight").dueDate).toEqual(today)
       expect(parse("Laundry tmrw").dueDate).toEqual(d(11, 17))
       expect(parse("Dentist day after tomorrow").dueDate).toEqual(d(11, 18))
+      expect(parse("Submit thesis yesterday").dueDate).toEqual(d(11, 15))
     })
 
     it("reads weekdays as the next one, 'this' including today", () => {

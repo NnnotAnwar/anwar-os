@@ -96,6 +96,13 @@ describe("tasks_tasks", () => {
     ).toBe("42501")
   })
 
+  it("lets the owner spawn the next occurrence of their own repeating task", async () => {
+    const [next] = await as(alice, (sql) => sql`
+      insert into tasks_tasks (title, due_date, rrule, spawned_from)
+      values ('next', '2026-11-18', 'FREQ=DAILY', ${aliceTask}) returning spawned_from`)
+    expect(next).toEqual({ spawned_from: aliceTask })
+  })
+
   it("refuses handing a task or list to someone else", async () => {
     expect(
       await pgError(as(alice, (sql) => sql`update tasks_tasks set owner_id = ${bob} where id = ${aliceTask}`)),

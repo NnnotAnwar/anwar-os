@@ -78,7 +78,7 @@ async function listsWithCounts(tx: Tx): Promise<TaskList[]> {
     .select({
       id: l.id,
       name: l.name,
-      openCount: sql<number>`(select count(*)::int from tasks_tasks x where x.list_id = ${l.id} and x.done_at is null)`,
+      openCount: sql<number>`(select count(*)::int from tasks_tasks x where x.list_id = tasks_lists.id and x.done_at is null)`,
     })
     .from(l)
     .orderBy(asc(l.sortOrder), asc(sql`lower(${l.name})`))

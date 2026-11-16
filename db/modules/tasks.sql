@@ -46,11 +46,15 @@ alter table public.tasks_tasks enable row level security;
 -- (the subqueries only see the viewer's own rows) and close that gap.
 create function app.tasks_refs_are_own(list_id uuid, project_id uuid, spawned_from uuid) returns boolean
 language sql stable as $$
-  select (list_id is null or exists (select 1 from public.tasks_lists l where l.id = list_id))
-     and (project_id is null or exists (
+  -- Parameters are qualified with the function name: inside the subqueries an
+  -- unqualified spawned_from would mean the tasks_tasks column instead.
+  select (tasks_refs_are_own.list_id is null or exists (
+           select 1 from public.tasks_lists l where l.id = tasks_refs_are_own.list_id))
+     and (tasks_refs_are_own.project_id is null or exists (
            select 1 from public.projects_projects p
-           where p.id = project_id and p.owner_id = app.current_user_id()))
-     and (spawned_from is null or exists (select 1 from public.tasks_tasks t where t.id = spawned_from))
+           where p.id = tasks_refs_are_own.project_id and p.owner_id = app.current_user_id()))
+     and (tasks_refs_are_own.spawned_from is null or exists (
+           select 1 from public.tasks_tasks t where t.id = tasks_refs_are_own.spawned_from))
 $$;
 --> statement-breakpoint
 revoke execute on function app.tasks_refs_are_own(uuid, uuid, uuid) from public;

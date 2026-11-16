@@ -348,6 +348,10 @@ function takeDate(ctx: Ctx): LocalDate | null {
   m = take(ctx, new RegExp(String.raw`${L}(?:the\s+)?(?:day\s+after\s+tomorrow|pozítří|pozitri)${R}`, "iu"))
   if (m) return addDays(today, 2)
 
+  // yesterday / včera (logging something already late)
+  m = take(ctx, new RegExp(String.raw`${L}(yesterday|včera|vcera)${R}`, "iu"))
+  if (m) return addDays(today, -1)
+
   // today / tonight / tomorrow / dnes / zítra
   m = take(ctx, new RegExp(String.raw`${L}(today|tod|tonight|dnes|dneska|tomorrow|tmrw|tmr|zítra|zitra)${R}`, "iu"))
   if (m) return /^(today|tod|tonight|dnes|dneska)$/i.test(m[1]!) ? today : addDays(today, 1)
