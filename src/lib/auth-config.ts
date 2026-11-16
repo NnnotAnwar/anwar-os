@@ -8,6 +8,7 @@ import { nextCookies } from "better-auth/next-js"
 import { twoFactor } from "better-auth/plugins"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "@/db/schema"
+import { safeNext } from "@/lib/safe-next"
 
 /**
  * The Better Auth instance, built from explicit inputs so integration tests can
@@ -72,7 +73,7 @@ export function privateNext(location: string | null | undefined, baseURL: string
   try {
     const url = new URL(location, baseURL)
     if (url.origin !== new URL(baseURL).origin) return "/app"
-    return /^\/app(\/[\w\-/]*)?$/.test(url.pathname) ? url.pathname : "/app"
+    return safeNext(url.pathname)
   } catch {
     return "/app"
   }

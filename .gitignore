@@ -53,3 +53,7 @@ bots/**/__pycache__
 # server-side deploy state (infra/deploy.sh)
 /infra/.deploy-history
 /infra/.deploy.lock
+
+# playwright
+/test-results/
+/playwright-report/
