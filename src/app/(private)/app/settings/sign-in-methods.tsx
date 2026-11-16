@@ -37,7 +37,9 @@ const dateFormat = new Intl.DateTimeFormat("en", { day: "numeric", month: "short
 
 export function SignInMethods({ methods }: { methods: Methods }) {
   const router = useRouter()
-  const [reauthNeeded, setReauthNeeded] = useState(!methods.fresh)
+  // Stale per the server's last render, or since an action was refused as stale.
+  const [refusedAsStale, setReauthNeeded] = useState(false)
+  const reauthNeeded = !methods.fresh || refusedAsStale
   useLinkResultToast()
 
   /** Shared handling for a server action's result. */

@@ -13,6 +13,8 @@ export type SignInMethods = {
   email: string
   /** Signed in recently enough to add or change a sign-in method. */
   fresh: boolean
+  /** Identifies the current session, so client state resets after signing in again. */
+  sessionKey: string
   hasPassword: boolean
   google: { available: boolean; connected: boolean; email: string | null }
   passkeys: PasskeyItem[]
@@ -56,6 +58,7 @@ export async function getSignInMethods(): Promise<SignInMethods> {
   return {
     email: user.email,
     fresh: Date.now() - new Date(session.createdAt).getTime() < FRESH_AGE_SECONDS * 1000,
+    sessionKey: session.id,
     hasPassword: accounts.some((a) => a.providerId === "credential"),
     google: { available: googleSignInEnabled, connected: Boolean(googleAccount), email: googleEmail },
     passkeys: passkeys

@@ -33,7 +33,9 @@ export default function SettingsPage() {
 }
 
 async function Methods() {
-  return <SignInMethods methods={await getSignInMethods()} />
+  const methods = await getSignInMethods()
+  // Routes keep their client state across navigations: start over per session.
+  return <SignInMethods key={methods.sessionKey} methods={methods} />
 }
 
 function MethodsSkeleton() {

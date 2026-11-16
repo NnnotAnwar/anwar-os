@@ -1,5 +1,6 @@
 "use server"
 
+import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import QRCode from "qrcode"
@@ -9,12 +10,19 @@ import { safeNext } from "@/lib/safe-next"
 
 export type AuthFormState = { error?: string }
 
+/**
+ * A new or ended session changes what every private page shows (including
+ * whether the sign-in is recent): drop the client router's cached copies.
+ */
+function dropCachedPages() {
+  revalidatePath("/app", "layout")
+}
+
 const credentials = z.object({
   email: z.email(),
   password: z.string().min(1),
   next: z.string().optional(),
 })
-
 
 export async function signIn(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const parsed = credentials.safeParse(Object.fromEntries(formData))
@@ -34,6 +42,7 @@ export async function signIn(_prev: AuthFormState, formData: FormData): Promise<
 
   const next = safeNext(parsed.data.next)
   if (needsSecondFactor) redirect(`/login/mfa?next=${encodeURIComponent(next)}`)
+  dropCachedPages()
   redirect(next)
 }
 
@@ -57,11 +66,13 @@ export async function verifyMfa(_prev: AuthFormState, formData: FormData): Promi
   } catch {
     return { error: "That code didn't work. Wait for the next one or use a backup code." }
   }
+  dropCachedPages()
   redirect(safeNext(parsed.data.next))
 }
 
 export async function signOut() {
   await auth.api.signOut({ headers: await headers() })
+  dropCachedPages()
   redirect("/login")
 }
 
@@ -124,6 +135,7 @@ const reauthError: MethodResult = {
 /** Signs out and sends the owner back to Settings through the sign-in page. */
 export async function confirmIdentity() {
   await auth.api.signOut({ headers: await headers() })
+  dropCachedPages()
   redirect("/login?next=/app/settings&reauth=1")
 }
 
