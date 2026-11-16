@@ -3,6 +3,7 @@ import Link from "next/link"
 import { ArrowUpRight } from "@/components/icons"
 import { Skeleton } from "@/components/ui/skeleton"
 import { YearRuler } from "@/components/year-ruler"
+import { ServiceGrid } from "@/components/services/service-grid"
 import { requireViewer } from "@/core/auth"
 import { modulesFor, type ViewerContext, type WidgetDef } from "@/core/module"
 import { calendarDate } from "@/lib/time"
@@ -14,6 +15,22 @@ export default function TodayPage() {
       <Suspense fallback={<HeaderSkeleton />}>
         <TodayHeader />
       </Suspense>
+      <section aria-labelledby="my-services" className="grid gap-2.5">
+        <div className="flex items-center justify-between">
+          <h2 id="my-services" className="text-eyebrow text-text-accent">
+            My services
+          </h2>
+          <Link
+            href="/app/services"
+            className="text-caption rounded text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            All services
+          </Link>
+        </div>
+        <Suspense fallback={<Skeleton className="h-24 rounded-xl" />}>
+          <ServiceGrid which="pinned" variant="tile" />
+        </Suspense>
+      </section>
       <Suspense fallback={<WidgetsSkeleton />}>
         <Widgets />
       </Suspense>

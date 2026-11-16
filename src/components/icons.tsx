@@ -119,3 +119,11 @@ export const Clock = bold(P.Clock)
 // shell
 export const SunHorizon = bold(P.SunHorizon)
 export const DotsGrid = bold(P.DotsNine)
+
+// services
+export const SquaresFour = bold(P.SquaresFour)
+export const Star = bold(P.Star)
+export const Hammer = bold(P.Hammer)
+export const Compass = bold(P.Compass)
+export const ListBullets = bold(P.ListBullets)
+export const Rows = bold(P.Rows)

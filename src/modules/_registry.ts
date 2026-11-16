@@ -11,7 +11,7 @@ import { feedback } from "./feedback/manifest"
 
 // Adding a module: create src/modules/<id>/, a migration prefixed <id>_,
 // a thin route file under src/app/(private)/app/<id>/, and one line here.
-// Order is priority: the first three get phone tabs; the rest sit under "More".
+// Order is priority: the default "My services" and the order of the Services grid.
 const registered = [notes, calendar, files, links, ideas, projects, cv, feedback, tools] as const satisfies readonly ModuleManifest[]
 
 export type ModuleId = (typeof registered)[number]["id"]

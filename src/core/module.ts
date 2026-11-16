@@ -51,13 +51,31 @@ export type SearchHit = {
 /** Global search (⌘K) asks every module the viewer can use for matches. */
 export type SearchProvider = (query: string, limit: number) => Promise<SearchHit[]>
 
+/** One option inside a service card: a section, a filtered view, a public page. */
+export type Shortcut = {
+  label: string
+  /** Private (`/app/…`) or public (`/…`) path. */
+  href: `/${string}`
+  icon?: AppIcon
+  hint?: string
+}
+
+/** The count shown on a service card ("3 new"). Null hides it. */
+export type BadgeLoader = () => Promise<{ count: number; label: string } | null>
+
 export type ModuleManifest = {
   /** Stable id: also the table prefix (`<id>_*`) and the route segment. */
   id: string
   name: string
   description: string
+  /** Two-to-five words for the service card ("Ideas, notes, plans"). */
+  tagline?: string
   icon: AppIcon
   nav: NavItem[]
+  /** Options in the service card's sheet, after "Open" and "create". */
+  shortcuts?: Shortcut[]
+  /** Loaded lazily (server-only code). */
+  badge?: () => Promise<BadgeLoader>
   access: {
     /** Usable by anonymous demo visitors on mock data (phase 2). */
     demoable: boolean

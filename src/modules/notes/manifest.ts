@@ -7,6 +7,10 @@ export const notes = defineModule({
   description: "Plain-text notes with pinning and search.",
   icon: NotebookPen,
   nav: [{ label: "Notes", href: "/app/notes" }],
+  tagline: "Quick thoughts, pinned",
+  shortcuts: [
+    { label: "All notes", href: "/app/notes", icon: NotebookPen },
+  ],
   access: { demoable: true, public: true },
   create: { label: "New note", href: "/app/notes/new" },
   widgets: [

@@ -1,4 +1,4 @@
-import { Folder } from "@/components/icons"
+import { Clock, Folder } from "@/components/icons"
 import { defineModule } from "@/core/module"
 
 export const files = defineModule({
@@ -7,6 +7,11 @@ export const files = defineModule({
   description: "Knowledge base: folders, uploaded files with tags, and markdown documents.",
   icon: Folder,
   nav: [{ label: "Files", href: "/app/files" }],
+  tagline: "Knowledge base",
+  shortcuts: [
+    { label: "Browse files", href: "/app/files", icon: Folder },
+    { label: "Newest first", href: "/app/files?sort=date&dir=desc", icon: Clock },
+  ],
   access: { demoable: false, public: false },
   create: { label: "New document", href: "/app/files/doc/new" },
   widgets: [

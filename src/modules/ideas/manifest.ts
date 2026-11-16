@@ -1,4 +1,4 @@
-import { Lightbulb } from "@/components/icons"
+import { Compass, Globe, Hammer, Lightbulb } from "@/components/icons"
 import { defineModule } from "@/core/module"
 
 // A private backlog; ideas the owner publishes appear on /ideas (RLS-enforced).
@@ -8,6 +8,13 @@ export const ideas = defineModule({
   description: "Idea backlog with a status pipeline, tags and an opt-in public page.",
   icon: Lightbulb,
   nav: [{ label: "Ideas", href: "/app/ideas" }],
+  tagline: "Raw to shipped",
+  badge: () => import("./badge").then((b) => b.badge),
+  shortcuts: [
+    { label: "Exploring", href: "/app/ideas?status=exploring", icon: Compass },
+    { label: "Building", href: "/app/ideas?status=building", icon: Hammer },
+    { label: "Public ideas", href: "/ideas", icon: Globe, hint: "What visitors see" },
+  ],
   access: { demoable: true, public: true },
   create: { label: "New idea", href: "/app/ideas/new" },
   widgets: [

@@ -1,15 +1,15 @@
 import { Suspense } from "react"
-import { Plus, Settings, SunHorizon } from "@/components/icons"
+import { Plus, Settings, SquaresFour, SunHorizon } from "@/components/icons"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CommandPalette } from "@/components/shell/command-palette"
 import { CreateMenu } from "@/components/shell/create-menu"
-import { MoreMenu } from "@/components/shell/more-menu"
 import { NavLink, TabLink } from "@/components/shell/nav-link"
 import { SearchIconTrigger, SearchTrigger } from "@/components/shell/search-trigger"
 import { UserMenu } from "@/components/shell/user-menu"
 import { Wordmark } from "@/components/shell/wordmark"
 import { requireViewer, type Viewer } from "@/core/auth"
 import { modulesFor } from "@/core/module"
+import { getServices } from "@/core/services"
 import { modules } from "@/modules/_registry"
 
 export const metadata = { title: { absolute: "Today · anwar.os", template: "%s · anwar.os" } }
@@ -27,6 +27,10 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
           <NavLink href="/app" exact icon={<SunHorizon />}>
             Today
           </NavLink>
+          <NavLink href="/app/services" icon={<SquaresFour />}>
+            Services
+          </NavLink>
+          <p className="text-eyebrow px-2.5 pt-5 pb-1.5 text-muted-foreground">My services</p>
           <Suspense fallback={<NavSkeleton />}>
             <ModuleNav />
           </Suspense>
@@ -80,9 +84,10 @@ async function visibleModules() {
 }
 
 async function ModuleNav() {
-  const { mods } = await visibleModules()
-  return mods.flatMap((m) =>
-    m.nav.map((item) => (
+  // The sidebar lists the services the owner starred; the rest live under Services.
+  const { pinned } = await getServices()
+  return pinned.flatMap((m) =>
+    m.nav.slice(0, 1).map((item) => (
       <NavLink key={item.href} href={item.href} icon={<m.icon />}>
         {item.label}
       </NavLink>
@@ -109,14 +114,12 @@ async function CreateButton() {
   return <CreateMenu items={items} />
 }
 
+/** Phone tab bar, fixed by design: Today, Feedback, Calendar, and More (the services grid). */
+const PHONE_TABS = ["feedback", "calendar"] as const
+
 async function MobileTabs() {
   const { mods } = await visibleModules()
-  const entries = mods.flatMap((m) => m.nav.slice(0, 1).map((item) => ({ ...item, Icon: m.icon })))
-  const tabs = entries.slice(0, 3)
-  const more = [
-    ...entries.slice(3).map(({ href, label, Icon }) => ({ href, label, icon: <Icon /> })),
-    { href: "/app/settings", label: "Settings", icon: <Settings /> },
-  ]
+  const tabs = PHONE_TABS.flatMap((id) => mods.filter((m) => m.id === id))
   return (
     <nav
       aria-label="Main"
@@ -125,12 +128,14 @@ async function MobileTabs() {
       <TabLink href="/app" exact icon={<SunHorizon />}>
         Today
       </TabLink>
-      {tabs.map(({ href, label, Icon }) => (
-        <TabLink key={href} href={href} icon={<Icon />}>
-          {label}
+      {tabs.map((m) => (
+        <TabLink key={m.id} href={m.nav[0]!.href} icon={<m.icon />}>
+          {m.name}
         </TabLink>
       ))}
-      <MoreMenu items={more} />
+      <TabLink href="/app/services" icon={<SquaresFour />}>
+        More
+      </TabLink>
     </nav>
   )
 }
@@ -139,6 +144,7 @@ async function Palette() {
   const { mods } = await visibleModules()
   const nav = [
     { label: "Today", href: "/app", icon: <SunHorizon /> },
+    { label: "Services", href: "/app/services", icon: <SquaresFour /> },
     ...mods.flatMap((m) => m.nav.map((item) => ({ ...item, icon: <m.icon /> }))),
     { label: "Settings", href: "/app/settings", icon: <Settings /> },
   ]
