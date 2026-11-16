@@ -44,3 +44,8 @@ next-env.d.ts
 
 # agent worktrees (each is its own checkout)
 /.claude/worktrees
+
+# python bots
+bots/**/__pycache__
+.venv
+*.db
