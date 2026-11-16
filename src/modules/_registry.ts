@@ -1,10 +1,11 @@
 import type { ModuleManifest } from "@/core/module"
 import { notes } from "./notes/manifest"
 import { tools } from "./tools/manifest"
+import { links } from "./links/manifest"
 
 // Adding a module: create src/modules/<id>/, a migration prefixed <id>_,
 // a thin route file under src/app/(private)/app/<id>/, and one line here.
-const registered = [notes, tools] as const satisfies readonly ModuleManifest[]
+const registered = [notes, tools, links] as const satisfies readonly ModuleManifest[]
 
 export type ModuleId = (typeof registered)[number]["id"]
 
