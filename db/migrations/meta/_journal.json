@@ -113,6 +113,20 @@
       "when": 1794865696775,
       "tag": "0015_auth_passkey_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794865853821,
+      "tag": "0016_tasks_inbox_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794865854705,
+      "tag": "0017_tasks_inbox_rls",
+      "breakpoints": true
     }
   ]
 }
