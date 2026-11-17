@@ -86,12 +86,6 @@ export function step(active: number, count: number, command: "next" | "prev" | "
   }
 }
 
-/** True when the key press happens in a field, where single letters are text. */
-export function isTypingTarget(target: EventTarget | null): boolean {
-  if (typeof HTMLElement === "undefined" || !(target instanceof HTMLElement)) return false
-  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)
-}
-
 /** Shift-click selection: everything between the anchor and the clicked row. */
 export function rangeBetween(ids: string[], anchor: string | null, target: string): string[] {
   const to = ids.indexOf(target)

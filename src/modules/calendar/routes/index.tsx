@@ -1,5 +1,6 @@
 import { Suspense } from "react"
 import { z } from "zod"
+import { Page, Reveal, SkeletonExit } from "@/components/motion"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shell/page-header"
 import { requireViewer } from "@/core/auth"
@@ -26,12 +27,22 @@ function rangeFor(view: View, anchor: LocalDate): [LocalDate, LocalDate] {
 
 export default function CalendarPage({ searchParams }: PageProps<"/app/calendar">) {
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-4">
-      <PageHeader eyebrow="Plan" title="Calendar" />
-      <Suspense fallback={<CalendarSkeleton />}>
-        <CalendarBody searchParams={searchParams} />
-      </Suspense>
-    </div>
+    <Page>
+      <div className="mx-auto grid w-full max-w-6xl gap-4">
+        <PageHeader eyebrow="Plan" title="Calendar" />
+        <Suspense
+          fallback={
+            <SkeletonExit>
+              <CalendarSkeleton />
+            </SkeletonExit>
+          }
+        >
+          <Reveal>
+            <CalendarBody searchParams={searchParams} />
+          </Reveal>
+        </Suspense>
+      </div>
+    </Page>
   )
 }
 

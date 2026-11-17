@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useRef, type RefObject } from "react"
-import { isTypingTarget, listCommand, step, type ListCommand } from "./keys"
+import { isTyping, useAfterG } from "@/lib/keys"
+import { listCommand, step, type ListCommand } from "./keys"
 import type { Selection } from "./selection"
 
 export type ListHandlers = Partial<
@@ -32,6 +33,7 @@ export function useListKeyboard({
   extra?: Record<string, (id: string | null) => void>
   enabled?: boolean
 }) {
+  const afterG = useAfterG()
   const latest = useRef({ handlers, selection, filter, extra })
   useEffect(() => {
     latest.current = { handlers, selection, filter, extra }
@@ -39,8 +41,6 @@ export function useListKeyboard({
 
   useEffect(() => {
     if (!enabled) return
-    let afterG = 0
-
     function rows() {
       return Array.from(container.current?.querySelectorAll<HTMLElement>("[data-row-id]") ?? [])
     }
@@ -53,19 +53,12 @@ export function useListKeyboard({
 
     function onKey(e: KeyboardEvent) {
       if (e.defaultPrevented) return
-      // The shell's "g then a letter" jump: the letter after g is not ours.
-      if (e.key === "g" && !e.metaKey && !e.ctrlKey) {
-        afterG = e.timeStamp
-        return
-      }
-      if (afterG && e.timeStamp - afterG < 1200) {
-        afterG = 0
-        return
-      }
+      // The shell's "g then a letter" jump: g and the letter after it are not ours.
+      if (afterG(e)) return
       if (document.querySelector("[role=dialog], [role=menu]")) return
 
       const { handlers, selection, filter, extra } = latest.current
-      const typing = isTypingTarget(e.target)
+      const typing = isTyping(e.target)
 
       // Module-specific letters (e.g. R for read later on links).
       const custom = !typing && !e.metaKey && !e.ctrlKey && !e.altKey ? extra?.[e.key] : undefined
@@ -152,5 +145,5 @@ export function useListKeyboard({
     // Capture, so "/" reaches the list before the shell's global search.
     window.addEventListener("keydown", onKey, true)
     return () => window.removeEventListener("keydown", onKey, true)
-  }, [container, enabled])
+  }, [container, enabled, afterG])
 }

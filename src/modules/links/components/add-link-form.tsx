@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Bookmark, BookmarkFilled, Loader2Icon, Plus } from "@/components/icons"
-import { isTypingTarget } from "@/components/list/keys"
+import { isTyping } from "@/lib/keys"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { normalizeUrl } from "../schema"
@@ -23,7 +23,7 @@ export function AddLinkForm({ autoFocus }: { autoFocus?: boolean }) {
   // dropping a URL into Raindrop. Anything that isn't a web address is ignored.
   useEffect(() => {
     function onPaste(e: ClipboardEvent) {
-      if (isTypingTarget(e.target) || pending) return
+      if (isTyping(e.target) || pending) return
       const text = e.clipboardData?.getData("text").trim() ?? ""
       if (!text || !normalizeUrl(text)) return
       e.preventDefault()
