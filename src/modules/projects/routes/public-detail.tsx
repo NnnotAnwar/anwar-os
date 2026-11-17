@@ -2,7 +2,6 @@ import { Suspense } from "react"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { connection } from "next/server"
 import { ArrowLeft, ArrowRight, ArrowUpRight, Code, Globe, PlayCircle } from "@/components/icons"
 import { Morph, NAV_BACK, NAV_FORWARD, Page } from "@/components/motion"
 import { buttonVariants } from "@/components/ui/button"
@@ -20,7 +19,6 @@ type Props = PageProps<"/projects/[slug]">
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  await connection()
   const project = await getPublishedProject(slug)
   if (!project) return { title: "Project not found", robots: { index: false } }
   const url = absoluteUrl(`/projects/${project.slug}`)
@@ -49,7 +47,9 @@ function readingMinutes(text: string) {
 
 async function CaseStudy({ params }: Pick<Props, "params">) {
   const { slug } = await params
-  await connection()
+  // No connection(): params already keep this out of the build, and both reads are
+  // cached, so a <Link prefetch> resolves the whole case study before the click —
+  // which is what lets the card morph into the hero in one commit.
   const [project, all] = await Promise.all([getPublishedProject(slug), getPublishedProjects()])
   if (!project) notFound()
 

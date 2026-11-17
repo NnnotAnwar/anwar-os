@@ -15,6 +15,9 @@ export function ProjectCard({ project, headingLevel = "h2" }: { project: PublicP
     <Link
       href={`/projects/${project.slug}`}
       transitionTypes={NAV_FORWARD}
+      // Resolve the (cached) case study ahead of the click, so it renders in the
+      // same commit as the navigation and the cover / title morph instead of cutting.
+      prefetch={true}
       className="press group glass grid h-full content-start overflow-hidden rounded-xl outline-none transition-shadow hover:[--glass-shadow:var(--shadow-glass-lg)] focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       {project.coverUrl && (
