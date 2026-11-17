@@ -115,6 +115,17 @@ export type FeedbackItem = {
   updated_at: string
 }
 
+/** A rate-limit wait as people say it: "0:45", "4:32", "3 h 12 min". */
+export function formatWait(seconds: number) {
+  const s = Math.max(0, Math.ceil(seconds))
+  if (s >= 3600) {
+    const h = Math.floor(s / 3600)
+    const m = Math.ceil((s % 3600) / 60)
+    return m === 60 ? `${h + 1} h` : m ? `${h} h ${m} min` : `${h} h`
+  }
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`
+}
+
 /** First line of a message, cut for a list row or a notification. */
 export function preview(message: string, length = 140) {
   const flat = message.replace(/\s+/g, " ").trim()

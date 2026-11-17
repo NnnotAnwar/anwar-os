@@ -26,12 +26,21 @@ export type SubmitResult =
   | { ok: true }
   | { ok: false; error: string; field?: "kind" | "message" | "name" | "contact" }
   | { ok: false; retry: "challenge" }
+  /** Rate limited: `retryAfter` seconds until a send can go through (the form counts down). */
+  | { ok: false; error: string; limit: "burst" | "daily"; retryAfter: number | null }
 
 const NETWORK = "That didn't send. Check your connection and try again — your text is still here."
 
 function dbCode(error: unknown) {
   const e = error as { code?: string; cause?: { code?: string } }
   return e.cause?.code ?? e.code
+}
+
+/** Seconds from the rate-limit error's DETAIL (db/modules/feedback.sql), if the database sent them. */
+function retryAfter(error: unknown) {
+  const e = error as { detail?: string; cause?: { detail?: string } }
+  const seconds = Number(e.cause?.detail ?? e.detail)
+  return Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : null
 }
 
 export async function submitFeedback(input: SubmitFeedbackInput): Promise<SubmitResult> {
@@ -73,9 +82,19 @@ export async function submitFeedback(input: SubmitFeedbackInput): Promise<Submit
   } catch (error) {
     switch (dbCode(error)) {
       case "OS429":
-        return { ok: false, error: "You've sent 3 messages in the last 10 minutes. Wait a few minutes, then try again." }
+        return {
+          ok: false,
+          limit: "burst",
+          retryAfter: retryAfter(error),
+          error: "You've sent 3 messages in the last 10 minutes — that's the limit for now.",
+        }
       case "OS430":
-        return { ok: false, error: "You've reached today's limit of 20 messages. Try again tomorrow." }
+        return {
+          ok: false,
+          limit: "daily",
+          retryAfter: retryAfter(error),
+          error: "You've sent 20 messages today — that's the daily limit.",
+        }
       case "OS409":
         return { ok: false, retry: "challenge" }
       case "OS001":

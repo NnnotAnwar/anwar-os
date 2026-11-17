@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import * as db from "@/db/schema/feedback"
-import { contactHref, feedbackKinds, feedbackStatuses, normalizeContact, preview, submitFeedbackInput } from "./schema"
+import { contactHref, feedbackKinds, feedbackStatuses, formatWait, normalizeContact, preview, submitFeedbackInput } from "./schema"
 
 describe("constants", () => {
   it("match the database schema", () => {
@@ -62,5 +62,17 @@ describe("preview", () => {
   it("flattens and shortens", () => {
     expect(preview("a\n\nb   c")).toBe("a b c")
     expect(preview("x".repeat(200), 10)).toBe("xxxxxxxxx…")
+  })
+})
+
+describe("formatWait", () => {
+  it("counts minutes and seconds under an hour, hours and minutes above", () => {
+    expect(formatWait(0)).toBe("0:00")
+    expect(formatWait(45)).toBe("0:45")
+    expect(formatWait(272.2)).toBe("4:33")
+    expect(formatWait(600)).toBe("10:00")
+    expect(formatWait(3600)).toBe("1 h")
+    expect(formatWait(3600 * 3 + 12 * 60 - 5)).toBe("3 h 12 min")
+    expect(formatWait(3600 * 2 - 10)).toBe("2 h")
   })
 })
