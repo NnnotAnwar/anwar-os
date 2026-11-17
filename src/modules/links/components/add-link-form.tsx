@@ -1,11 +1,13 @@
 "use client"
 
-import { useRef, useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Bookmark, BookmarkFilled, Loader2Icon, Plus } from "@/components/icons"
+import { isTyping } from "@/lib/keys"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { normalizeUrl } from "../schema"
 import { addLink } from "../server-actions"
 
 /** One field: paste a URL, press Enter. The title and icon are fetched on the server. */
@@ -16,6 +18,22 @@ export function AddLinkForm({ autoFocus }: { autoFocus?: boolean }) {
   const [readLater, setReadLater] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+
+  // Paste a link anywhere on the page (not in a field) and it saves, like
+  // dropping a URL into Raindrop. Anything that isn't a web address is ignored.
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      if (isTyping(e.target) || pending) return
+      const text = e.clipboardData?.getData("text").trim() ?? ""
+      if (!text || !normalizeUrl(text)) return
+      e.preventDefault()
+      setUrl(text)
+      setError(null)
+      requestAnimationFrame(() => input.current?.form?.requestSubmit())
+    }
+    window.addEventListener("paste", onPaste)
+    return () => window.removeEventListener("paste", onPaste)
+  }, [pending])
 
   function submit(e: React.FormEvent) {
     e.preventDefault()

@@ -39,6 +39,7 @@ export function FilesSearch({ initialQuery }: { initialQuery: string }) {
         )}
       />
       <input
+        id="files-filter"
         type="search"
         value={value}
         onChange={(e) => update(e.target.value)}

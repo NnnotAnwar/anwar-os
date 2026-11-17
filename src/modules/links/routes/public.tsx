@@ -66,7 +66,7 @@ async function PublishedLinks() {
                   rel="noopener noreferrer"
                   className="-mx-2 flex items-start gap-3 rounded-lg px-2 py-2 outline-none hover:bg-track focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
-                  <Favicon src={link.favicon_url} className="mt-0.5" />
+                  <Favicon src={link.favicon_url} name={link.site_name || link.url.replace(/^https?:\/\//, "")} className="mt-0.5" />
                   <span className="grid min-w-0 flex-1 gap-0.5">
                     <span className="text-body">{link.title}</span>
                     {link.description && (

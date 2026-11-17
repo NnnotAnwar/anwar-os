@@ -1,23 +1,20 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useRef, useState, useTransition, type KeyboardEvent } from "react"
 import Link from "next/link"
-import { ArrowLeft, Pin, PinOff, Trash2 } from "@/components/icons"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { ArrowLeft, Pin, PinOff, TextBold, TextItalic, Trash2 } from "@/components/icons"
+import { NAV_BACK } from "@/components/motion"
+import { pendingRemovals } from "@/components/list/pending"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { Kbd } from "@/components/ui/kbd"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { removeWithUndo } from "@/lib/undo-toast"
 import { cn } from "@/lib/utils"
-import { createNote, deleteNote, saveNote, setNotePinned } from "../server-actions"
+import { continueList, countWords, taskProgress, toggleTask, wrapSelection } from "../lib/checklist"
+import { createNote, deleteNotes, pinNotes, saveNote } from "../server-actions"
+import { NotePreview } from "./note-preview"
 
 type Props = {
   timezone: string
@@ -47,8 +44,12 @@ const AUTOSAVE_MS = 800
  * One editor for new and existing notes. Everything autosaves: a new note is
  * created as soon as it has a title, and the URL switches to it in place
  * (history.replaceState) so the editor never remounts mid-sentence.
+ *
+ * Write / Preview: the preview renders markdown and makes "- [ ]" checklists
+ * tappable; tapping anywhere else in it goes back to writing.
  */
 export function NoteEditor(props: Props) {
+  const router = useRouter()
   const initial =
     props.mode === "edit"
       ? { id: props.id, title: props.initialTitle, body: props.initialBody, pinned: props.initialPinned }
@@ -58,10 +59,15 @@ export function NoteEditor(props: Props) {
   const [body, setBody] = useState(initial.body)
   const [id, setId] = useState<string | null>(initial.id)
   const [pinned, setPinned] = useState(initial.pinned)
+  const [view, setView] = useState<"write" | "preview">(
+    // Existing notes open read-first, like Notes on iOS; new ones open ready to type.
+    props.mode === "edit" && initial.body.trim() ? "preview" : "write",
+  )
   const [status, setStatus] = useState<Status>(
     props.mode === "edit" ? { kind: "saved", at: props.initialUpdatedAt } : { kind: "draft" },
   )
-  const [pending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
+  const textarea = useRef<HTMLTextAreaElement>(null)
 
   // Refs mirror state for the save queue, which runs outside React's render cycle.
   const latest = useRef({ title: initial.title, body: initial.body })
@@ -103,7 +109,7 @@ export function NoteEditor(props: Props) {
       inFlight.current = null
     })
     return inFlight.current
-  }, [])
+  }, [setId])
 
   function edit(next: { title?: string; body?: string }) {
     latest.current = { ...latest.current, ...next }
@@ -114,12 +120,62 @@ export function NoteEditor(props: Props) {
     timer.current = setTimeout(() => void persist(), AUTOSAVE_MS)
   }
 
-  // ⌘S / Ctrl+S saves right away instead of waiting for the pause.
+  /** Applies a text change made by a shortcut and keeps the cursor where it belongs. */
+  function replaceBody(value: string, start: number, end = start) {
+    edit({ body: value })
+    requestAnimationFrame(() => {
+      const el = textarea.current
+      if (!el) return
+      el.focus()
+      el.setSelectionRange(start, end)
+    })
+  }
+
+  function format(marker: "**" | "_") {
+    const el = textarea.current
+    if (!el) return
+    const next = wrapSelection(body, el.selectionStart, el.selectionEnd, marker)
+    replaceBody(next.value, next.start, next.end)
+  }
+
+  function onBodyKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    const mod = e.metaKey || e.ctrlKey
+    if (mod && !e.shiftKey && e.key.toLowerCase() === "b") {
+      e.preventDefault()
+      format("**")
+    } else if (mod && !e.shiftKey && e.key.toLowerCase() === "i") {
+      e.preventDefault()
+      format("_")
+    } else if (e.key === "Enter" && !mod && !e.shiftKey && !e.nativeEvent.isComposing) {
+      const el = e.currentTarget
+      if (el.selectionStart !== el.selectionEnd) return
+      const next = continueList(body, el.selectionStart)
+      if (!next) return
+      e.preventDefault()
+      replaceBody(next.value, next.caret)
+    }
+  }
+
+  function switchView(next: "write" | "preview") {
+    setView(next)
+    if (next === "write") requestAnimationFrame(() => textarea.current?.focus())
+  }
+
+  // ⌘S saves right away; ⌘E flips between writing and preview.
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+    function onKey(e: globalThis.KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey)) return
+      const key = e.key.toLowerCase()
+      if (key === "s") {
         e.preventDefault()
         void persist()
+      } else if (key === "e" && !e.shiftKey) {
+        e.preventDefault()
+        setView((v) => {
+          const next = v === "write" ? "preview" : "write"
+          if (next === "write") requestAnimationFrame(() => textarea.current?.focus())
+          return next
+        })
       }
     }
     window.addEventListener("keydown", onKey)
@@ -142,71 +198,107 @@ export function NoteEditor(props: Props) {
     const next = !pinned
     setPinned(next)
     startTransition(async () => {
-      await setNotePinned({ id, pinned: next })
+      const result = await pinNotes({ ids: [id], pinned: next })
+      if (!result.ok) {
+        setPinned(!next)
+        return void toast.error(result.error)
+      }
       toast.success(next ? "Pinned to Today" : "Unpinned")
     })
   }
 
+  /** One tap: back to the list at once, Undo brings the note back here. */
   function remove() {
     if (!id) return
     clearTimeout(timer.current)
     // Nothing left to save once it's gone.
     saved.current = latest.current
-    startTransition(async () => {
-      await deleteNote({ id })
-      toast.success("Note deleted")
+    const noteId = id
+    removeWithUndo({
+      message: `“${title.trim() || "Note"}” deleted`,
+      hide: () => {
+        pendingRemovals.add(noteId)
+        router.push("/app/notes", { transitionTypes: NAV_BACK })
+      },
+      restore: () => {
+        pendingRemovals.remove(noteId)
+        router.push(`/app/notes/${noteId}`)
+      },
+      commit: () => deleteNotes({ ids: [noteId] }),
     })
   }
 
+  const words = countWords(body)
+  const progress = taskProgress(body)
+
   return (
-    <article className="mx-auto grid w-full max-w-3xl gap-6">
+    <article className="mx-auto grid w-full max-w-3xl gap-4">
       <div className="flex min-h-9 items-center gap-2">
         <Link
           href="/app/notes"
-          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "-ml-2 text-muted-foreground")}
+          transitionTypes={NAV_BACK}
+          className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "-ml-2.5 text-muted-foreground")}
         >
           <ArrowLeft />
           Notes
         </Link>
         <SaveStatus status={status} timezone={props.timezone} locale={props.locale} />
-        {id && (
-          <div className="ml-auto flex items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={togglePin}
-                    aria-pressed={pinned}
-                    aria-label={pinned ? "Unpin note" : "Pin note"}
-                    className={cn(pinned && "text-text-accent")}
-                  />
-                }
+        <div className="ml-auto flex items-center gap-1">
+          <nav aria-label="Mode" className="segmented">
+            {(["write", "preview"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={view === v}
+                onClick={() => switchView(v)}
+                title={`${v === "write" ? "Write" : "Preview"} (⌘E)`}
+                className={cn(
+                  "text-small h-7 rounded-lg px-2.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:h-8",
+                  view === v && "segment-active text-foreground",
+                )}
               >
-                {pinned ? <PinOff /> : <Pin />}
-              </TooltipTrigger>
-              <TooltipContent>{pinned ? "Unpin" : "Pin to Today"}</TooltipContent>
-            </Tooltip>
-            <AlertDialog>
-              <AlertDialogTrigger render={<Button variant="ghost" size="icon" aria-label="Delete note" />}>
-                <Trash2 />
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete “{title.trim() || "this note"}”?</AlertDialogTitle>
-                  <AlertDialogDescription>The note is removed for good. This can’t be undone.</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Keep note</AlertDialogCancel>
-                  <Button variant="destructive" onClick={remove} disabled={pending}>
-                    Delete note
-                  </Button>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        )}
+                {v === "write" ? "Write" : "Preview"}
+              </button>
+            ))}
+          </nav>
+          {id && (
+            <>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-lg"
+                      onClick={togglePin}
+                      aria-pressed={pinned}
+                      aria-label={pinned ? "Unpin note" : "Pin note"}
+                      className={cn(pinned && "text-text-accent")}
+                    />
+                  }
+                >
+                  {pinned ? <PinOff /> : <Pin />}
+                </TooltipTrigger>
+                <TooltipContent>{pinned ? "Unpin" : "Pin to Today"}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-lg"
+                      onClick={remove}
+                      aria-label="Delete note"
+                      className="hover:text-destructive"
+                    />
+                  }
+                >
+                  <Trash2 />
+                </TooltipTrigger>
+                <TooltipContent>Delete — you can undo</TooltipContent>
+              </Tooltip>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-3">
@@ -217,23 +309,66 @@ export function NoteEditor(props: Props) {
           id="note-title"
           value={title}
           onChange={(e) => edit({ title: e.target.value })}
+          onKeyDown={(e) => {
+            // Enter in the title moves on to the body, like every notes app.
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              switchView("write")
+            }
+          }}
           placeholder="Title"
           maxLength={200}
           autoFocus={props.mode === "create"}
           autoComplete="off"
-          className="w-full bg-transparent text-2xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/60 md:text-3xl"
+          enterKeyHint="next"
+          className="font-display w-full bg-transparent text-2xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/60 md:text-3xl"
         />
-        <label htmlFor="note-body" className="sr-only">
-          Body
-        </label>
-        <textarea
-          id="note-body"
-          value={body}
-          onChange={(e) => edit({ body: e.target.value })}
-          placeholder="Write anything. Markdown is fine."
-          className="field-sizing-content min-h-[50vh] w-full resize-none bg-transparent text-base leading-7 outline-none placeholder:text-muted-foreground/60"
-        />
+
+        {view === "write" ? (
+          <>
+            <div className="flex items-center gap-1 text-muted-foreground" role="toolbar" aria-label="Formatting">
+              <Button variant="ghost" size="icon" aria-label="Bold (⌘B)" title="Bold (⌘B)" onClick={() => format("**")} className="pointer-coarse:size-10">
+                <TextBold />
+              </Button>
+              <Button variant="ghost" size="icon" aria-label="Italic (⌘I)" title="Italic (⌘I)" onClick={() => format("_")} className="pointer-coarse:size-10">
+                <TextItalic />
+              </Button>
+              <p className="text-caption ml-2 hidden text-muted-foreground pointer-fine:block">
+                Markdown works. <Kbd>- [ ]</Kbd> makes a checklist, <Kbd>⌘E</Kbd> previews.
+              </p>
+            </div>
+            <label htmlFor="note-body" className="sr-only">
+              Body
+            </label>
+            <textarea
+              ref={textarea}
+              id="note-body"
+              value={body}
+              onChange={(e) => edit({ body: e.target.value })}
+              onKeyDown={onBodyKeyDown}
+              placeholder="Write anything. Markdown is fine; “- [ ] ” starts a checklist."
+              className="field-sizing-content min-h-[50vh] w-full resize-none bg-transparent text-base leading-7 outline-none placeholder:text-muted-foreground/60"
+            />
+          </>
+        ) : (
+          <NotePreview
+            body={body}
+            onToggle={(line) => edit({ body: toggleTask(body, line) })}
+            onEdit={() => switchView("write")}
+          />
+        )}
       </div>
+
+      <footer className="text-caption flex items-center gap-2 border-t border-hairline pt-2 text-muted-foreground tabular-nums">
+        <span>
+          {words} {words === 1 ? "word" : "words"}
+        </span>
+        {progress && (
+          <span>
+            · {progress.done} of {progress.total} done
+          </span>
+        )}
+      </footer>
     </article>
   )
 }
@@ -264,7 +399,7 @@ function SaveStatus({ status, timezone, locale }: { status: Status; timezone: st
     <p
       role="status"
       aria-live="polite"
-      className={cn("truncate font-mono text-xs text-muted-foreground", status.kind === "error" && "text-destructive")}
+      className={cn("text-caption truncate text-muted-foreground max-sm:hidden", status.kind === "error" && "text-destructive max-sm:block")}
     >
       {text}
     </p>

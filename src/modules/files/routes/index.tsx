@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { z } from "zod"
+import { Page, Reveal, SkeletonExit } from "@/components/motion"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shell/page-header"
 import { requireViewer } from "@/core/auth"
@@ -25,11 +26,21 @@ function dateLocaleOf(locale: string) {
 
 export default function FilesPage({ searchParams }: PageProps<"/app/files">) {
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-4">
-      <Suspense fallback={<FilesSkeleton />}>
-        <FilesBody searchParams={searchParams} />
-      </Suspense>
-    </div>
+    <Page>
+      <div className="mx-auto grid w-full max-w-6xl gap-4">
+        <Suspense
+          fallback={
+            <SkeletonExit>
+              <FilesSkeleton />
+            </SkeletonExit>
+          }
+        >
+          <Reveal>
+            <FilesBody searchParams={searchParams} />
+          </Reveal>
+        </Suspense>
+      </div>
+    </Page>
   )
 }
 

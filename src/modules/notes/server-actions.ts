@@ -1,9 +1,8 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { redirect } from "next/navigation"
 import { actions } from "./actions"
-import { createNoteInput, noteIdInput, setPinnedInput, updateNoteInput } from "./schema"
+import { createNoteInput, noteIdsInput, pinNotesInput, setPinnedInput, updateNoteInput } from "./schema"
 
 // Autosave and pinning don't revalidate: the editor owns its state while open, and
 // the list and dashboard render per request, so they're fresh on the next visit.
@@ -46,10 +45,33 @@ export async function setNotePinned(input: { id: string; pinned: boolean }): Pro
   await actions.setPinned.handler(parsed.data)
 }
 
-export async function deleteNote(input: { id: string }): Promise<void> {
-  const parsed = noteIdInput.safeParse(input)
-  if (!parsed.success) return
-  await actions.delete.handler(parsed.data)
-  revalidatePath("/app", "layout")
-  redirect("/app/notes")
+export type BulkResult = { ok: true } | { ok: false; error: string }
+
+/** Pins or unpins several notes at once (the list's swipe, menu and bulk bar). */
+export async function pinNotes(input: { ids: string[]; pinned: boolean }): Promise<BulkResult> {
+  const parsed = pinNotesInput.safeParse(input)
+  if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) }
+  try {
+    for (const id of parsed.data.ids) await actions.setPinned.handler({ id, pinned: parsed.data.pinned })
+    revalidatePath("/app", "layout")
+    return { ok: true }
+  } catch {
+    return { ok: false, error: "That didn't save. Check your connection and try again." }
+  }
+}
+
+/**
+ * Deletes for good. Runs when the Undo toast expires, so a mistaken delete
+ * costs nothing; it never navigates, the page that asked has moved on already.
+ */
+export async function deleteNotes(input: { ids: string[] }): Promise<BulkResult> {
+  const parsed = noteIdsInput.safeParse(input)
+  if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) }
+  try {
+    for (const id of parsed.data.ids) await actions.delete.handler({ id })
+    revalidatePath("/app", "layout")
+    return { ok: true }
+  } catch {
+    return { ok: false, error: "The note wasn't deleted. Check your connection and try again." }
+  }
 }

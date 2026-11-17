@@ -118,7 +118,7 @@ export function LinkEditor({ link: initial }: { link: Link }) {
 
       <form onSubmit={save} noValidate className="glass grid gap-4 rounded-xl p-4">
         <div className="flex items-center gap-2">
-          <Favicon src={link.favicon_url} />
+          <Favicon src={link.favicon_url} name={link.site_name || link.url.replace(/^https?:\/\//, "")} />
           <p className="text-meta min-w-0 truncate text-muted-foreground">{link.site_name || domainOf(link.url)}</p>
           <Button
             type="button"
