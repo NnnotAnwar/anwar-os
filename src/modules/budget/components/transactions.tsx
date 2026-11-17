@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { ArrowsLeftRight, Plus, Repeat, Trash2 } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { isTyping, useAfterG } from "@/lib/keys"
 import { formatTags, parseTags } from "@/lib/tags"
 import { removeWithUndo } from "@/lib/undo-toast"
 import { cn } from "@/lib/utils"
@@ -41,18 +42,18 @@ export function QuickAdd({
     if (autoFocus) input.current?.focus()
   }, [autoFocus])
 
-  // "n" focuses the field from anywhere on the page (not while typing elsewhere).
+  // "n" focuses the field (not while typing, not as part of the shell's g-chord).
+  const afterG = useAfterG()
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const target = e.target as HTMLElement
-      if (e.key !== "n" || e.metaKey || e.ctrlKey || e.altKey) return
-      if (target.closest("input, textarea, select, [contenteditable=true], [role=dialog]")) return
+      if (e.key !== "n" || e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target) || afterG(e)) return
+      if (document.querySelector("[data-slot=dialog-content]")) return
       e.preventDefault()
       input.current?.focus()
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [])
+  }, [afterG])
 
   function submit(e: FormEvent) {
     e.preventDefault()

@@ -112,12 +112,10 @@ const recurringBase = z.object({
   startOn: isoDate,
   endOn: isoDate.nullable().default(null),
 })
-const endAfterStart = [
-  (v: { startOn: string; endOn: string | null }) => !v.endOn || v.endOn >= v.startOn,
-  { message: "The end can't be before the start.", path: ["endOn"] },
-] as const
-export const createRecurringInput = recurringBase.refine(...endAfterStart)
-export const updateRecurringInput = recurringBase.extend({ id: z.uuid() }).refine(...endAfterStart)
+const endsAfterStart = (v: { startOn: string; endOn: string | null }) => !v.endOn || v.endOn >= v.startOn
+const endMessage = { message: "The end can't be before the start.", path: ["endOn"] }
+export const createRecurringInput = recurringBase.refine(endsAfterStart, endMessage)
+export const updateRecurringInput = recurringBase.extend({ id: z.uuid() }).refine(endsAfterStart, endMessage)
 export const setActiveInput = z.object({ id: z.uuid(), active: z.boolean() })
 
 // Goals ----------------------------------------------------------------------

@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import type { ReactNode } from "react"
+import { Sheet as SharedSheet } from "@/components/sheet"
 import { cn } from "@/lib/utils"
 import { colorClass } from "../lib/colors"
 
@@ -36,7 +36,12 @@ export function Field({
 }
 
 export function CategoryDot({ color, className }: { color: string | null; className?: string }) {
-  return <span aria-hidden className={cn("inline-block size-2.5 shrink-0 rounded-full", color ? colorClass(color) : "bg-track ring-1 ring-field-border", className)} />
+  return (
+    <span
+      aria-hidden
+      className={cn("inline-block size-2.5 shrink-0 rounded-full", color ? colorClass(color) : "bg-track ring-1 ring-field-border", className)}
+    />
+  )
 }
 
 export function FormError({ id, children }: { id?: string; children: ReactNode }) {
@@ -49,7 +54,15 @@ export function FormError({ id, children }: { id?: string; children: ReactNode }
 }
 
 /** Money in / money out: a two-option segmented control. */
-export function DirectionToggle({ value, onChange, idPrefix }: { value: "out" | "in"; onChange: (v: "out" | "in") => void; idPrefix: string }) {
+export function DirectionToggle({
+  value,
+  onChange,
+  idPrefix,
+}: {
+  value: "out" | "in"
+  onChange: (v: "out" | "in") => void
+  idPrefix: string
+}) {
   return (
     <div role="radiogroup" aria-label="Direction" className="segmented w-full">
       {(["out", "in"] as const).map((d) => (
@@ -61,7 +74,7 @@ export function DirectionToggle({ value, onChange, idPrefix }: { value: "out" | 
           aria-checked={value === d}
           onClick={() => onChange(d)}
           className={cn(
-            "text-small h-8 flex-1 rounded-lg px-3 text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+            "text-small h-9 flex-1 rounded-lg px-3 text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
             value === d && "segment-active text-foreground",
           )}
         >
@@ -72,10 +85,7 @@ export function DirectionToggle({ value, onChange, idPrefix }: { value: "out" | 
   )
 }
 
-/**
- * A dialog that is a bottom sheet on phones (slides up, grab handle, swipe down
- * to close) and a centred panel from 640 px — the ServiceSheet pattern.
- */
+/** The shared bottom sheet (components/sheet.tsx) with a padded body for forms. */
 export function Sheet({
   open,
   onOpenChange,
@@ -90,56 +100,18 @@ export function Sheet({
   children: ReactNode
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className={cn(
-          "glass glass-menu sheet max-h-[calc(100svh-2rem)] gap-4 overflow-y-auto sm:max-w-lg",
-          "max-sm:top-auto max-sm:bottom-0 max-sm:max-h-[92svh] max-sm:max-w-full max-sm:translate-y-0 max-sm:rounded-b-none max-sm:pt-1 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]",
-        )}
-      >
-        <SheetHandle onDismiss={() => onOpenChange(false)} />
-        <DialogHeader>
-          <DialogTitle className="text-card-title">{title}</DialogTitle>
-          {description && <DialogDescription className="text-meta text-muted-foreground">{description}</DialogDescription>}
-        </DialogHeader>
-        {children}
-      </DialogContent>
-    </Dialog>
+    <SharedSheet open={open} onOpenChange={onOpenChange} title={title} description={description} className="sm:max-w-lg">
+      <div className="p-4">{children}</div>
+    </SharedSheet>
   )
 }
 
-// Same gesture as ServiceSheet's handle in components/services/service-card.tsx.
-function SheetHandle({ onDismiss }: { onDismiss: () => void }) {
-  const [start, setStart] = useState<{ y: number; t: number } | null>(null)
-  const sheetOf = (el: HTMLElement) => el.closest<HTMLElement>("[data-slot=dialog-content]")
+/** A thin progress bar with its value written beside it by the caller. */
+export function Bar({ value, className }: { value: number; className?: string }) {
+  const pct = Math.max(0, Math.min(1, value)) * 100
   return (
-    <div
-      aria-hidden
-      className="-mb-2 flex touch-none justify-center pt-1 pb-1 sm:hidden"
-      onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId)
-        setStart({ y: e.clientY, t: e.timeStamp })
-      }}
-      onPointerMove={(e) => {
-        if (!start) return
-        const sheet = sheetOf(e.currentTarget)
-        if (sheet) sheet.style.transform = `translateY(${Math.max(0, e.clientY - start.y)}px)`
-      }}
-      onPointerUp={(e) => {
-        if (!start) return
-        const dy = e.clientY - start.y
-        const velocity = dy / Math.max(1, e.timeStamp - start.t)
-        const sheet = sheetOf(e.currentTarget)
-        setStart(null)
-        if (dy > 80 || velocity > 0.6) onDismiss()
-        else if (sheet) {
-          sheet.style.transition = "transform 220ms var(--ease-out)"
-          sheet.style.transform = ""
-          setTimeout(() => (sheet.style.transition = ""), 240)
-        }
-      }}
-    >
-      <span className="h-1 w-10 rounded-full bg-field-border" />
-    </div>
+    <span aria-hidden className="block h-1.5 w-full overflow-hidden rounded-full bg-track">
+      <span className={cn("block h-full rounded-full bg-accent-500", className)} style={{ width: `${pct}%` }} />
+    </span>
   )
 }
