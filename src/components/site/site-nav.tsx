@@ -5,8 +5,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { ArrowRight, House, MenuIcon } from "@/components/icons"
 import { NAV_TAB } from "@/components/motion"
+import { Sheet } from "@/components/sheet"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { isActive, siteLinks } from "./site-links"
 
@@ -71,25 +71,17 @@ export function SiteMenu({ className }: { className?: string }) {
       >
         <MenuIcon className="size-5" />
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent
-          className={cn(
-            "glass glass-menu sheet gap-0 p-0 sm:max-w-sm",
-            "max-sm:top-auto max-sm:bottom-0 max-sm:max-w-full max-sm:translate-y-0 max-sm:rounded-b-none max-sm:pb-[max(env(safe-area-inset-bottom),0.5rem)]",
-          )}
-        >
-          <Grip onDismiss={() => setOpen(false)} />
-          <div className="grid gap-0.5 px-4 pt-1 pb-2 max-sm:pt-0 sm:pt-4">
-            <DialogTitle className="text-card-title">Where to?</DialogTitle>
-            <DialogDescription className="text-meta text-muted-foreground">
-              Everything on anwar.os, one tap away.
-            </DialogDescription>
-          </div>
-          <Suspense fallback={<MenuItems pathname={null} onNavigate={() => setOpen(false)} />}>
-            <ActiveMenuItems onNavigate={() => setOpen(false)} />
-          </Suspense>
-        </DialogContent>
-      </Dialog>
+      <Sheet
+        open={open}
+        onOpenChange={setOpen}
+        title="Where to?"
+        description="Everything on anwar.os, one tap away."
+        className="sm:max-w-sm"
+      >
+        <Suspense fallback={<MenuItems pathname={null} onNavigate={() => setOpen(false)} />}>
+          <ActiveMenuItems onNavigate={() => setOpen(false)} />
+        </Suspense>
+      </Sheet>
     </div>
   )
 }
@@ -101,7 +93,7 @@ function ActiveMenuItems({ onNavigate }: { onNavigate: () => void }) {
 function MenuItems({ pathname, onNavigate }: { pathname: string | null; onNavigate: () => void }) {
   const items = [{ href: "/", label: "Home", hint: "Who I am, in one screen", icon: House }, ...siteLinks]
   return (
-    <nav aria-label="Main" className="border-t border-hairline px-2 py-2">
+    <nav aria-label="Main" className="mt-3 border-t border-hairline px-2 py-2">
       <ul className="grid gap-0.5">
         {items.map(({ href, label, hint, icon: Icon }) => {
           const active = href === "/" ? pathname === "/" : isActive(pathname, href)
@@ -140,39 +132,5 @@ function MenuItems({ pathname, onNavigate }: { pathname: string | null; onNaviga
         })}
       </ul>
     </nav>
-  )
-}
-
-/** The grab handle on phones: drag down past 80px (or flick) to close. */
-function Grip({ onDismiss }: { onDismiss: () => void }) {
-  const [start, setStart] = useState<{ y: number; t: number } | null>(null)
-  const sheetOf = (el: HTMLElement) => el.closest<HTMLElement>("[data-slot=dialog-content]")
-  return (
-    <div
-      aria-hidden
-      className="flex touch-none justify-center pt-2 pb-2 sm:hidden"
-      onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId)
-        setStart({ y: e.clientY, t: e.timeStamp })
-      }}
-      onPointerMove={(e) => {
-        if (!start) return
-        const sheet = sheetOf(e.currentTarget)
-        if (sheet) sheet.style.transform = `translateY(${Math.max(0, e.clientY - start.y)}px)`
-      }}
-      onPointerUp={(e) => {
-        if (!start) return
-        const dy = e.clientY - start.y
-        const sheet = sheetOf(e.currentTarget)
-        setStart(null)
-        if (dy > 80 || dy / Math.max(1, e.timeStamp - start.t) > 0.6) return onDismiss()
-        if (!sheet) return
-        sheet.style.transition = "transform 220ms var(--ease-out)"
-        sheet.style.transform = ""
-        setTimeout(() => (sheet.style.transition = ""), 240)
-      }}
-    >
-      <span className="h-1.5 w-10 rounded-full bg-muted-foreground/35" />
-    </div>
   )
 }
