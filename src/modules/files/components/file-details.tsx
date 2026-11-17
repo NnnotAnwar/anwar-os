@@ -4,19 +4,12 @@ import { useState, useTransition, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Download, Trash2 } from "@/components/icons"
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { NAV_BACK } from "@/components/motion"
+import { pendingRemovals } from "@/components/list/pending"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { removeWithUndo } from "@/lib/undo-toast"
 import { folderHref, rawHref } from "../lib/links"
 import { normalizeTags } from "../lib/validation"
 import type { FileItem } from "../schema"
@@ -30,7 +23,6 @@ export function FileDetails({ file }: { file: FileItem }) {
   const [tags, setTags] = useState(file.tags.join(", "))
   const [error, setError] = useState<string | null>(null)
   const [saving, startSaving] = useTransition()
-  const [deleting, startDeleting] = useTransition()
   const dirty = name !== file.name || description !== file.description || normalizeTags(tags).join(",") !== file.tags.join(",")
 
   function save(e: FormEvent) {
@@ -46,12 +38,20 @@ export function FileDetails({ file }: { file: FileItem }) {
     })
   }
 
+  /** One tap: back to the folder at once; Undo brings the file back here. */
   function remove() {
-    startDeleting(async () => {
-      const result = await deleteFile({ id: file.id })
-      if (!result.ok) return setError(result.error)
-      toast.success("File deleted")
-      router.push(folderHref(file.folderId))
+    const key = `file:${file.id}`
+    removeWithUndo({
+      message: `“${file.name}” deleted`,
+      hide: () => {
+        pendingRemovals.add(key)
+        router.push(folderHref(file.folderId), { transitionTypes: NAV_BACK })
+      },
+      restore: () => {
+        pendingRemovals.remove(key)
+        router.push(`/app/files/file/${file.id}`)
+      },
+      commit: () => deleteFile({ id: file.id }),
     })
   }
 
@@ -101,24 +101,10 @@ export function FileDetails({ file }: { file: FileItem }) {
           <Download />
           Download
         </a>
-        <AlertDialog>
-          <AlertDialogTrigger render={<Button type="button" variant="ghost" className="ml-auto text-destructive" />}>
-            <Trash2 />
-            Delete
-          </AlertDialogTrigger>
-          <AlertDialogContent className="glass glass-menu">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="text-card-title">Delete “{file.name}”?</AlertDialogTitle>
-              <AlertDialogDescription>The file is removed from storage for good. This can&apos;t be undone.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Keep file</AlertDialogCancel>
-              <Button variant="destructive" onClick={remove} disabled={deleting}>
-                Delete file
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <Button type="button" variant="ghost" className="ml-auto text-destructive" onClick={remove}>
+          <Trash2 />
+          Delete
+        </Button>
       </div>
     </form>
   )

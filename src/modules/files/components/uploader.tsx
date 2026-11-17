@@ -170,20 +170,48 @@ export function DropZone({
   )
 }
 
+/**
+ * The upload tray: floats above the page (and the tab bar on phones) so
+ * progress stays in view while you scroll; collapses to one line.
+ */
 export function UploadPanel({ uploads, onClear }: { uploads: Upload[]; onClear: () => void }) {
+  const [collapsed, setCollapsed] = useState(false)
   if (uploads.length === 0) return null
   const finished = uploads.every((u) => u.status === "done" || u.status === "error")
+  const done = uploads.filter((u) => u.status === "done").length
+  const failed = uploads.filter((u) => u.status === "error").length
+  const total = uploads.reduce((a, u) => a + u.size, 0)
+  const loaded = uploads.reduce((a, u) => a + (u.status === "done" ? u.size : u.loaded), 0)
+  const overall = total ? Math.round((loaded / total) * 100) : 100
   return (
-    <section aria-label="Uploads" className="glass grid gap-2 rounded-xl p-3">
+    <section
+      aria-label="Uploads"
+      className="glass glass-menu fixed right-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 grid w-[min(22rem,calc(100vw-1.5rem))] animate-in gap-2 rounded-xl p-3 shadow-(--shadow-glass-lg) duration-200 fade-in-0 slide-in-from-bottom-2 md:right-6 md:bottom-6 motion-reduce:animate-none"
+    >
       <header className="flex items-center justify-between gap-2">
-        <h2 className="text-eyebrow text-text-accent">Uploads</h2>
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          aria-expanded={!collapsed}
+          className="text-body-strong flex min-w-0 items-center gap-2 rounded text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <CloudUpload className="size-4 shrink-0 text-text-accent" />
+          <span className="truncate tabular-nums">
+            {finished
+              ? failed
+                ? `${done} uploaded, ${failed} failed`
+                : `${done} ${done === 1 ? "file" : "files"} uploaded`
+              : `Uploading ${Math.min(done + 1, uploads.length)} of ${uploads.length} · ${overall}%`}
+          </span>
+        </button>
         {finished && (
           <button type="button" onClick={onClear} className="text-caption rounded px-1 text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
-            Clear
+            Close
           </button>
         )}
       </header>
-      <ul className="grid gap-2" aria-live="polite">
+      {collapsed ? null : (
+      <ul className="grid max-h-56 gap-2 overflow-y-auto" aria-live="polite">
         {uploads.map((u) => {
           const pct = u.size ? Math.round((u.loaded / u.size) * 100) : 100
           return (
@@ -229,6 +257,7 @@ export function UploadPanel({ uploads, onClear }: { uploads: Upload[]; onClear: 
           )
         })}
       </ul>
+      )}
     </section>
   )
 }
