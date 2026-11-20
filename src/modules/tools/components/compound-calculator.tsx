@@ -1,11 +1,49 @@
 "use client"
 
 import { useState, type ReactNode } from "react"
+import { ChartLine, TableIcon } from "@/components/icons"
+import { cn } from "@/lib/utils"
 import { compoundGrowth, type YearRow } from "../lib/compound"
 import { formatNumber, parseNumberInput } from "../lib/format"
 import { NumberField, ResultPanel, ResultRow, SectionLabel } from "./fields"
+import { GrowthChart } from "./growth-chart"
 
 const money = (value: number) => formatNumber(value, 0)
+
+/** The chart, or the same numbers as a table (for reading exact values, copying, screen readers). */
+function Projection({ rows, initial }: { rows: YearRow[]; initial: number }) {
+  const [view, setView] = useState<"chart" | "table">("chart")
+  return (
+    <section className="grid gap-3" aria-labelledby="growth-heading">
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel id="growth-heading">Growth</SectionLabel>
+        <div className="segmented" role="group" aria-label="Show as">
+          {(
+            [
+              ["chart", "Chart", ChartLine],
+              ["table", "Table", TableIcon],
+            ] as const
+          ).map(([value, label, Icon]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={view === value}
+              onClick={() => setView(value)}
+              className={cn(
+                "text-small flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:h-9",
+                view === value && "segment-active text-foreground",
+              )}
+            >
+              <Icon className="size-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {view === "chart" ? <GrowthChart rows={rows} initial={initial} /> : <YearTable rows={rows} />}
+    </section>
+  )
+}
 
 export function CompoundCalculator() {
   const [initial, setInitial] = useState("10000")
@@ -55,10 +93,10 @@ export function CompoundCalculator() {
             </div>
             <dl className="divide-y border-y">
               <ResultRow
-                label={<Swatch className="bg-chart-3">You put in</Swatch>}
+                label={<Swatch className="bg-muted-foreground/45">You put in</Swatch>}
                 value={money(res.result.totalContributed)}
               />
-              <ResultRow label={<Swatch className="bg-accent-600">Interest earned</Swatch>} value={money(res.result.totalInterest)} />
+              <ResultRow label={<Swatch className="bg-accent-500">Interest earned</Swatch>} value={money(res.result.totalInterest)} />
               {res.result.finalBalance > 0 && (
                 <ResultRow
                   label="Interest share of balance"
@@ -66,8 +104,7 @@ export function CompoundCalculator() {
                 />
               )}
             </dl>
-            <GrowthChart rows={res.result.rows} />
-            <YearTable rows={res.result.rows} />
+            <Projection rows={res.result.rows} initial={parseNumberInput(initial)} />
           </>
         ) : (
           <p className="text-sm text-muted-foreground" role="status">
@@ -88,46 +125,13 @@ function Swatch({ className, children }: { className: string; children: ReactNod
   )
 }
 
-/** Stacked columns per year: contributions at the bottom, interest on top. */
-function GrowthChart({ rows }: { rows: YearRow[] }) {
-  const peak = Math.max(...rows.map((r) => Math.max(r.balance, r.contributed)), 1)
-  const last = rows[rows.length - 1]
-  return (
-    <figure className="grid gap-2">
-      <div
-        className="flex h-40 items-end gap-px"
-        role="img"
-        aria-label={`Balance grows from ${money(rows[0].balance)} after year 1 to ${money(last.balance)} after year ${last.year}`}
-      >
-        {rows.map((row) => {
-          const base = Math.max(0, Math.min(row.contributed, row.balance))
-          const gain = Math.max(0, row.balance - row.contributed)
-          return (
-            <div
-              key={row.year}
-              className="flex h-full min-w-0 flex-1 flex-col justify-end"
-              title={`Year ${row.year}: ${money(row.balance)}`}
-            >
-              <div className="rounded-t-[2px] bg-accent-600" style={{ height: `${(gain / peak) * 100}%` }} />
-              <div className="bg-chart-3" style={{ height: `${(base / peak) * 100}%` }} />
-            </div>
-          )
-        })}
-      </div>
-      <figcaption className="flex justify-between font-mono text-xs text-muted-foreground tabular" aria-hidden>
-        <span>Year 1</span>
-        <span>Year {last.year}</span>
-      </figcaption>
-    </figure>
-  )
-}
 
 function YearTable({ rows }: { rows: YearRow[] }) {
   return (
-    <section className="grid gap-2" aria-labelledby="years-heading">
-      <SectionLabel id="years-heading">Year by year</SectionLabel>
+    <div className="max-h-80 overflow-y-auto">
       <div className="overflow-x-auto">
         <table className="w-full font-mono text-xs tabular sm:text-sm">
+          <caption className="sr-only">Year by year: what you put in, interest and balance</caption>
           <thead>
             <tr className="border-b text-left text-muted-foreground">
               <th scope="col" className="py-2 pr-2 font-normal">
@@ -158,6 +162,6 @@ function YearTable({ rows }: { rows: YearRow[] }) {
           </tbody>
         </table>
       </div>
-    </section>
+    </div>
   )
 }

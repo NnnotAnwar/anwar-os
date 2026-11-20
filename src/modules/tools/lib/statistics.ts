@@ -117,6 +117,33 @@ export function histogram(values: readonly number[], binCount?: number): Histogr
   return result
 }
 
+export type BoxPlot = {
+  q1: number
+  median: number
+  q3: number
+  /** Most extreme values still within 1.5 × IQR of the box (Tukey). */
+  lowerWhisker: number
+  upperWhisker: number
+  /** Everything beyond the whiskers, ascending. */
+  outliers: number[]
+}
+
+/** Tukey box plot of an ascending, non-empty list. */
+export function boxPlot(sorted: readonly number[]): BoxPlot {
+  const q1 = percentile(sorted, 25)
+  const q3 = percentile(sorted, 75)
+  const fence = 1.5 * (q3 - q1)
+  const inside = sorted.filter((v) => v >= q1 - fence && v <= q3 + fence)
+  return {
+    q1,
+    median: median(sorted),
+    q3,
+    lowerWhisker: inside[0] ?? q1,
+    upperWhisker: inside[inside.length - 1] ?? q3,
+    outliers: sorted.filter((v) => v < q1 - fence || v > q3 + fence),
+  }
+}
+
 export type Summary = {
   count: number
   sum: number
