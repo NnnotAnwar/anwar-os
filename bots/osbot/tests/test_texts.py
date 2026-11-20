@@ -50,12 +50,24 @@ def test_today_text():
             {"time": "All day", "title": "Mum's birthday", "location": ""},
             {"time": "14:00 – 15:00", "title": "Dentist", "location": "Vinohradská 1"},
         ],
+        "tasks": [
+            {"title": "Pay rent", "overdue": True, "time": None},
+            {"title": "Call the bank", "overdue": False, "time": "10:00"},
+            {"title": "Water plants", "overdue": False, "time": None},
+        ],
+        "tasksTotal": 5,
         "newFeedback": 2,
     }
     assert texts.today_text(data) == (
         "📅 Monday 16 Nov\n"
         "• All day  Mum's birthday\n"
         "• 14:00 – 15:00  Dentist · Vinohradská 1\n"
+        "\n"
+        "✅ Tasks\n"
+        "• Pay rent · overdue\n"
+        "• Call the bank · 10:00\n"
+        "• Water plants · today\n"
+        "… and 2 more\n"
         "\n"
         "💬 2 new feedback messages"
     )

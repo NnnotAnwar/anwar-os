@@ -1,4 +1,4 @@
-"""Slash commands: /start, /help, /today, /note, /link, /idea, /save."""
+"""Slash commands: /start, /help, /today, /note, /link, /idea, /task, /save."""
 
 from __future__ import annotations
 
@@ -16,7 +16,8 @@ USAGE = {
     "note": "Send /note followed by the text, e.g. /note Call the bank tomorrow",
     "link": "Send /link followed by the address, e.g. /link https://react.dev/learn",
     "idea": "Send /idea followed by the idea, e.g. /idea A bot that waters the plants",
-    "save": "Send /save followed by the text.",
+    "task": "Send /task followed by the task, e.g. /task Call the bank tomorrow 10:00 !high",
+    "save": "Send /save followed by the text; it goes to your Inbox.",
 }
 
 
@@ -45,8 +46,8 @@ async def _save(message: types.Message, api: OsbotApi, kind: str | None, text: s
     await message.answer(saved_text(result), link_preview_options=NO_PREVIEW)
 
 
-@router.message(Command("note", "idea"))
-async def cmd_note_or_idea(message: types.Message, command: CommandObject, api: OsbotApi) -> None:
+@router.message(Command("note", "idea", "task"))
+async def cmd_direct(message: types.Message, command: CommandObject, api: OsbotApi) -> None:
     text = (command.args or "").strip()
     if not text:
         await message.answer(USAGE[command.command])

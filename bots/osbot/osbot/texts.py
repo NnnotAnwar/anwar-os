@@ -12,7 +12,8 @@ HELP = (
     "/note <text> — save a note\n"
     "/link <url> — save a link\n"
     "/idea <text> — save an idea\n"
-    "/save <text> — save to the default place\n\n"
+    "/task <text> — add a task (\"tomorrow 10:00 !high\" works)\n"
+    "/save <text> — save to your Inbox\n\n"
     "Forward me any message or send a link, and I'll offer where to save it. "
     "Calendar reminders and new feedback arrive here too."
 )
@@ -65,6 +66,16 @@ def today_text(data: dict[str, Any]) -> str:
         if event.get("location"):
             row += f" · {event['location']}"
         lines.append(row)
+    tasks = data.get("tasks") or []
+    if tasks:
+        lines.append("")
+        lines.append("✅ Tasks")
+        for task in tasks:
+            when = "overdue" if task.get("overdue") else (task.get("time") or "today")
+            lines.append(f"• {task['title']} · {when}")
+        more = int(data.get("tasksTotal") or 0) - len(tasks)
+        if more > 0:
+            lines.append(f"… and {more} more")
     new_feedback = int(data.get("newFeedback") or 0)
     if new_feedback:
         lines.append("")

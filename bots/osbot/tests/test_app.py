@@ -80,7 +80,7 @@ def test_build_dispatcher_wires_api_targets_and_routers():
     api = SimpleNamespace()
     dp = app.build_dispatcher(api, OWNER)
     assert dp["api"] is api
-    assert dp["targets"].default == "note"
+    assert dp["targets"].default == "inbox"
     assert len(dp.sub_routers) == 2
 
 

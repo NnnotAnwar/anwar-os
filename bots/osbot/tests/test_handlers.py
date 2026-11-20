@@ -35,8 +35,9 @@ def fake_api(**overrides):
         today=AsyncMock(return_value={"date": "Monday 16 Nov", "events": [], "newFeedback": 0}),
         capture_targets=AsyncMock(
             return_value={
-                "default": "note",
+                "default": "inbox",
                 "targets": [
+                    {"kind": "inbox", "label": "Inbox", "button": "Save to Inbox", "needsUrl": False},
                     {"kind": "note", "label": "Note", "button": "Save as note", "needsUrl": False},
                     {"kind": "link", "label": "Link", "button": "Save as link", "needsUrl": True},
                     {"kind": "idea", "label": "Idea", "button": "Save as idea", "needsUrl": False},
@@ -77,18 +78,18 @@ def test_message_content_finds_plain_hidden_and_caption_links():
 
 async def test_note_and_idea_save_through_the_api():
     api, message = fake_api(), fake_message("/note Milk")
-    await commands.cmd_note_or_idea(message, command("note", "Milk"), api)
+    await commands.cmd_direct(message, command("note", "Milk"), api)
     api.capture.assert_awaited_once_with("note", "Milk", None)
     assert message.answer.call_args.args[0] == "✅ Note saved: Milk\nhttps://os/app/notes/1"
 
     api = fake_api()
-    await commands.cmd_note_or_idea(fake_message(), command("idea", "  Plant bot  "), api)
+    await commands.cmd_direct(fake_message(), command("idea", "  Plant bot  "), api)
     api.capture.assert_awaited_once_with("idea", "Plant bot", None)
 
 
 async def test_commands_without_text_explain_usage():
     api, message = fake_api(), fake_message("/note")
-    await commands.cmd_note_or_idea(message, command("note"), api)
+    await commands.cmd_direct(message, command("note"), api)
     api.capture.assert_not_awaited()
     assert message.answer.call_args.args[0].startswith("Send /note followed by")
 
@@ -104,16 +105,22 @@ async def test_link_passes_the_url():
     api.capture.assert_awaited_once_with("link", "https://react.dev/learn great docs", "https://react.dev/learn")
 
 
+async def test_task_goes_straight_to_tasks():
+    api = fake_api()
+    await commands.cmd_direct(fake_message(), command("task", "Call the bank tomorrow !high"), api)
+    api.capture.assert_awaited_once_with("task", "Call the bank tomorrow !high", None)
+
+
 async def test_save_uses_the_default_target():
     api = fake_api()
     await commands.cmd_save(fake_message(), command("save", "Something"), api, CaptureTargets(api))
-    api.capture.assert_awaited_once_with("note", "Something", None)
+    api.capture.assert_awaited_once_with("inbox", "Something", None)
 
 
 async def test_api_errors_are_explained():
     api = fake_api(capture=AsyncMock(side_effect=ApiError(422, "not_captured", "No link found.")))
     message = fake_message()
-    await commands.cmd_note_or_idea(message, command("note", "x"), api)
+    await commands.cmd_direct(message, command("note", "x"), api)
     assert message.answer.call_args.args[0] == "❌ No link found."
 
     api = fake_api(today=AsyncMock(side_effect=OSError("connection refused")))
@@ -135,36 +142,42 @@ async def test_forwarded_text_gets_buttons_without_link():
     api, message = fake_api(), fake_message("Remember the milk")
     await capture.offer_capture(message, CaptureTargets(api))
     markup = message.reply.call_args.kwargs["reply_markup"]
-    assert buttons(markup) == [("Save as note", "cap:note"), ("Save as idea", "cap:idea")]
+    assert buttons(markup) == [("Save to Inbox", "cap:inbox"), ("Save as note", "cap:note"), ("Save as idea", "cap:idea")]
 
 
 async def test_a_url_gets_the_link_button_first():
     api, message = fake_api(), fake_message("https://react.dev/learn")
     await capture.offer_capture(message, CaptureTargets(api))
     markup = message.reply.call_args.kwargs["reply_markup"]
-    assert buttons(markup) == [("Save as link", "cap:link"), ("Save as note", "cap:note"), ("Save as idea", "cap:idea")]
+    assert buttons(markup) == [
+        ("Save as link", "cap:link"),
+        ("Save to Inbox", "cap:inbox"),
+        ("Save as note", "cap:note"),
+        ("Save as idea", "cap:idea"),
+    ]
 
 
 async def test_targets_from_the_api_drive_the_buttons():
     api = fake_api(
         capture_targets=AsyncMock(
             return_value={
-                "default": "inbox",
-                "targets": [{"kind": "inbox", "label": "Inbox", "button": "Save to Inbox", "needsUrl": False}],
+                "default": "journal",
+                "targets": [{"kind": "journal", "label": "Journal", "button": "Save to journal", "needsUrl": False}],
             }
         )
     )
     message = fake_message("anything")
     targets = CaptureTargets(api)
     await capture.offer_capture(message, targets)
-    assert buttons(message.reply.call_args.kwargs["reply_markup"]) == [("Save to Inbox", "cap:inbox")]
-    assert targets.default == "inbox"
+    assert buttons(message.reply.call_args.kwargs["reply_markup"]) == [("Save to journal", "cap:journal")]
+    assert targets.default == "journal"
 
 
 async def test_targets_fall_back_when_the_api_is_down():
     api = fake_api(capture_targets=AsyncMock(side_effect=OSError("down")))
     targets = CaptureTargets(api)
-    assert [t.kind for t in await targets.get()] == ["note", "link", "idea"]
+    assert [t.kind for t in await targets.get()] == ["inbox", "task", "note", "link", "idea"]
+    assert targets.default == "inbox"
 
 
 async def test_messages_without_text_are_explained():

@@ -29,7 +29,8 @@ COMMANDS = [
     BotCommand(command="note", description="Save a note"),
     BotCommand(command="link", description="Save a link"),
     BotCommand(command="idea", description="Save an idea"),
-    BotCommand(command="save", description="Save to the default place"),
+    BotCommand(command="task", description="Add a task"),
+    BotCommand(command="save", description="Save to your Inbox"),
     BotCommand(command="help", description="What I can do"),
 ]
 

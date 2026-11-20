@@ -27,7 +27,11 @@ class Target:
     needs_url: bool = False
 
 
+# Used until GET capture/targets answers once; keep it in step with
+# src/modules/osbot/capture.ts.
 FALLBACK = (
+    Target("inbox", "Inbox", "Save to Inbox"),
+    Target("task", "Task", "Save as task"),
     Target("note", "Note", "Save as note"),
     Target("link", "Link", "Save as link", needs_url=True),
     Target("idea", "Idea", "Save as idea"),
