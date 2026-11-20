@@ -5,7 +5,10 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import QRCode from "qrcode"
 import { z } from "zod"
+import { db } from "@/db"
 import { auth } from "@/lib/auth"
+import { readAuthEnv } from "@/lib/auth-config"
+import { clientIp, consumeRateLimit, retryMessage, SIGN_IN_LIMITS, type RateRule } from "@/lib/rate-limit"
 import { safeNext } from "@/lib/safe-next"
 
 export type AuthFormState = { error?: string }
@@ -18,6 +21,21 @@ function dropCachedPages() {
   revalidatePath("/app", "layout")
 }
 
+/**
+ * These actions call auth.api.* directly, which skips Better Auth's HTTP rate
+ * limiter, so they count attempts themselves (auth.rate_limit, in Postgres).
+ * Every attempt counts, successful or not. Returns the error to show, if any.
+ */
+async function overLimit(checks: [key: string, rule: RateRule][]): Promise<string | null> {
+  // Same switch as Better Auth's limiter: on in production, AUTH_RATE_LIMIT overrides.
+  if (!readAuthEnv().rateLimit) return null
+  for (const [key, rule] of checks) {
+    const { allowed, retryAfter } = await consumeRateLimit(db, key, rule)
+    if (!allowed) return retryMessage(retryAfter)
+  }
+  return null
+}
+
 const credentials = z.object({
   email: z.email(),
   password: z.string().min(1),
@@ -28,11 +46,18 @@ export async function signIn(_prev: AuthFormState, formData: FormData): Promise<
   const parsed = credentials.safeParse(Object.fromEntries(formData))
   if (!parsed.success) return { error: "Enter a valid email and password." }
 
+  const requestHeaders = await headers()
+  const limited = await overLimit([
+    [`sign-in:ip:${clientIp(requestHeaders)}`, SIGN_IN_LIMITS.ip],
+    [`sign-in:account:${parsed.data.email.toLowerCase()}`, SIGN_IN_LIMITS.account],
+  ])
+  if (limited) return { error: limited }
+
   let needsSecondFactor = false
   try {
     const result = await auth.api.signInEmail({
       body: { email: parsed.data.email, password: parsed.data.password },
-      headers: await headers(),
+      headers: requestHeaders,
     })
     // With 2FA on, Better Auth issues a short-lived 2FA cookie instead of a session.
     needsSecondFactor = "twoFactorRedirect" in result && Boolean(result.twoFactorRedirect)
@@ -56,12 +81,15 @@ export async function verifyMfa(_prev: AuthFormState, formData: FormData): Promi
   if (!parsed.success) return { error: parsed.error.issues[0]?.message }
 
   const { code } = parsed.data
+  const requestHeaders = await headers()
+  const limited = await overLimit([[`mfa:ip:${clientIp(requestHeaders)}`, SIGN_IN_LIMITS.mfa]])
+  if (limited) return { error: limited }
   try {
     // Six digits is a TOTP code; anything else is treated as a backup code.
     if (/^\d{6}$/.test(code)) {
-      await auth.api.verifyTOTP({ body: { code }, headers: await headers() })
+      await auth.api.verifyTOTP({ body: { code }, headers: requestHeaders })
     } else {
-      await auth.api.verifyBackupCode({ body: { code }, headers: await headers() })
+      await auth.api.verifyBackupCode({ body: { code }, headers: requestHeaders })
     }
   } catch {
     return { error: "That code didn't work. Wait for the next one or use a backup code." }

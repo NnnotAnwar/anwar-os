@@ -21,6 +21,10 @@ export function testAuth(db: ReturnType<typeof openDatabases>["db"], env: Partia
     baseURL: BASE,
     googleClientId: "test-client-id.apps.googleusercontent.com",
     googleClientSecret: "test-client-secret",
+    // Explicit, never inherited: left to Better Auth, the limiter follows
+    // NODE_ENV, and a run with NODE_ENV=production in the shell failed most
+    // sign-in tests with 429s. db/tests/auth-rate-limit.test.ts turns it on.
+    rateLimit: false,
     ...env,
   })
 }
@@ -42,8 +46,12 @@ export async function createUser(admin: postgres.Sql, label: string, password = 
 export class Browser {
   cookies = new Map<string, string>()
 
+  /** `ip` is sent as X-Forwarded-For, as Caddy does in production. */
+  constructor(readonly ip?: string) {}
+
   async request(auth: ReturnType<typeof testAuth>, path: string, init: { method?: string; body?: unknown; userAgent?: string } = {}) {
     const headers = new Headers({ origin: BASE })
+    if (this.ip) headers.set("x-forwarded-for", this.ip)
     if (this.cookies.size) headers.set("cookie", [...this.cookies].map(([k, v]) => `${k}=${v}`).join("; "))
     if (init.body !== undefined) headers.set("content-type", "application/json")
     if (init.userAgent) headers.set("user-agent", init.userAgent)

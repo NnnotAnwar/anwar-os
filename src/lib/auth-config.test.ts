@@ -36,6 +36,16 @@ describe("Google configuration", () => {
   })
 })
 
+describe("readAuthEnv rate limiting", () => {
+  it("is on in production and off elsewhere, unless AUTH_RATE_LIMIT says otherwise", () => {
+    expect(readAuthEnv({ NODE_ENV: "production" }).rateLimit).toBe(true)
+    expect(readAuthEnv({ NODE_ENV: "development" }).rateLimit).toBe(false)
+    expect(readAuthEnv({ NODE_ENV: "test" }).rateLimit).toBe(false)
+    expect(readAuthEnv({ NODE_ENV: "production", AUTH_RATE_LIMIT: "off" }).rateLimit).toBe(false)
+    expect(readAuthEnv({ NODE_ENV: "development", AUTH_RATE_LIMIT: "on" }).rateLimit).toBe(true)
+  })
+})
+
 describe("defaultPasskeyName", () => {
   it("prefers the authenticator's provider", () => {
     expect(defaultPasskeyName("bada5566-a7aa-401f-bd96-45619a55120d", "Macintosh")).toBe("1Password")
