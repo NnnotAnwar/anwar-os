@@ -1,10 +1,10 @@
 name: Deploy
 
-# push to main -> build the web, migrate and bot-expenses images for linux/arm64
+# push to main -> build the web, migrate, bot-expenses and bot-osbot images for linux/arm64
 # (the server, a Hetzner CAX21) and linux/amd64 on native runners -> push to GHCR
 # as :<sha> and :latest -> SSH to the server and run infra/deploy.sh <sha>
-# (migrate, replace web, healthcheck gate, auto-rollback, then the bot if its
-# compose profile is on).
+# (migrate, replace web, healthcheck gate, auto-rollback, then the bots that
+# are configured, if their compose profile is on).
 #
 # The deploy job is skipped until the DEPLOY_* secrets exist, so this workflow
 # stays green before the server does. See docs/DEPLOY.md.
@@ -37,6 +37,7 @@ env:
   WEB_IMAGE: ghcr.io/nnnotanwar/anwar-os-web
   MIGRATE_IMAGE: ghcr.io/nnnotanwar/anwar-os-migrate
   BOT_EXPENSES_IMAGE: ghcr.io/nnnotanwar/anwar-os-bot-expenses
+  BOT_OSBOT_IMAGE: ghcr.io/nnnotanwar/anwar-os-bot-osbot
 
 jobs:
   plan:
@@ -143,16 +144,33 @@ jobs:
           cache-from: type=gha,scope=bot-expenses-${{ matrix.arch }}
           cache-to: type=gha,scope=bot-expenses-${{ matrix.arch }},mode=max
 
+      - name: Build bot-osbot (${{ matrix.platform }})
+        id: osbot
+        uses: docker/build-push-action@v6
+        with:
+          context: bots/osbot
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            BOT_VERSION=${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          outputs: type=image,name=${{ env.BOT_OSBOT_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=bot-osbot-${{ matrix.arch }}
+          cache-to: type=gha,scope=bot-osbot-${{ matrix.arch }},mode=max
+
       - name: Export digests
         env:
           WEB_DIGEST: ${{ steps.web.outputs.digest }}
           MIGRATE_DIGEST: ${{ steps.migrate.outputs.digest }}
           BOT_DIGEST: ${{ steps.bot.outputs.digest }}
+          OSBOT_DIGEST: ${{ steps.osbot.outputs.digest }}
         run: |
-          mkdir -p "$RUNNER_TEMP/digests/web" "$RUNNER_TEMP/digests/migrate" "$RUNNER_TEMP/digests/bot-expenses"
+          mkdir -p "$RUNNER_TEMP/digests/web" "$RUNNER_TEMP/digests/migrate" "$RUNNER_TEMP/digests/bot-expenses" "$RUNNER_TEMP/digests/bot-osbot"
           touch "$RUNNER_TEMP/digests/web/${WEB_DIGEST#sha256:}"
           touch "$RUNNER_TEMP/digests/migrate/${MIGRATE_DIGEST#sha256:}"
           touch "$RUNNER_TEMP/digests/bot-expenses/${BOT_DIGEST#sha256:}"
+          touch "$RUNNER_TEMP/digests/bot-osbot/${OSBOT_DIGEST#sha256:}"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -201,6 +219,7 @@ jobs:
           publish "$WEB_IMAGE" web
           publish "$MIGRATE_IMAGE" migrate
           publish "$BOT_EXPENSES_IMAGE" bot-expenses
+          publish "$BOT_OSBOT_IMAGE" bot-osbot
 
   deploy:
     name: Deploy to server
