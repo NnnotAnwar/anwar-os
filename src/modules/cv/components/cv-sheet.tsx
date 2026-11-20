@@ -38,7 +38,7 @@ export function CvSheet({ cv, actions, className }: { cv: Cv; actions?: ReactNod
                 <li key={`${c.label}-${c.value}-${i}`}>
                   {c.label && <span className="sr-only">{c.label}: </span>}
                   {href ? (
-                    <a href={href} className="text-foreground underline-offset-4 hover:text-text-accent hover:underline">
+                    <a href={href} className="inline-flex min-h-11 items-center text-foreground underline-offset-4 hover:text-text-accent hover:underline sm:min-h-0 print:min-h-0">
                       {c.value}
                     </a>
                   ) : (

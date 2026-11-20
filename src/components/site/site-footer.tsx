@@ -16,10 +16,10 @@ export function SiteFooter() {
         </Suspense>
       </div>
       <div className="grid content-start gap-2 md:justify-items-end">
-        <ul className="text-meta flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
+        <ul className="text-meta -mx-2 flex flex-wrap gap-y-0 text-muted-foreground md:mx-0 md:gap-x-3 md:gap-y-1">
           {siteLinks.map((l) => (
             <li key={l.href}>
-              <Link href={l.href} className="rounded outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+              <Link href={l.href} className="flex min-h-11 items-center rounded-lg px-2 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 md:min-h-0 md:px-0">
                 {l.label}
               </Link>
             </li>
@@ -52,16 +52,16 @@ async function Contacts() {
     )
   }
   return (
-    <ul className="text-meta flex flex-wrap gap-x-4 gap-y-1">
+    <ul className="text-meta grid gap-x-4 sm:flex sm:flex-wrap sm:gap-y-1">
       {contacts.map((c) => {
         const href = c.url ? safeHref(c.url) : null
         return (
-          <li key={`${c.label}-${c.value}`} className="flex gap-1.5">
+          <li key={`${c.label}-${c.value}`} className="flex min-h-11 items-center gap-1.5 sm:min-h-0">
             {c.label && <span className="text-muted-foreground">{c.label}</span>}
             {href ? (
               <a
                 href={href}
-                className="font-semibold text-foreground underline-offset-4 hover:text-text-accent hover:underline"
+                className="flex min-h-11 items-center font-semibold text-foreground underline-offset-4 hover:text-text-accent hover:underline sm:min-h-0"
                 {...(href.startsWith("http") ? { target: "_blank", rel: "noreferrer" } : {})}
               >
                 {c.value}

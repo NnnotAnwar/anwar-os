@@ -168,7 +168,7 @@ export function BasicCalculator() {
               type="button"
               onClick={backspace}
               aria-label="Delete last character"
-              className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="absolute top-1/2 right-2 flex size-10 -translate-y-1/2 md:size-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <Delete className="size-4" aria-hidden />
             </button>

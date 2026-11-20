@@ -51,9 +51,9 @@ async function PublishedLinks() {
             <a
               key={tag || "other"}
               href={`#${anchor(tag)}`}
-              className="text-caption rounded-full bg-track px-2.5 py-1 text-muted-foreground max-sm:px-3 max-sm:py-2 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="text-caption rounded-full bg-track px-2.5 py-1 text-muted-foreground max-sm:px-3 max-sm:py-2.5 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              {tag ? `#${tag}` : "Other"} <span className="tabular-nums opacity-70">{links.length}</span>
+              {tag ? `#${tag}` : "Other"} <span className="tabular-nums">{links.length}</span>
             </a>
           ))}
         </nav>

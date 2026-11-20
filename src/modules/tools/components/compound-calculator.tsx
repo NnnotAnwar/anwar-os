@@ -30,7 +30,7 @@ function Projection({ rows, initial }: { rows: YearRow[]; initial: number }) {
               aria-pressed={view === value}
               onClick={() => setView(value)}
               className={cn(
-                "text-small flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:h-9",
+                "text-small flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:h-10 max-sm:px-3",
                 view === value && "segment-active text-foreground",
               )}
             >

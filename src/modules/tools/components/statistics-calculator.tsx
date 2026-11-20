@@ -30,7 +30,7 @@ export function StatisticsCalculator() {
           <button
             type="button"
             onClick={() => setText(text ? "" : SAMPLE)}
-            className="rounded-md px-1.5 py-0.5 text-xs text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="-mr-1.5 flex min-h-11 items-center rounded-md px-1.5 text-xs text-text-accent md:min-h-7 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {text ? "Clear" : "Use sample data"}
           </button>
