@@ -6,7 +6,7 @@ import { after } from "next/server"
 import { asPublic } from "@/db"
 import { kindLabels, preview, submitFeedbackInput, type SubmitFeedbackInput } from "./schema"
 import { clientIp, createChallenge, deriveKey, hashIp, verifySolution, type Challenge } from "./pow"
-import { notifyOwner } from "./notify"
+import { alertNewFeedback } from "@/modules/osbot/feedback-alerts"
 
 // The public form's two server functions. No session is involved: the database
 // function app.submit_feedback() is the only way in, and it re-validates
@@ -88,7 +88,8 @@ export async function submitFeedback(input: SubmitFeedbackInput): Promise<Submit
   }
 
   // After the response: Telegram can be slow or down without the visitor noticing.
-  after(() => notifyOwner(notificationText({ id, kind, message, name, contact })))
+  // osbot sends the alert when it is connected; otherwise the web notifies directly.
+  after(() => alertNewFeedback(id, notificationText({ id, kind, message, name, contact })))
   return { ok: true }
 }
 

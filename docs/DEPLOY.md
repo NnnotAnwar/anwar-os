@@ -15,14 +15,14 @@ Architecture background: [ARCHITECTURE.md §3](ARCHITECTURE.md#3-infrastructure)
 | Path | Role |
 |---|---|
 | `Dockerfile` | `runner` target: Next.js standalone server (~75 MB compressed). `migrator` target: runs `pnpm db:migrate` / `pnpm owner:create` |
-| `infra/compose.prod.yml` | `caddy`, `web`, `db`, `migrate` (one-shot), `bot-expenses` (profile `bots`), `ops-agent` placeholder |
+| `infra/compose.prod.yml` | `caddy`, `web`, `db`, `migrate` (one-shot), `bot-expenses` + `bot-osbot` (profile `bots`), `ops-agent` placeholder |
 | `infra/Caddyfile` | TLS, security headers, compression, www → apex |
 | `infra/.env.example` | every variable, documented. The real `.env` lives only on the server |
 | `infra/bootstrap.sh` | hardens a fresh Ubuntu 24.04 (idempotent) |
 | `infra/deploy.sh` | deploy / rollback / status on the server |
 | `infra/ci-gate.sh` | SSH forced command for the CI key |
 | `infra/backup/` | `backup.sh`, `restore.sh`, systemd service + timer |
-| `.github/workflows/deploy.yml` | build multi-arch images → GHCR → `deploy.sh <sha>` over SSH |
+| `.github/workflows/deploy.yml` | build multi-arch images (web, migrate, both bots) → GHCR → `deploy.sh <sha>` over SSH |
 | `.github/workflows/infra.yml` | shellcheck + compose + Caddyfile validation |
 
 On the server everything lives in a checkout of this repo at `/opt/anwar-os/repo`
@@ -375,9 +375,52 @@ deploy the previous sha.
    ```
 
 A bot that fails its healthcheck is rolled back to its previous tag; web stays on
-the new release.
+the new release. With the profile on, deploy.sh skips a bot whose settings are
+empty, so either bot can run alone.
 
-## 14. Day-2 notes
+## 14. Connect osbot
+
+osbot is your own bot for the platform (`bots/osbot/README.md`): quick capture
+(forward anything → Inbox, task, note, link, idea), `/today`, calendar reminders
+("⏰ Dentist in 30 min · 14:00") and new-feedback alerts. It only ever answers
+your chat. It has no database access: it calls web's internal API
+(`/api/internal/osbot/*`, HMAC-signed, never reachable through Caddy) over the
+stack's internal network.
+
+1. **Create the bot.** In Telegram, open @BotFather → `/newbot` → pick a name
+   ("anwar.os") and a username ending in `bot`. Copy the token. Optional, in the
+   same chat: `/setprivacy` → Disable is *not* needed (it's a private chat);
+   `/setjoingroups` → Disable, so nobody can add it to groups.
+2. **Find your chat id.** Send your new bot any message, then on your laptop:
+   ```sh
+   curl -s "https://api.telegram.org/bot<token>/getUpdates" | grep -o '"chat":{"id":[0-9-]*'
+   ```
+   The number is `OSBOT_OWNER_CHAT_ID` (for a private chat it equals your user
+   id). Do this before step 4: once osbot polls, `getUpdates` returns nothing
+   for you.
+3. **Configure** in `infra/.env` on the server:
+   ```sh
+   OSBOT_TOKEN=<token>
+   OSBOT_OWNER_CHAT_ID=<chat id>
+   OSBOT_API_SECRET=$(openssl rand -hex 32)   # paste the value, not the command
+   COMPOSE_PROFILES=bots
+   ```
+4. `deploy.sh <current sha>`. web restarts with `OSBOT_API_SECRET` (the internal
+   API is off without it), then `bot-osbot` starts and deploy.sh waits for its
+   healthcheck, which turns healthy only after web accepted its first signed
+   heartbeat: token, secret, network and owner account all work.
+5. Check: send `/today` to the bot. **Settings → Telegram** in the app shows
+   "Connected" with the last heartbeat.
+
+Feedback alerts: while osbot's heartbeat is fresh (under 3 minutes) it sends
+them; otherwise web sends them itself through the Bot API with the same token,
+so alerts keep working while the bot is down. Each alert is sent once either way.
+
+Rotating the secret: change `OSBOT_API_SECRET`, `deploy.sh <current sha>` (web
+and bot restart together). Rotating the token: `/revoke` in @BotFather, update
+`OSBOT_TOKEN`, deploy.
+
+## 15. Day-2 notes
 
 - Logs: `dc logs -f web`, `dc logs --tail 200 caddy`. Docker rotates them
   (10 MB × 5 per container).

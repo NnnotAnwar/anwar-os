@@ -8,19 +8,19 @@
 # Networks
 #   edge      caddy <-> web. Not internal: Caddy needs egress for ACME, web for
 #             outbound APIs (object storage, Telegram, mail).
-#   internal  web/migrate/bots <-> db. `internal: true` = no route to the
-#             internet; Postgres is never published on a host port.
+#   internal  web/migrate/bots <-> db, and osbot -> web over HTTP. `internal:
+#             true` = no route to the internet; Postgres is never published.
 #   egress    outbound-only network for bots (Telegram API). Nothing listens on it.
 #
 # Profiles
 #   bots      the Telegram bots. Off until configured: set COMPOSE_PROFILES=bots
-#             in .env (docs/DEPLOY.md, "Expense bot").
+#             in .env (docs/DEPLOY.md, "Expense bot", "Connect osbot").
 #
 # Labels (read by ops-agent in phase 5, ARCHITECTURE.md §8)
 #   os.managed=true     shows up in the control panel (status, logs, restart)
 #   os.protected=true   visible, but the panel refuses stop/deploy for it
 #   os.role=<role>      grouping for the panel: edge | app | data | bot
-#   os.kind, os.name    set by bot images too (os.kind=bot, os.name=expenses)
+#   os.kind, os.name    set by bot images too (os.kind=bot, os.name=expenses|osbot)
 # One-shot jobs (migrate) carry os.managed=false so the panel ignores them.
 
 name: anwar-os
@@ -92,7 +92,10 @@ services:
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
-      # Optional Telegram alerts for new feedback (src/modules/feedback/notify.ts).
+      # osbot (bots/osbot). OSBOT_API_SECRET turns on the signed internal API
+      # (/api/internal/osbot/*) the bot calls; token + chat id are the direct
+      # feedback-alert fallback while the bot is down or not deployed.
+      OSBOT_API_SECRET: ${OSBOT_API_SECRET:-}
       OSBOT_TOKEN: ${OSBOT_TOKEN:-}
       OSBOT_OWNER_CHAT_ID: ${OSBOT_OWNER_CHAT_ID:-}
     expose:
@@ -209,6 +212,42 @@ services:
       os.managed: "true"
       os.kind: bot
       os.name: expenses
+      os.role: bot
+
+  # osbot (bots/osbot/README.md): the platform's own Telegram bot. No database
+  # access at all: it calls web's signed internal API over `internal`
+  # (http://web:3000, never through Caddy) and Telegram over `egress`.
+  # deploy.sh only starts it once OSBOT_TOKEN, OSBOT_API_SECRET and
+  # OSBOT_OWNER_CHAT_ID are set.
+  bot-osbot:
+    image: ghcr.io/nnnotanwar/anwar-os-bot-osbot:${BOT_OSBOT_TAG:-latest}
+    profiles: [bots]
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp # heartbeat file read by the image HEALTHCHECK
+    cap_drop:
+      - ALL
+    <<: *hardening
+    mem_limit: 128m
+    stop_grace_period: 15s
+    environment:
+      # Not `:?`: compose interpolates every service even when its profile is off.
+      BOT_TOKEN: ${OSBOT_TOKEN:-}
+      OSBOT_API_URL: http://web:3000
+      OSBOT_API_SECRET: ${OSBOT_API_SECRET:-}
+      OSBOT_OWNER_CHAT_ID: ${OSBOT_OWNER_CHAT_ID:-}
+    networks:
+      - internal
+      - egress
+    depends_on:
+      web:
+        condition: service_healthy
+    logging: *logging
+    labels:
+      os.managed: "true"
+      os.kind: bot
+      os.name: osbot
       os.role: bot
 
   # Phase 5 (ARCHITECTURE.md §8): the only container with the Docker socket.

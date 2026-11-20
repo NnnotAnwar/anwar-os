@@ -44,6 +44,13 @@ env_set() {
 # True when the `bots` profile is active (COMPOSE_PROFILES=bots in .env).
 bots_enabled() { compose config --services | grep -qx bot-expenses; }
 
+# Each bot is deployed only once it is configured, so the profile can be on
+# with just one of them set up.
+expenses_configured() { [[ -n "$(env_get BOT_EXPENSES_TOKEN)" ]]; }
+osbot_configured() {
+  [[ -n "$(env_get OSBOT_TOKEN)" && -n "$(env_get OSBOT_API_SECRET)" && -n "$(env_get OSBOT_OWNER_CHAT_ID)" ]]
+}
+
 resolve_sha() {
   # Accept a short or full sha; it must be a commit on origin/$BRANCH, so a stolen
   # CI key can't deploy arbitrary (e.g. fork PR) commits.
@@ -75,6 +82,12 @@ start_bot() {
   compose up -d --no-deps --wait --wait-timeout 240 bot-expenses
 }
 
+start_osbot() {
+  # Healthy once web accepted its first signed heartbeat (so the shared secret,
+  # the internal network and the owner account all work).
+  compose up -d --no-deps --wait --wait-timeout 240 bot-osbot
+}
+
 bootstrap_bot_db() {
   # Role + schema for the bot (idempotent; also syncs the password from .env).
   local pw
@@ -85,10 +98,11 @@ bootstrap_bot_db() {
 }
 
 deploy() {
-  local sha prev_tag prev_bot_tag prev_sha bots=0
+  local sha prev_tag prev_bot_tag prev_osbot_tag prev_sha bots=0 osbot=0
   sha="$(resolve_sha "$1")"
   prev_tag="$(env_get WEB_TAG)"
   prev_bot_tag="$(env_get BOT_EXPENSES_TAG)"
+  prev_osbot_tag="$(env_get BOT_OSBOT_TAG)"
   prev_sha="$(git -C "$REPO_DIR" rev-parse HEAD)"
 
   log "deploying $sha (was ${prev_tag:-unset})"
@@ -96,9 +110,20 @@ deploy() {
   env_set WEB_TAG "$sha"
   local -a images=(web migrate)
   if bots_enabled; then
-    bots=1
-    env_set BOT_EXPENSES_TAG "$sha"
-    images+=(bot-expenses)
+    if expenses_configured; then
+      bots=1
+      env_set BOT_EXPENSES_TAG "$sha"
+      images+=(bot-expenses)
+    else
+      log "bots profile on, BOT_EXPENSES_TOKEN empty: skipping bot-expenses"
+    fi
+    if osbot_configured; then
+      osbot=1
+      env_set BOT_OSBOT_TAG "$sha"
+      images+=(bot-osbot)
+    else
+      log "bots profile on, OSBOT_TOKEN/OSBOT_API_SECRET/OSBOT_OWNER_CHAT_ID incomplete: skipping bot-osbot"
+    fi
   fi
 
   restore_previous() {
@@ -106,6 +131,7 @@ deploy() {
     git -C "$REPO_DIR" checkout --quiet --detach "$prev_sha" || true
     env_set WEB_TAG "${prev_tag:-latest}"
     ((bots)) && env_set BOT_EXPENSES_TAG "${prev_bot_tag:-latest}"
+    ((osbot)) && env_set BOT_OSBOT_TAG "${prev_osbot_tag:-latest}"
     return 0
   }
 
@@ -145,6 +171,16 @@ deploy() {
     fi
   fi
 
+  if ((osbot)); then
+    log "bot-osbot: start, wait for its first heartbeat"
+    if ! start_osbot; then
+      compose logs --tail 80 bot-osbot >&2 || true
+      env_set BOT_OSBOT_TAG "${prev_osbot_tag:-latest}"
+      start_osbot || log "previous osbot image is unhealthy too"
+      die "bot-osbot failed to start; rolled back to ${prev_osbot_tag:-latest} (web stays at $sha)"
+    fi
+  fi
+
   # Keep ~10 days of old images for rollbacks, drop the rest.
   docker image prune -af --filter "until=240h" >/dev/null || true
   log "done: $sha is live"
@@ -163,7 +199,8 @@ rollback() {
 status() {
   printf 'commit:           %s\n' "$(git -C "$REPO_DIR" log -1 --format='%H %s' 2>/dev/null || echo '?')"
   printf 'WEB_TAG:          %s\n' "$(env_get WEB_TAG)"
-  printf 'BOT_EXPENSES_TAG: %s\n\n' "$(env_get BOT_EXPENSES_TAG)"
+  printf 'BOT_EXPENSES_TAG: %s\n' "$(env_get BOT_EXPENSES_TAG)"
+  printf 'BOT_OSBOT_TAG:    %s\n\n' "$(env_get BOT_OSBOT_TAG)"
   compose ps
   if [[ -f "$HISTORY_FILE" ]]; then
     printf '\nlast deploys:\n'

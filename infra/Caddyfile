@@ -39,6 +39,10 @@
 	# responses without Content-Length are flushed as they arrive.
 	encode zstd gzip
 
+	# The osbot API is for the bot inside the stack (it calls http://web:3000
+	# directly). It is HMAC-signed anyway; this keeps it off the internet too.
+	respond /api/internal/* 404
+
 	reverse_proxy web:3000 {
 		# Next drains in-flight requests on SIGTERM; give Caddy a few retries
 		# while a container is being recreated during a deploy.

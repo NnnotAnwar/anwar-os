@@ -1,4 +1,7 @@
-// Tells Anwar about new feedback through his Telegram bot (osbot). Optional:
+// Tells Anwar about new feedback straight through the Telegram Bot API, with
+// osbot's token. The fallback path: when the osbot service is running
+// (OSBOT_API_SECRET + a fresh heartbeat) it sends the alert itself; see
+// modules/osbot/feedback-alerts.ts. Optional:
 // without OSBOT_TOKEN and OSBOT_OWNER_CHAT_ID it does nothing. It never
 // throws and gives up after 3 seconds, so a Telegram outage can't break or
 // slow down a submission (callers also run it after the response via after()).
