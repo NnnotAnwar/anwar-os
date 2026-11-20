@@ -1,20 +1,17 @@
 "use client"
 
 import { useEffect, useRef, useState, useTransition, type FormEvent } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
-import { ArrowsLeftRight, Plus, Repeat, Trash2 } from "@/components/icons"
+import { Plus, Trash2 } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { isTyping, useAfterG } from "@/lib/keys"
 import { formatTags, parseTags } from "@/lib/tags"
-import { removeWithUndo } from "@/lib/undo-toast"
-import { cn } from "@/lib/utils"
 import { formatDay } from "../lib/dates"
 import { amountToInput, formatMoney, parseAmount } from "../lib/money"
 import type { Transaction } from "../schema"
 import { createTransaction, createTransfer, deleteTransactions, quickAdd, updateTransaction } from "../server-actions"
-import { CategoryDot, DirectionToggle, Field, FormError, Sheet, selectClass } from "./bits"
+import { DirectionToggle, Field, FormError, Sheet, selectClass } from "./bits"
 import { categoryGroups, type AccountOption, type CategoryOption } from "./types"
 
 // ---------------------------------------------------------------------------
@@ -25,12 +22,15 @@ export function QuickAdd({
   accounts,
   locale,
   autoFocus = false,
+  shortcut = true,
   onDetails,
 }: {
   accounts: AccountOption[]
   locale: string
   autoFocus?: boolean
-  /** Opens the full form (with whatever was typed as the note). */
+  /** Listen for "n" here; off where a list keyboard already handles it. */
+  shortcut?: boolean
+  /** Opens the full form. */
   onDetails?: () => void
 }) {
   const [text, setText] = useState("")
@@ -45,6 +45,7 @@ export function QuickAdd({
   // "n" focuses the field (not while typing, not as part of the shell's g-chord).
   const afterG = useAfterG()
   useEffect(() => {
+    if (!shortcut) return
     function onKey(e: KeyboardEvent) {
       if (e.key !== "n" || e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target) || afterG(e)) return
       if (document.querySelector("[data-slot=dialog-content]")) return
@@ -53,7 +54,7 @@ export function QuickAdd({
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [afterG])
+  }, [afterG, shortcut])
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -408,169 +409,5 @@ function TransferForm({ accounts, today, onDone }: { accounts: AccountOption[]; 
         </Button>
       </div>
     </form>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// The list, grouped by day, plus the sheets it opens.
-// ---------------------------------------------------------------------------
-
-export function TransactionsBoard({
-  transactions,
-  accounts,
-  categories,
-  today,
-  locale,
-  openNew,
-  editId,
-  defaultAccountId,
-}: {
-  transactions: Transaction[]
-  accounts: AccountOption[]
-  categories: CategoryOption[]
-  today: string
-  locale: string
-  openNew: boolean
-  editId: string | null
-  defaultAccountId?: string
-}) {
-  const router = useRouter()
-  const params = useSearchParams()
-  const [editor, setEditor] = useState<EditorState>(() => {
-    if (openNew) return { mode: "create" }
-    const tx = editId ? transactions.find((t) => t.id === editId) : undefined
-    return tx ? { mode: "edit", tx } : null
-  })
-  const [transfer, setTransfer] = useState(false)
-  const [hidden, setHidden] = useState<Set<string>>(new Set())
-  const openAccounts = accounts.filter((a) => !a.archived)
-
-  function closeEditor() {
-    setEditor(null)
-    // Drop ?new / ?edit so a refresh doesn't reopen the sheet.
-    if (params.has("new") || params.has("edit")) {
-      const q = new URLSearchParams(params)
-      q.delete("new")
-      q.delete("edit")
-      router.replace(q.size ? `?${q}` : "?", { scroll: false })
-    }
-  }
-
-  function remove(tx: Transaction) {
-    setEditor(null)
-    const ids = transactions.filter((t) => t.id === tx.id || (tx.transferId && t.transferId === tx.transferId)).map((t) => t.id)
-    removeWithUndo({
-      message: tx.transferId ? "Transfer deleted" : "Transaction deleted",
-      hide: () => setHidden((prev) => new Set([...prev, ...ids])),
-      restore: () =>
-        setHidden((prev) => {
-          const next = new Set(prev)
-          for (const id of ids) next.delete(id)
-          return next
-        }),
-      commit: () => deleteTransactions({ ids: [tx.id] }),
-    })
-  }
-
-  const visible = transactions.filter((t) => !hidden.has(t.id))
-  const days = new Map<string, Transaction[]>()
-  for (const t of visible) days.set(t.occurredOn, [...(days.get(t.occurredOn) ?? []), t])
-
-  return (
-    <div className="grid gap-3">
-      <QuickAdd accounts={openAccounts} locale={locale} autoFocus={false} onDetails={() => setEditor({ mode: "create" })} />
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="lg" onClick={() => setEditor({ mode: "create" })} disabled={openAccounts.length === 0}>
-          <Plus />
-          New transaction
-        </Button>
-        <Button variant="ghost" size="lg" onClick={() => setTransfer(true)} disabled={openAccounts.length < 2}>
-          <ArrowsLeftRight />
-          Transfer
-        </Button>
-        <p className="text-caption ml-auto self-center text-muted-foreground max-sm:hidden">
-          Press <kbd className="rounded border border-field-border px-1 font-sans">N</kbd> to type a new one
-        </p>
-      </div>
-
-      {visible.length === 0 ? (
-        <div className="glass grid gap-1 rounded-xl p-6">
-          <p className="text-card-title">Nothing here yet</p>
-          <p className="text-meta max-w-prose text-muted-foreground">
-            Type something like “250 food lunch” above and press Enter, or import a bank export from the Import tab.
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {[...days.entries()].map(([day, rows]) => {
-            const net = rows.filter((r) => !r.transferId).reduce((s, r) => s + r.amountMinor, 0)
-            return (
-              <section key={day} aria-labelledby={`day-${day}`} className="grid gap-1.5">
-                <header className="flex items-baseline justify-between px-1">
-                  <h3 id={`day-${day}`} className="text-eyebrow text-muted-foreground">
-                    {day === today ? "Today" : formatDay(day, locale, today)}
-                  </h3>
-                  {rows[0] && net !== 0 && (
-                    <span className="text-caption text-muted-foreground tabular-nums">{formatMoney(net, rows[0].currency, locale, { signed: true })}</span>
-                  )}
-                </header>
-                <ul className="glass divide-y divide-hairline overflow-hidden rounded-xl">
-                  {rows.map((tx) => (
-                    <li key={tx.id}>
-                      <TransactionRow tx={tx} locale={locale} onOpen={() => setEditor({ mode: "edit", tx })} />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )
-          })}
-        </div>
-      )}
-
-      <TransactionEditor
-        state={editor}
-        onClose={closeEditor}
-        onDelete={remove}
-        accounts={openAccounts.length ? openAccounts : accounts}
-        categories={categories}
-        today={today}
-        defaultAccountId={defaultAccountId}
-      />
-      <TransferSheet open={transfer} onOpenChange={setTransfer} accounts={openAccounts} today={today} />
-    </div>
-  )
-}
-
-export function TransactionRow({ tx, locale, onOpen }: { tx: Transaction; locale: string; onOpen?: () => void }) {
-  const title = tx.transferId ? (tx.amountMinor < 0 ? "Transfer out" : "Transfer in") : (tx.categoryName ?? "Uncategorised")
-  const body = (
-    <>
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-track [&_svg]:size-4">
-        {tx.transferId ? <ArrowsLeftRight className="text-muted-foreground" /> : <CategoryDot color={tx.categoryColor} className="size-3" />}
-      </span>
-      <span className="grid min-w-0 flex-1 gap-0.5">
-        <span className="text-body-strong truncate">{tx.note || title}</span>
-        <span className="text-caption flex min-w-0 items-center gap-1 text-muted-foreground">
-          <span className="truncate">
-            {[tx.note ? title : null, tx.accountName, ...tx.tags.map((t) => `#${t}`)].filter(Boolean).join(" · ")}
-          </span>
-          {tx.recurringId && <Repeat className="size-3 shrink-0" aria-label="From a recurring payment" />}
-        </span>
-      </span>
-      <span className={cn("text-body-strong shrink-0 tabular-nums", tx.amountMinor > 0 && !tx.transferId && "text-text-accent")}>
-        {formatMoney(tx.amountMinor, tx.currency, locale, { signed: true, fixed: true })}
-      </span>
-    </>
-  )
-  if (!onOpen) return <div className="flex min-h-14 items-center gap-3 px-3 py-2">{body}</div>
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left outline-none hover:bg-track focus-visible:bg-track focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
-      aria-label={`${title}${tx.note ? `, ${tx.note}` : ""}, ${formatMoney(tx.amountMinor, tx.currency, locale, { signed: true })}. Edit`}
-    >
-      {body}
-    </button>
   )
 }
