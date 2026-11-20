@@ -3,9 +3,10 @@ import { check, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } fr
 import { user } from "./auth"
 
 // Module: bots. The registry of the owner's Telegram bots. Each bot keeps its
-// own data in its own Postgres schema (bots/<name>/); the panel reads only the
-// stats views that schema grants to os_app (`<stats_schema>.stats_overview`,
-// `.stats_daily`). RLS, triggers and grants: db/modules/bots.sql.
+// own data: polling bots like the expense bot in their own Postgres schema
+// (bots/<name>/), of which the panel reads only the stats views granted to os_app
+// (`<schema>.stats_overview`, `.stats_daily`); osbot reports through web's
+// internal API into osbot_heartbeats. RLS, triggers and grants: db/modules/bots.sql.
 
 export const botsBots = pgTable(
   "bots_bots",
@@ -20,8 +21,8 @@ export const botsBots = pgTable(
     telegramUsername: text("telegram_username"),
     /** Compose service ops-agent knows it by (links the card to /app/ops). */
     serviceName: text("service_name"),
-    /** Postgres schema with the stats views, e.g. bot_expenses. */
-    statsSchema: text("stats_schema"),
+    /** Where stats come from: a bot schema with stats views (bot_expenses) or "osbot". */
+    statsSource: text("stats_source"),
     description: text("description").notNull().default(""),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -33,7 +34,7 @@ export const botsBots = pgTable(
     check("bots_bots_name_length", sql`char_length(${t.name}) between 1 and 60`),
     check("bots_bots_username_format", sql`${t.telegramUsername} ~ '^[A-Za-z][A-Za-z0-9_]{3,31}$'`),
     check("bots_bots_service_format", sql`${t.serviceName} ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'`),
-    check("bots_bots_stats_schema_format", sql`${t.statsSchema} ~ '^bot_[a-z0-9_]{1,40}$'`),
+    check("bots_bots_stats_source_format", sql`${t.statsSource} ~ '^(osbot|bot_[a-z0-9_]{1,40})$'`),
     check("bots_bots_description_length", sql`char_length(${t.description}) <= 300`),
   ],
 )

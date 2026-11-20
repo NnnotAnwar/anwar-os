@@ -106,7 +106,7 @@ describe("ops_events", () => {
 describe("bots_bots", () => {
   it("lets a user register bots; owner_id defaults to them", async () => {
     const [row] = await as(alice, (sql) => sql`
-      insert into bots_bots (name, telegram_username, service_name, stats_schema)
+      insert into bots_bots (name, telegram_username, service_name, stats_source)
       values (${`Expenses ${run}`}, 'expenses_bot', 'bot-expenses', 'bot_expenses')
       returning owner_id`)
     expect(row!.owner_id).toBe(alice)
@@ -114,7 +114,7 @@ describe("bots_bots", () => {
 
   it("keeps bots private to their owner", async () => {
     const mine = await as(alice, (sql) => sql`select name from bots_bots where name like ${`%${run}`}`)
-    expect(mine).toHaveLength(1)
+    expect(mine.length).toBeGreaterThanOrEqual(1)
     expect(await as(bob, (sql) => sql`select name from bots_bots where name like ${`%${run}`}`)).toHaveLength(0)
     expect(await as(null, (sql) => sql`select name from bots_bots where name like ${`%${run}`}`)).toHaveLength(0)
     const result = await as(bob, async (sql) => ({
@@ -124,9 +124,10 @@ describe("bots_bots", () => {
     expect(result).toEqual({ updated: 0, deleted: 0 })
   })
 
-  it("only accepts bot_* stats schemas and well-formed usernames", async () => {
+  it("only accepts bot_* schemas or osbot as stats sources, and well-formed usernames", async () => {
     expect(await pgError(as(alice, (sql) => sql`
-      insert into bots_bots (name, stats_schema) values (${`Bad ${run}`}, 'public')`))).toBe("23514")
+      insert into bots_bots (name, stats_source) values (${`Bad ${run}`}, 'public')`))).toBe("23514")
+    await as(alice, (sql) => sql`insert into bots_bots (name, stats_source) values (${`osbot ${run}`}, 'osbot')`)
     expect(await pgError(as(alice, (sql) => sql`
       insert into bots_bots (name, telegram_username) values (${`Bad2 ${run}`}, '@with_at')`))).toBe("23514")
   })
