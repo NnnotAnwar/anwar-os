@@ -253,8 +253,18 @@ Only labelled services can be touched; `postgres`, `caddy`, `ops-agent` itself a
   (the panel's "alive" signal for polling bots).
 - `py-telegram` (expense bot) is migrated from SQLite to its `bot_expenses` schema
   and containerized in phase 5.
-- **osbot**: Anwar's own bot for the platform. It sends feedback and ops alerts and
-  does quick capture (forward a message → note / link / idea).
+- **osbot** (`bots/osbot/`): Anwar's own bot for the platform. Quick capture
+  (forward a message → Inbox by default, or task / note / link / idea), `/today`,
+  calendar reminders and feedback alerts (ops alerts later). Unlike the other
+  bots it has **no database role**: it calls the web app's internal API
+  (`/api/internal/osbot/*`, `src/modules/osbot/`), HMAC-signed with
+  `OSBOT_API_SECRET` (timestamp + nonce + method + path + body, 60 s window,
+  replay cache), over the internal network only (Caddy returns 404 for it). The
+  handlers act as the site owner through `actAs()`, so module actions,
+  `runModuleAction()` and RLS work exactly as for a signed-in owner. Only
+  `OSBOT_OWNER_CHAT_ID` is served. Its heartbeat goes through the same API
+  (`osbot_heartbeats`, shown in Settings → Telegram); while it is fresh, web
+  leaves feedback alerts to the bot, otherwise web notifies directly.
 - Stats views (`bot_expenses.stats_daily`, …) are granted to `os_app` read-only.
 
 ### Planuj Směny
