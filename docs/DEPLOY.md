@@ -437,5 +437,44 @@ and bot restart together). Rotating the token: `/revoke` in @BotFather, update
   then `deploy.sh <current sha>`.
 - IPv6 visitors reach Caddy through Docker's userland proxy, so Caddy logs show a
   Docker gateway address for them instead of the real client IP.
-- CSP is not set yet (see the comment in `infra/Caddyfile`); the right place is a
-  nonce-based policy in `src/proxy.ts`.
+- That shared IPv6 address also means sign-in rate limits (per address) are
+  shared by every IPv6 visitor; the per-account limit still applies. See
+  "Security headers and limits" below.
+
+## 15. Security headers and limits
+
+Each header is set in exactly one place, so nothing is sent twice with
+different values:
+
+| Header | Where | Value / notes |
+|---|---|---|
+| `Strict-Transport-Security` | `infra/Caddyfile` | 1 year, `includeSubDomains` |
+| `X-Content-Type-Options` | `infra/Caddyfile` | `nosniff` |
+| `Referrer-Policy` | `infra/Caddyfile` | `strict-origin-when-cross-origin` (the files `raw` route sends `no-referrer` itself) |
+| `X-Frame-Options` | `infra/Caddyfile` | `DENY`, for old browsers; the CSP's `frame-ancestors 'none'` says the same |
+| `Cross-Origin-Opener-Policy` | `infra/Caddyfile` | `same-origin` |
+| `Permissions-Policy` | `infra/Caddyfile` | camera, microphone, geolocation, payment, usb off (passkeys use WebAuthn, which isn't listed, so it stays allowed) |
+| `Server`, `X-Powered-By` | removed by Caddy | Next's `X-Powered-By` is also off (`poweredByHeader: false`) |
+| `Content-Security-Policy` (pages) | `src/proxy.ts` → `src/core/csp.ts` | per request, fresh nonce: `script-src 'self' 'nonce-…' 'strict-dynamic'`, Fontshare for styles/fonts, `https:` images, the `S3_ENDPOINT` origin (and `bucket.host` when not path-style) for uploads and previews, `frame-ancestors 'none'`, `upgrade-insecure-requests` |
+| `Content-Security-Policy` (`/sw.js`, `/offline.html`) | `next.config.ts` | static strict policies; these files skip the proxy |
+| `Cache-Control` for `/sw.js` | `next.config.ts` | `no-cache`, so a deploy's worker is picked up |
+
+Why every page renders per request: Next stamps the nonce on its scripts only
+while rendering. A prerendered (PPR) shell was built without one, and its
+scripts would be blocked, so the root layout reads the nonce (`headers()`) and
+opts out of the static shell (`instant = false`). Suspense still streams and
+`use cache` data stays cached. Changing the S3 endpoint needs no rebuild: the
+proxy reads `S3_*` at request time.
+
+**Sign-in rate limits** live in Postgres (`auth.rate_limit`), so a deploy's
+restart doesn't reset them:
+
+- password sign-in (server action): 10 attempts per address and 20 per account
+  per 15 minutes; 2FA codes: 10 per address per 15 minutes;
+- Better Auth's own limiter for `/api/auth/*` (passkeys, Google, the HTTP
+  sign-in endpoints): its built-in rules (3 per 10 s on sign-in and 2FA routes,
+  100 per 10 s elsewhere), stored in the same table.
+
+Both are on when `NODE_ENV=production`; `AUTH_RATE_LIMIT=off` (or `on`) in
+`.env` overrides that. The client address is the last `X-Forwarded-For` entry,
+which Caddy sets.

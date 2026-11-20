@@ -20,15 +20,11 @@
 		-Server
 		-X-Powered-By
 
-		# Content-Security-Policy: deliberately NOT set here. Next.js injects
-		# inline bootstrap scripts, so a static CSP either breaks the app or needs
-		# 'unsafe-inline'. The right place is a nonce-based CSP generated per request
-		# in src/proxy.ts (Next docs: guides/content-security-policy). Until then you
-		# can collect violations without enforcing anything by uncommenting the line
-		# below. Third-party origins in use: the Satoshi stylesheet from
-		# api.fontshare.com and its fonts from cdn.fontshare.com (Inter is
-		# self-hosted by next/font, so 'self' covers it).
-		# Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://api.fontshare.com; img-src 'self' data: blob:; font-src 'self' https://cdn.fontshare.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+		# Content-Security-Policy: deliberately NOT set here. It needs a fresh
+		# nonce per response, so the app sets it: src/proxy.ts (pages) and
+		# next.config.ts (sw.js, offline.html). A second CSP from Caddy would be
+		# combined with it (browsers enforce both), so don't add one.
+		# Overview of who sets what: docs/DEPLOY.md, "Security headers".
 	}
 }
 

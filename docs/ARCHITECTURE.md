@@ -279,7 +279,10 @@ external service (health URL + Vercel or server deploy state); on Today it gets 
 
 - **AI assistant** over module actions + `search_documents` embeddings (Claude API).
 - **MCP server** at `/api/mcp` exposing module actions as tools, OAuth via Better Auth.
-- **PWA**: installable, share target → inbox, push for reminders.
+- **PWA**: installable (`src/app/manifest.ts`, icons from `pnpm icons`, a small
+  hand-written `public/sw.js`: offline page, immutable assets only), share target
+  → `/app/capture` (Inbox by default, or Note / Link / Idea). Still to do: push
+  for reminders.
 - **Public sign-up** for tools/products, using the multi-user schema already in place.
 
 ---
