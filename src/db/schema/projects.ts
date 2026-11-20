@@ -26,6 +26,8 @@ export const projectsProjects = pgTable(
     repoUrl: text("repo_url"),
     demoUrl: text("demo_url"),
     coverUrl: text("cover_url"),
+    /** Compose service in ops (/app/ops) that runs this project, for its deploy state. */
+    serviceName: text("service_name"),
     featured: boolean("featured").notNull().default(false),
     isPublic: boolean("is_public").notNull().default(false),
     sortOrder: integer("sort_order").notNull().default(0),
@@ -37,6 +39,7 @@ export const projectsProjects = pgTable(
     index("projects_projects_owner_order_idx").on(t.ownerId, t.sortOrder, t.createdAt.desc()),
     check("projects_projects_title_length", sql`char_length(${t.title}) between 1 and 120`),
     check("projects_projects_slug_format", sql`${t.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and char_length(${t.slug}) <= 80`),
+    check("projects_projects_service_format", sql`${t.serviceName} ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'`),
     check(
       "projects_projects_status_valid",
       sql`${t.status} in ('idea', 'building', 'live', 'paused', 'archived')`,
