@@ -9,6 +9,7 @@ import {
   entryRefInput,
   moveEntryInput,
   profileInput,
+  reorderEntriesInput,
   saveEntryInput,
   setPublishedInput,
   type Cv,
@@ -178,6 +179,22 @@ export const actions = {
         ;[rows[from], rows[to]] = [rows[to]!, rows[from]!]
         for (const [index, row] of rows.entries()) {
           await tx.update(table).set({ sortOrder: index }).where(eq(table.id, row.id))
+        }
+      }),
+  }),
+  reorderEntries: defineAction({
+    description:
+      "Put a CV section in the given order: ids is every entry of that kind, first to last. Entries not listed keep their relative order after the listed ones.",
+    kind: "write",
+    input: reorderEntriesInput,
+    handler: ({ kind, ids }): Promise<void> =>
+      asViewer(async (tx) => {
+        const table = entryTable(kind)
+        const rows = await tx.select({ id: table.id }).from(table).orderBy(asc(table.sortOrder), asc(table.createdAt))
+        const listed = new Set(ids)
+        const order = [...ids.filter((id) => rows.some((r) => r.id === id)), ...rows.map((r) => r.id).filter((id) => !listed.has(id))]
+        for (const [index, id] of order.entries()) {
+          await tx.update(table).set({ sortOrder: index }).where(eq(table.id, id))
         }
       }),
   }),

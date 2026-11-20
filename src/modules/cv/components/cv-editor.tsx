@@ -1,28 +1,75 @@
 "use client"
 
-import { useRef, useState, useTransition } from "react"
+import { useEffect, useId, useRef, useState, useTransition, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react"
 import { toast } from "sonner"
-import { ArrowDown, ArrowUp, Eye, EyeSlash, Plus, Trash2, X } from "@/components/icons"
+import { Eye, EyeSlash, GripVertical, Plus, SidebarIcon, Trash2, X } from "@/components/icons"
 import { Field, fieldClass, SaveStatus, Toggle } from "@/components/editor-fields"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useAutosave } from "@/lib/use-autosave"
 import { cn } from "@/lib/utils"
 import type { Cv, CvContact, EntryKind, Profile } from "../schema"
-import { deleteCvEntry, moveCvEntry, saveCvEntry, saveCvProfile } from "../server-actions"
+import { deleteCvEntry, reorderCvEntries, saveCvEntry, saveCvProfile } from "../server-actions"
+import { CvPreviewContext, CvPreviewStore, usePreviewCv, usePreviewStore } from "./cv-preview-store"
+import { CvSheet } from "./cv-sheet"
 
 type Ctx = { timezone: string; locale: string }
 
+/**
+ * The CV editor. Every field saves as you type; from 1280px a live preview of
+ * the public page sits beside it (the same markup as /cv), so there's no need
+ * to switch tabs to see the result.
+ */
 export function CvEditor({ cv, timezone, locale }: { cv: Cv } & Ctx) {
   const ctx = { timezone, locale }
+  const [store] = useState(() => new CvPreviewStore())
+  const [preview, setPreview] = useState(true)
   return (
-    <div className="grid gap-4">
-      <ProfileCard profile={cv.profile} ctx={ctx} />
-      {(Object.keys(sections) as EntryKind[]).map((kind) => (
-        <EntrySection key={kind} kind={kind} entries={cv[kind] as unknown as Entry[]} ctx={ctx} />
-      ))}
-    </div>
+    <CvPreviewContext value={store}>
+      <div className={cn("grid items-start gap-4", preview && "xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]")}>
+        <div className="grid gap-4">
+          <ProfileCard profile={cv.profile} ctx={ctx} />
+          {(Object.keys(sections) as EntryKind[]).map((kind) => (
+            <EntrySection key={kind} kind={kind} entries={cv[kind] as unknown as Entry[]} ctx={ctx} />
+          ))}
+        </div>
+        {preview ? (
+          <aside aria-labelledby="cv-preview-title" className="sticky top-20 grid gap-2 max-xl:hidden">
+            <div className="flex items-center justify-between gap-2 px-1">
+              <div className="grid gap-0.5">
+                <h2 id="cv-preview-title" className="text-eyebrow text-text-accent">
+                  Live preview
+                </h2>
+                <p className="text-caption text-muted-foreground">What visitors see on /cv, as you type</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setPreview(false)}>
+                <SidebarIcon />
+                Hide
+              </Button>
+            </div>
+            <div className="max-h-[calc(100svh-8rem)] overflow-y-auto rounded-xl">
+              <Preview store={store} />
+            </div>
+          </aside>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPreview(true)}
+            className="fixed right-6 bottom-6 z-20 max-xl:hidden"
+          >
+            <SidebarIcon />
+            Show preview
+          </Button>
+        )}
+      </div>
+    </CvPreviewContext>
   )
+}
+
+function Preview({ store }: { store: CvPreviewStore }) {
+  const cv = usePreviewCv(store)
+  return <CvSheet cv={cv} className="text-[0.95em] [--glass-shadow:var(--shadow-glass)] md:p-7" />
 }
 
 // ---------------------------------------------------------------------------
@@ -48,6 +95,9 @@ function ProfileCard({ profile, ctx }: { profile: Profile | null; ctx: Ctx }) {
       return result.ok ? { ok: true, updatedAt: result.updatedAt } : result
     },
   })
+
+  const store = usePreviewStore()
+  useEffect(() => store?.setProfile(value), [store, value])
 
   function setContact(index: number, patch: Partial<ProfileForm["contacts"][number]>) {
     update((prev) => ({ ...prev, contacts: prev.contacts.map((c, i) => (i === index ? { ...c, ...patch } : c)) }))
@@ -252,13 +302,40 @@ function toValues(def: SectionDef, entry: Entry): Values {
   return values
 }
 
+/** A row's one-line title while you edit it: "Founder · Planuj Směny · 2024 – now". */
+function summaryOf(def: SectionDef, value: Values) {
+  const text = (name: string) => String(value[name] ?? "").trim()
+  const [first, second] = def.fields.map((f) => f.name)
+  const year = (v: string) => v.slice(0, 4)
+  const start = text("startOn")
+  const period = start ? `${year(start)} – ${text("endOn") ? year(text("endOn")) : "now"}` : ""
+  return [text(first!), second ? text(second) : "", period].filter(Boolean).join(" · ")
+}
+
+/** Drag state: which row, where it started, where it would land, how far the pointer moved. */
+type Drag = { key: string; from: number; to: number; dy: number; shift: number }
+
+function arrayMove<T>(list: T[], from: number, to: number) {
+  const next = [...list]
+  const [moved] = next.splice(from, 1)
+  next.splice(to, 0, moved!)
+  return next
+}
+
 function EntrySection({ kind, entries, ctx }: { kind: EntryKind; entries: Entry[]; ctx: Ctx }) {
   const def = sections[kind]
   const [items, setItems] = useState<Item[]>(() =>
     entries.map((e) => ({ key: e.id, id: e.id, initial: toValues(def, e), updatedAt: e.updatedAt })),
   )
   const [, startTransition] = useTransition()
+  const [drag, setDrag] = useState<Drag | null>(null)
+  const [announcement, setAnnouncement] = useState("")
+  const listRef = useRef<HTMLOListElement>(null)
+  const geometry = useRef<{ mids: number[]; startY: number } | null>(null)
+  const hintId = useId()
   const headingId = `cv-${kind}`
+  const store = usePreviewStore()
+  useEffect(() => store?.setOrder(kind, items.map((i) => i.key)), [store, kind, items])
 
   function add() {
     setItems((prev) => [...prev, { key: `draft-${++draftCounter}`, id: null, initial: emptyValues(def), updatedAt: null }])
@@ -268,16 +345,61 @@ function EntrySection({ kind, entries, ctx }: { kind: EntryKind; entries: Entry[
     setItems((prev) => prev.map((item) => (item.key === key ? { ...item, id } : item)))
   }
 
-  function move(index: number, direction: "up" | "down") {
-    const item = items[index]
-    const to = direction === "up" ? index - 1 : index + 1
-    if (!item?.id || !items[to]?.id) return
-    setItems((prev) => {
-      const next = [...prev]
-      ;[next[index], next[to]] = [next[to]!, next[index]!]
-      return next
+  /** New order on screen at once; the saved rows' order goes to the server in one call. */
+  function commit(next: Item[], label: string) {
+    setItems(next)
+    const ids = next.flatMap((i) => (i.id ? [i.id] : []))
+    if (ids.length === 0) return
+    startTransition(async () => {
+      const result = await reorderCvEntries({ kind, ids })
+      if (!result.ok) toast.error(`Couldn't save the new order of ${label}. Check your connection and try again.`)
     })
-    startTransition(() => moveCvEntry({ kind, id: item.id!, direction }))
+  }
+
+  function moveBy(index: number, step: -1 | 1, label: string) {
+    const to = index + step
+    if (to < 0 || to >= items.length) return
+    commit(arrayMove(items, index, to), def.title.toLowerCase())
+    setAnnouncement(`${label} moved to position ${to + 1} of ${items.length}.`)
+  }
+
+  function startDrag(e: PointerEvent<HTMLButtonElement>, index: number) {
+    if (e.button !== 0 || !listRef.current) return
+    e.preventDefault() // no text selection while dragging
+    const rows = [...listRef.current.children] as HTMLElement[]
+    const rects = rows.map((row) => row.getBoundingClientRect())
+    const gap = rects[1] ? rects[1].top - rects[0]!.bottom : 8
+    geometry.current = { mids: rects.map((r) => r.top + r.height / 2), startY: e.clientY }
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDrag({ key: items[index]!.key, from: index, to: index, dy: 0, shift: rects[index]!.height + gap })
+  }
+
+  function moveDrag(e: PointerEvent<HTMLButtonElement>) {
+    const g = geometry.current
+    if (!drag || !g) return
+    const dy = e.clientY - g.startY
+    const center = g.mids[drag.from]! + dy
+    const to = g.mids.filter((mid, i) => i !== drag.from && mid < center).length
+    setDrag({ ...drag, dy, to })
+  }
+
+  function endDrag(label: string) {
+    if (!drag) return
+    if (drag.to !== drag.from) {
+      commit(arrayMove(items, drag.from, drag.to), def.title.toLowerCase())
+      setAnnouncement(`${label} moved to position ${drag.to + 1} of ${items.length}.`)
+    }
+    setDrag(null)
+    geometry.current = null
+  }
+
+  /** While dragging, the other rows slide out of the way of where the dragged one would land. */
+  function offsetFor(index: number): CSSProperties | undefined {
+    if (!drag) return undefined
+    if (index === drag.from) return { transform: `translateY(${drag.dy}px)`, zIndex: 10 }
+    if (drag.from < drag.to && index > drag.from && index <= drag.to) return { transform: `translateY(${-drag.shift}px)` }
+    if (drag.from > drag.to && index >= drag.to && index < drag.from) return { transform: `translateY(${drag.shift}px)` }
+    return { transform: "translateY(0)" }
   }
 
   function remove(item: Item) {
@@ -285,7 +407,7 @@ function EntrySection({ kind, entries, ctx }: { kind: EntryKind; entries: Entry[
     setItems((prev) => prev.filter((i) => i.key !== item.key))
     if (!item.id) return
     let undone = false
-    const commit = () => {
+    const commitDelete = () => {
       if (!undone) startTransition(() => deleteCvEntry({ kind, id: item.id! }))
     }
     toast.success("Entry removed", {
@@ -300,66 +422,110 @@ function EntrySection({ kind, entries, ctx }: { kind: EntryKind; entries: Entry[
           })
         },
       },
-      onAutoClose: commit,
-      onDismiss: commit,
+      onAutoClose: commitDelete,
+      onDismiss: commitDelete,
     })
   }
 
   return (
     <section aria-labelledby={headingId} className="glass grid gap-3 rounded-xl p-4 md:p-5">
-      <header className="flex items-center justify-between gap-2">
+      <header className="flex items-baseline justify-between gap-2">
         <h2 id={headingId} className="text-card-title">
           {def.title}
           {items.length > 0 && <span className="text-meta ml-2 text-muted-foreground tabular-nums">{items.length}</span>}
         </h2>
-        <Button variant="outline" size="sm" onClick={add}>
-          <Plus />
-          {def.add}
-        </Button>
+        {items.length > 1 && (
+          <p id={hintId} className="text-caption text-muted-foreground max-sm:hidden">
+            Drag <GripVertical className="inline size-3 align-[-1px]" /> to reorder, or focus it and use ↑ ↓
+          </p>
+        )}
       </header>
-      {items.length === 0 ? (
-        <p className="text-meta text-muted-foreground">{def.empty}</p>
-      ) : (
-        <ol className={cn("grid", def.compact ? "gap-2" : "gap-3")}>
+      {items.length === 0 && <p className="text-meta text-muted-foreground">{def.empty}</p>}
+      {items.length > 0 && (
+        <ol ref={listRef} className={cn("grid", def.compact ? "gap-2" : "gap-3", drag && "select-none")}>
           {items.map((item, index) => (
             <EntryRow
               key={item.key}
               kind={kind}
               def={def}
               item={item}
-              canUp={index > 0 && Boolean(item.id && items[index - 1]?.id)}
-              canDown={index < items.length - 1 && Boolean(item.id && items[index + 1]?.id)}
-              onMove={(direction) => move(index, direction)}
+              style={offsetFor(index)}
+              dragging={drag?.key === item.key}
+              animating={drag !== null && drag.key !== item.key}
+              grip={(label) => ({
+                "aria-label": `Reorder ${label}`,
+                "aria-describedby": items.length > 1 ? hintId : undefined,
+                "aria-keyshortcuts": "ArrowUp ArrowDown",
+                onPointerDown: (e) => startDrag(e, index),
+                onPointerMove: moveDrag,
+                onPointerUp: () => endDrag(label),
+                onPointerCancel: () => setDrag(null),
+                onKeyDown: (e: KeyboardEvent<HTMLButtonElement>) => {
+                  if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                    e.preventDefault()
+                    moveBy(index, e.key === "ArrowUp" ? -1 : 1, label)
+                  }
+                },
+              })}
               onRemove={() => remove(item)}
               onCreated={(id) => created(item.key, id)}
+              onAddNext={index === items.length - 1 ? add : undefined}
               ctx={ctx}
             />
           ))}
         </ol>
       )}
+      {/* Inline add: the next row appears where you're already looking. */}
+      <button
+        type="button"
+        onClick={add}
+        className="press text-meta flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-dashed border-field-border text-muted-foreground outline-none transition-colors hover:border-accent-500/60 hover:bg-secondary hover:text-text-accent focus-visible:ring-3 focus-visible:ring-ring/50 md:min-h-9"
+      >
+        <Plus className="size-4" />
+        {def.add}
+      </button>
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
     </section>
   )
+}
+
+type GripProps = {
+  "aria-label": string
+  "aria-describedby"?: string
+  "aria-keyshortcuts": string
+  onPointerDown: (e: PointerEvent<HTMLButtonElement>) => void
+  onPointerMove: (e: PointerEvent<HTMLButtonElement>) => void
+  onPointerUp: () => void
+  onPointerCancel: () => void
+  onKeyDown: (e: KeyboardEvent<HTMLButtonElement>) => void
 }
 
 function EntryRow({
   kind,
   def,
   item,
-  canUp,
-  canDown,
-  onMove,
+  style,
+  dragging,
+  animating,
+  grip,
   onRemove,
   onCreated,
+  onAddNext,
   ctx,
 }: {
   kind: EntryKind
   def: SectionDef
   item: Item
-  canUp: boolean
-  canDown: boolean
-  onMove: (direction: "up" | "down") => void
+  style?: CSSProperties
+  dragging: boolean
+  animating: boolean
+  grip: (label: string) => GripProps
   onRemove: () => void
   onCreated: (id: string) => void
+  /** Set on the last row: Enter in its last short field adds the next one. */
+  onAddNext?: () => void
   ctx: Ctx
 }) {
   const idRef = useRef(item.id)
@@ -379,15 +545,35 @@ function EntryRow({
   })
   const label = String(value[def.required] || "new entry")
   const visible = value.isPublic !== false
+  const store = usePreviewStore()
+  useEffect(() => store?.setRow(kind, item.key, value), [store, kind, item.key, value])
+  useEffect(() => () => store?.setRow(kind, item.key, null), [store, kind, item.key])
+
+  const handle = (
+    <button
+      type="button"
+      {...grip(label)}
+      className={cn(
+        "flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-track hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 active:cursor-grabbing max-md:size-10",
+        dragging && "cursor-grabbing bg-track text-foreground",
+      )}
+    >
+      <GripVertical className="size-4" />
+    </button>
+  )
+
+  // The dragged row follows the pointer; the others glide out of its way.
+  const rowMotion: CSSProperties = {
+    ...style,
+    transition: dragging ? "box-shadow 200ms ease" : animating ? "transform 200ms var(--ease-out)" : undefined,
+  }
+  const rowClass = cn(
+    "relative rounded-lg border border-hairline bg-field",
+    dragging && "border-accent-500/50 shadow-[var(--shadow-glass-lg)]",
+  )
 
   const controls = (
     <div className="flex items-center gap-0.5">
-      <Button variant="ghost" size="icon-sm" onClick={() => onMove("up")} disabled={!canUp} aria-label={`Move ${label} up`}>
-        <ArrowUp />
-      </Button>
-      <Button variant="ghost" size="icon-sm" onClick={() => onMove("down")} disabled={!canDown} aria-label={`Move ${label} down`}>
-        <ArrowDown />
-      </Button>
       <Button
         variant="ghost"
         size="icon-sm"
@@ -438,7 +624,19 @@ function EntryRow({
             onChange={(e) => update({ [f.name]: e.target.value })}
             placeholder={f.type === "month" ? "YYYY-MM" : f.placeholder}
             autoFocus={!item.id && f.name === def.required}
-            className={fieldClass}
+            onKeyDown={
+              // Skills and languages are typed as a list: Enter in the last field starts the next row.
+              def.compact && onAddNext && f === def.fields[def.fields.length - 1]
+                ? (e) => {
+                    if (e.key === "Enter" && String(value[def.required] ?? "").trim()) {
+                      e.preventDefault()
+                      onAddNext()
+                    }
+                  }
+                : undefined
+            }
+            enterKeyHint={def.compact && onAddNext && f === def.fields[def.fields.length - 1] ? "next" : undefined}
+            className={cn(fieldClass, "max-md:h-11")}
           />
         )}
       </Field>
@@ -447,23 +645,36 @@ function EntryRow({
 
   if (def.compact) {
     return (
-      <li className={cn("grid gap-2 rounded-lg border border-hairline p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end", !visible && "opacity-60")}>
+      <li
+        style={rowMotion}
+        className={cn(
+          rowClass,
+          "grid gap-2 p-2 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end",
+          !visible && "opacity-60",
+        )}
+      >
+        <div className="max-sm:hidden sm:self-end sm:pb-0.5">{handle}</div>
         {fields}
         <div className="flex items-center justify-between gap-2 sm:justify-end">
-          <SaveStatus status={status} idleText={def.requiredMessage} {...ctx} className="sm:hidden" />
+          <span className="sm:hidden">{handle}</span>
+          <SaveStatus status={status} idleText={def.requiredMessage} {...ctx} className="min-w-0 flex-1 sm:hidden" />
           {controls}
         </div>
         {(status.kind === "error" || status.kind === "idle") && (
-          <SaveStatus status={status} idleText={def.requiredMessage} {...ctx} className="max-sm:hidden sm:col-span-3" />
+          <SaveStatus status={status} idleText={def.requiredMessage} {...ctx} className="max-sm:hidden sm:col-span-4" />
         )}
       </li>
     )
   }
 
   return (
-    <li className={cn("grid gap-3 rounded-lg border border-hairline p-3", !visible && "opacity-60")}>
+    <li style={rowMotion} className={cn(rowClass, "grid gap-3 p-3", !visible && "opacity-60")}>
       <div className="flex items-center gap-2">
-        <SaveStatus status={status} idleText={def.requiredMessage} {...ctx} className="min-w-0 flex-1" />
+        {handle}
+        <div className="grid min-w-0 flex-1 gap-0.5">
+          <p className="text-body-strong truncate">{summaryOf(def, value) || def.add.replace("Add ", "New ")}</p>
+          <SaveStatus status={status} idleText={def.requiredMessage} {...ctx} />
+        </div>
         {controls}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">{fields}</div>
