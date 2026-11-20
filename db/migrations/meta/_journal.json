@@ -127,6 +127,20 @@
       "when": 1794865854705,
       "tag": "0017_tasks_inbox_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795194587631,
+      "tag": "0018_budget_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795194588304,
+      "tag": "0019_budget_rls",
+      "breakpoints": true
     }
   ]
 }
