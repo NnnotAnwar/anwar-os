@@ -18,6 +18,7 @@
     "db:studio": "node --env-file-if-exists=.env.local ./node_modules/drizzle-kit/bin.cjs studio",
     "test:db": "node --env-file-if-exists=.env.local ./node_modules/vitest/vitest.mjs run --config vitest.db.config.mts",
     "test:e2e": "node --env-file-if-exists=.env.local ./node_modules/@playwright/test/cli.js test",
+    "e2e": "node scripts/e2e.mts",
     "icons": "node scripts/generate-icons.mts"
   },
   "dependencies": {

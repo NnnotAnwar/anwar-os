@@ -57,3 +57,4 @@ bots/**/__pycache__
 # playwright
 /test-results/
 /playwright-report/
+/e2e/.auth/
