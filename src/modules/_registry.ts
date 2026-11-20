@@ -10,11 +10,12 @@ import { links } from "./links/manifest"
 import { feedback } from "./feedback/manifest"
 import { tasks } from "./tasks/manifest"
 import { inbox } from "./inbox/manifest"
+import { budget } from "./budget/manifest"
 
 // Adding a module: create src/modules/<id>/, a migration prefixed <id>_,
 // a thin route file under src/app/(private)/app/<id>/, and one line here.
 // Order is priority: the default "My services" and the order of the Services grid.
-const registered = [tasks, inbox, notes, calendar, files, links, ideas, projects, cv, feedback, tools] as const satisfies readonly ModuleManifest[]
+const registered = [tasks, inbox, notes, calendar, budget, files, links, ideas, projects, cv, feedback, tools] as const satisfies readonly ModuleManifest[]
 
 export type ModuleId = (typeof registered)[number]["id"]
 
