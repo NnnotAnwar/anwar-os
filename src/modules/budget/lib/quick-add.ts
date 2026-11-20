@@ -52,6 +52,22 @@ export function matchByName<T extends { name: string }>(items: T[], text: string
   )
 }
 
+/** "1 890,50" typed with a space: glue a 1–3 digit token to following 3-digit groups. */
+function joinDigitGroups(words: string[]): string[] {
+  const out: string[] = []
+  for (let i = 0; i < words.length; i++) {
+    let word = words[i]!
+    if (/^[+\-−]?\d{1,3}$/.test(word)) {
+      while (i + 1 < words.length && /^\d{3}(?:[.,]\d{1,2})?(?:kč|czk)?$/i.test(words[i + 1]!)) {
+        word += ` ${words[++i]}`
+        if (/[.,]/.test(word.slice(-3))) break
+      }
+    }
+    out.push(word)
+  }
+  return out
+}
+
 const DATE_WORDS: Record<string, number> = { today: 0, yesterday: -1, dnes: 0, vcera: -1 }
 
 export function parseQuickAdd(
@@ -63,7 +79,7 @@ export function parseQuickAdd(
     defaultAccountId = null,
   }: { categories: QuickCategory[]; accounts: QuickAccount[]; today: string; defaultAccountId?: string | null },
 ): QuickResult {
-  const words = input.trim().split(/\s+/).filter(Boolean)
+  const words = joinDigitGroups(input.trim().split(/\s+/).filter(Boolean))
   if (words.length === 0) return { ok: false, error: "Type an amount, e.g. “250 food lunch”." }
 
   let amount: ReturnType<typeof parseAmount> = null

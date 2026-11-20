@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, type FormEvent, type PointerEvent } from "react"
+import { useCallback, useState, useTransition, type FormEvent, type PointerEvent } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -61,7 +61,7 @@ export function PlanForm({ plan, currentMonth }: { plan: PlanRow | null; current
         <Field label="Every month" htmlFor="plan-monthly">
           <Input id="plan-monthly" value={monthly} onChange={(e) => setMonthly(e.target.value)} inputMode="decimal" placeholder="10 000" className="tabular-nums" />
         </Field>
-        <Field label="Return a year, %" htmlFor="plan-rate" hint="After fees and inflation if you want real money.">
+        <Field label="Return a year, %" htmlFor="plan-rate" hint="Subtract inflation to see it in today’s money.">
           <Input id="plan-rate" value={rate} onChange={(e) => setRate(e.target.value)} inputMode="decimal" className="tabular-nums" />
         </Field>
         <Field label="Years" htmlFor="plan-years">
@@ -94,16 +94,18 @@ export function PlanForm({ plan, currentMonth }: { plan: PlanRow | null; current
 // Chart: projected vs actual net worth, one axis, hover crosshair + tooltip.
 // ---------------------------------------------------------------------------
 
-const W = 720
-const H = 260
 const PAD = { top: 16, right: 16, bottom: 28, left: 64 }
 
-function niceMax(v: number) {
-  if (v <= 0) return 1
-  const exp = 10 ** Math.floor(Math.log10(v))
-  const f = v / exp
-  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * exp
+/** A round step (1, 2, 2.5, 5 × 10ⁿ) that splits `range` into about four parts. */
+function niceStep(range: number) {
+  if (range <= 0) return 1
+  const raw = range / 4
+  const exp = 10 ** Math.floor(Math.log10(raw))
+  const f = raw / exp
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * exp
 }
+
+const whole = (minor: number, currency: string, locale: string) => formatMoney(Math.round(minor / 100) * 100, currency, locale)
 
 function compact(minor: number, currency: string, locale: string) {
   try {
@@ -115,16 +117,28 @@ function compact(minor: number, currency: string, locale: string) {
 
 export function PlanChart({ rows, currency, locale }: { rows: ComparisonRow[]; currency: string; locale: string }) {
   const [hover, setHover] = useState<number | null>(null)
+  // Drawn at the container's real width, so 11px labels stay 11px on a phone.
+  const [W, setW] = useState(720)
+  const H = W < 480 ? 220 : 260
+  const measure = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return
+    const observer = new ResizeObserver(([entry]) => entry && setW(Math.max(280, Math.round(entry.contentRect.width))))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
   const actualRows = rows.filter((r) => r.actualMinor !== null)
-  const max = niceMax(Math.max(...rows.map((r) => r.projectedMinor), ...actualRows.map((r) => r.actualMinor!)))
-  const min = Math.min(0, ...actualRows.map((r) => r.actualMinor!))
+  const top = Math.max(...rows.map((r) => r.projectedMinor), ...actualRows.map((r) => r.actualMinor!))
+  const bottom = Math.min(0, ...actualRows.map((r) => r.actualMinor!))
+  const step = niceStep(top - bottom)
+  const min = Math.floor(bottom / step) * step
+  const max = Math.max(min + step, Math.ceil(top / step) * step)
   const n = rows.length - 1
   const x = (i: number) => PAD.left + (i / Math.max(1, n)) * (W - PAD.left - PAD.right)
   const y = (v: number) => PAD.top + (1 - (v - min) / (max - min || 1)) * (H - PAD.top - PAD.bottom)
 
   const projectedPath = rows.map((r, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(r.projectedMinor).toFixed(1)}`).join("")
   const actualPath = actualRows.map((r, i) => `${i ? "L" : "M"}${x(r.index).toFixed(1)},${y(r.actualMinor!).toFixed(1)}`).join("")
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => min + f * (max - min))
+  const ticks = Array.from({ length: Math.round((max - min) / step) + 1 }, (_, i) => min + i * step)
   const yearStep = Math.max(1, Math.ceil(n / 12 / 6))
   const lastActual = actualRows.at(-1)
   const lastProjected = rows.at(-1)!
@@ -156,7 +170,7 @@ export function PlanChart({ rows, currency, locale }: { rows: ComparisonRow[]; c
           </span>
         </span>
       </figcaption>
-      <div className="relative">
+      <div ref={measure} className="relative">
         <svg
           viewBox={`0 0 ${W} ${H}`}
           className="h-auto w-full touch-pan-y overflow-visible"
@@ -205,9 +219,9 @@ export function PlanChart({ rows, currency, locale }: { rows: ComparisonRow[]; c
             style={{ left: `${(x(h.index) / W) * 100}%`, transform: `translateX(${h.index > n / 2 ? "calc(-100% - 8px)" : "8px"})` }}
           >
             <span className="font-semibold">{formatMonth(h.month, locale, "short")}</span>
-            <span>Projected {formatMoney(h.projectedMinor, currency, locale)}</span>
-            {h.actualMinor !== null && <span>Actual {formatMoney(h.actualMinor, currency, locale)}</span>}
-            <span className="text-muted-foreground">Put in {formatMoney(h.contributedMinor, currency, locale)}</span>
+            <span>Projected {whole(h.projectedMinor, currency, locale)}</span>
+            {h.actualMinor !== null && <span>Actual {whole(h.actualMinor, currency, locale)}</span>}
+            <span className="text-muted-foreground">Put in {whole(h.contributedMinor, currency, locale)}</span>
           </div>
         )}
       </div>

@@ -58,7 +58,8 @@ async function Body() {
   const known = rows.filter((r) => r.actualMinor !== null)
   const latest = known.at(-1)
   const end = rows.at(-1)!
-  const money = (m: number, signed = false) => formatMoney(m, plan.currency, locale, { signed })
+  // Projections are estimates: whole units read better than haléře.
+  const money = (m: number, signed = false) => formatMoney(Math.round(m / 100) * 100, plan.currency, locale, { signed })
   // The table: each plan year's end plus every month that has actuals.
   const tableRows = rows.filter((r) => r.index % 12 === 0 || r.actualMinor !== null)
 

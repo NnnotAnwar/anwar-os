@@ -53,6 +53,12 @@ describe("parseQuickAdd", () => {
     expect(parseQuickAdd("100 food 2026-10-01", opts)).toMatchObject({ occurredOn: "2026-10-01" })
   })
 
+  it("reads amounts typed with a thousands space", () => {
+    expect(parseQuickAdd("1 890,50 eating out pizza", opts)).toMatchObject({ amountMinor: -189050, categoryId: "eat", note: "pizza" })
+    expect(parseQuickAdd("+45 000 salary", opts)).toMatchObject({ amountMinor: 4_500_000, categoryId: "salary" })
+    expect(parseQuickAdd("250 food 100 gifts", opts)).toMatchObject({ amountMinor: -25000, note: "100 gifts" })
+  })
+
   it("keeps unknown words as the note", () => {
     expect(parseQuickAdd("250 gift for mum", opts)).toMatchObject({ categoryId: null, note: "gift for mum", amountMinor: -25000 })
   })

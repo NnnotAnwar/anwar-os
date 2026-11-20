@@ -37,6 +37,8 @@ describe("goal pace", () => {
     expect(monthlyNeeded({ targetMinor: 120_000, progressMinor: 0, deadline: "2027-11-30" }, "2026-11-17")).toBe(10_000)
     expect(monthlyNeeded({ targetMinor: 120_000, progressMinor: 0, deadline: "2026-11-30" }, "2026-11-17")).toBe(120_000)
     expect(monthlyNeeded({ targetMinor: 100, progressMinor: 150, deadline: "2027-01-01" }, "2026-11-17")).toBe(0)
+    // 45 000.00 over 7 months = 6 428.57… → 6 429 whole.
+    expect(monthlyNeeded({ targetMinor: 4_500_000, progressMinor: 0, deadline: "2027-06-30" }, "2026-11-17")).toBe(642_900)
     expect(monthlyNeeded({ targetMinor: 100, progressMinor: 0, deadline: null }, "2026-11-17")).toBeNull()
   })
 })

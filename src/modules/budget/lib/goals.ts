@@ -13,5 +13,6 @@ export function monthlyNeeded(
   const left = goal.targetMinor - goal.progressMinor
   if (left <= 0) return 0
   const months = Math.max(1, monthsBetween(monthOf(today), monthOf(goal.deadline)))
-  return Math.ceil(left / months)
+  // Rounded up to whole units: "CZK 6,429 a month" is the useful figure.
+  return Math.ceil(left / months / 100) * 100
 }

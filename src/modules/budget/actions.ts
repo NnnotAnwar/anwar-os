@@ -141,7 +141,8 @@ async function loadCategories(tx: Tx, includeArchived: boolean): Promise<Categor
       parentId: c.parentId,
       color: c.color,
       archived: c.archived,
-      count: sql<number>`(select count(*)::int from budget_transactions x where x.category_id = ${c.id})`,
+      // Spelled out: drizzle renders ${c.id} unqualified here, which would bind to x.id.
+      count: sql<number>`(select count(*)::int from budget_transactions x where x.category_id = budget_categories.id)`,
     })
     .from(c)
     .where(includeArchived ? undefined : eq(c.archived, false))
@@ -304,7 +305,10 @@ async function loadBotTotals(month: string): Promise<BotTotals | null> {
       const expenses = rows[0]?.expenses ?? 0
       return {
         expenses,
-        amounts: rows.filter((r) => r.currency).map((r) => ({ currency: r.currency, minor: Number(r.minor) })),
+        amounts: rows
+          .filter((r) => r.currency)
+          .map((r) => ({ currency: r.currency, minor: Number(r.minor) }))
+          .sort((x, y) => x.currency.localeCompare(y.currency)),
       }
     })
   } catch {
