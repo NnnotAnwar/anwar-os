@@ -31,7 +31,9 @@ test("the manifest makes it installable and points sharing at Capture", async ({
 })
 
 test("the service worker shows the offline page and never caches pages or data", async ({ page, context }) => {
-  await page.goto("/app")
+  const response = await page.goto("/app")
+  // `next dev` sends a CSP with 'unsafe-eval' and doesn't register the worker.
+  test.skip(Boolean(response?.headers()["content-security-policy"]?.includes("'unsafe-eval'")), "production builds only")
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined))
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true)
 
