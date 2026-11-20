@@ -29,11 +29,17 @@ function dropCachedPages() {
 async function overLimit(checks: [key: string, rule: RateRule][]): Promise<string | null> {
   // Same switch as Better Auth's limiter: on in production, AUTH_RATE_LIMIT overrides.
   if (!readAuthEnv().rateLimit) return null
-  for (const [key, rule] of checks) {
-    const { allowed, retryAfter } = await consumeRateLimit(db, key, rule)
-    if (!allowed) return retryMessage(retryAfter)
+  try {
+    for (const [key, rule] of checks) {
+      const { allowed, retryAfter } = await consumeRateLimit(db, key, rule)
+      if (!allowed) return retryMessage(retryAfter)
+    }
+    return null
+  } catch (error) {
+    // Fail closed: without a working counter, don't take password guesses.
+    console.error("rate limit check failed", error)
+    return "Sign-in is unavailable right now. Try again in a minute."
   }
-  return null
 }
 
 const credentials = z.object({
