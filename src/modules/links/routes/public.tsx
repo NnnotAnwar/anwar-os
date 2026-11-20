@@ -1,5 +1,6 @@
 import { Suspense } from "react"
 import { connection } from "next/server"
+import { Page, Reveal, SkeletonExit } from "@/components/motion"
 import { PageHeader } from "@/components/shell/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Favicon } from "../components/favicon"
@@ -9,17 +10,27 @@ import { domainOf } from "../schema"
 /** Public /links: the owner's published bookmarks, grouped by tag. */
 export default function PublicLinksPage() {
   return (
-    // A plain page: the public layout provides the frame, <main> and gutters.
-    <div className="mx-auto grid w-full max-w-3xl gap-4">
-      <PageHeader
-        eyebrow="Bookmarks"
-        title="Useful links"
-        description="Articles, tools and docs I keep coming back to, grouped by topic."
-      />
-      <Suspense fallback={<PublicSkeleton />}>
-        <PublishedLinks />
-      </Suspense>
-    </div>
+    <Page>
+      {/* A plain page: the public layout provides the frame, <main> and gutters. */}
+      <div className="mx-auto grid w-full max-w-3xl gap-4">
+        <PageHeader
+          eyebrow="Bookmarks"
+          title="Useful links"
+          description="Articles, tools and docs I keep coming back to, grouped by topic."
+        />
+        <Suspense
+          fallback={
+            <SkeletonExit>
+              <PublicSkeleton />
+            </SkeletonExit>
+          }
+        >
+          <Reveal>
+            <PublishedLinks />
+          </Reveal>
+        </Suspense>
+      </div>
+    </Page>
   )
 }
 
@@ -40,7 +51,7 @@ async function PublishedLinks() {
             <a
               key={tag || "other"}
               href={`#${anchor(tag)}`}
-              className="text-caption rounded-full bg-track px-2.5 py-1 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="text-caption rounded-full bg-track px-2.5 py-1 text-muted-foreground max-sm:px-3 max-sm:py-2 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               {tag ? `#${tag}` : "Other"} <span className="tabular-nums opacity-70">{links.length}</span>
             </a>
