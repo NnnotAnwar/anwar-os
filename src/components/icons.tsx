@@ -164,3 +164,5 @@ export const ChartLineUp = bold(P.ChartLineUp)
 export const Coins = bold(P.Coins)
 export const Pause = bold(P.Pause)
 export const Play = bold(P.Play)
+// osbot
+export const TelegramLogo = bold(P.TelegramLogo)
