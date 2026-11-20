@@ -7,7 +7,7 @@ import { Morph, NAV_BACK, NAV_FORWARD, Page } from "@/components/motion"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Markdown, markdownOutline, markdownToText } from "@/lib/markdown"
-import { absoluteUrl } from "@/lib/site"
+import { pageMetadata } from "@/lib/site"
 import { cn } from "@/lib/utils"
 import { CaseStudyToc } from "../components/case-study-toc"
 import { morphNames } from "../components/project-card"
@@ -21,14 +21,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const project = await getPublishedProject(slug)
   if (!project) return { title: "Project not found", robots: { index: false } }
-  const url = absoluteUrl(`/projects/${project.slug}`)
-  const description = project.summary || `${project.title} — a case study by Anwar.`
-  return {
+  return pageMetadata({
     title: project.title,
-    description,
-    alternates: { canonical: url },
-    openGraph: { type: "article", url, title: project.title, description },
-  }
+    description: project.summary || `${project.title} — a case study by Anwar.`,
+    path: `/projects/${project.slug}`,
+    type: "article",
+  })
 }
 
 export default function PublicProjectPage({ params }: Props) {

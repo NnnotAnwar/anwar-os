@@ -7,7 +7,7 @@ import { Meridian } from "@/components/site/meridian"
 import { ScrollReveal } from "@/components/site/scroll-reveal"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { absoluteUrl, siteDescription, siteTitle } from "@/lib/site"
+import { pageMetadata, siteDescription } from "@/lib/site"
 import { cn } from "@/lib/utils"
 import { getLatestPublishedIdeas } from "@/modules/ideas/public"
 import { IdeaCard } from "@/modules/ideas/components/idea-card"
@@ -15,11 +15,7 @@ import { ProjectCard } from "@/modules/projects/components/project-card"
 import { getFeaturedProjects } from "@/modules/projects/public"
 import { GridSkeleton } from "@/modules/projects/routes/public-index"
 
-export const metadata = {
-  title: { absolute: siteTitle },
-  description: siteDescription,
-  alternates: { canonical: absoluteUrl("/") },
-}
+export const metadata = pageMetadata({ title: null, description: siteDescription, path: "/", type: "profile" })
 
 const facts = [
   { label: "Based in", value: "Prague, Czech Republic" },

@@ -3,12 +3,16 @@ import { Wordmark } from "@/components/shell/wordmark"
 import { AccountLink } from "@/components/site/account-link"
 import { SiteFooter } from "@/components/site/site-footer"
 import { SiteMenu, SiteNav } from "@/components/site/site-nav"
-import { siteDescription, siteTitle } from "@/lib/site"
+import type { Metadata } from "next"
+import { siteDescription, siteName, siteTitle, siteUrl } from "@/lib/site"
 import "@/components/site/site.css"
 
-export const metadata = {
+export const metadata: Metadata = {
+  metadataBase: siteUrl,
   title: { default: siteTitle, template: "%s · Anwar" },
   description: siteDescription,
+  openGraph: { type: "website", siteName, locale: "en_US" },
+  twitter: { card: "summary_large_image" },
 }
 
 // The public frame. Static: the header prerenders on every route; only the
