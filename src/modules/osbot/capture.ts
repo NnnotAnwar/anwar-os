@@ -11,7 +11,8 @@ import { actions as notes } from "@/modules/notes/actions"
 //
 // Planned: the inbox module's captureToInbox({ text, url? }). Once it is on
 // main, add
-//   { kind: "inbox", label: "Inbox", isDefault: true, save: ({ text, url }) => … }
+//   { kind: "inbox", label: "Inbox", button: "Save to Inbox", isDefault: true,
+//     save: ({ text, url }) => … captureToInbox({ text, url }) … }
 // and drop `isDefault` from "note". (OSBOT_DEFAULT_CAPTURE overrides the
 // default without a code change.)
 
@@ -19,8 +20,11 @@ export type CaptureResult = { kind: string; id: string; title: string; url: stri
 
 export type CaptureTarget = {
   kind: string
-  /** Button label: "Save as <label>" (or "Save to Inbox" style, chosen by the bot). */
   label: string
+  /** Inline button text in Telegram. Default: "Save as <label, lowercase>". */
+  button?: string
+  /** Only offered for messages that contain a URL. */
+  needsUrl?: boolean
   isDefault?: boolean
   /** Runs inside actAs(owner): module actions act as the site owner. */
   save: (input: { text: string; url?: string }) => Promise<CaptureResult>
@@ -63,6 +67,7 @@ export const captureTargets: CaptureTarget[] = [
   {
     kind: "link",
     label: "Link",
+    needsUrl: true,
     save: async ({ text, url: given }) => {
       const url = given || URL_IN_TEXT.exec(text)?.[0]
       if (!url) throw new CaptureError("No link found. Send a full web address, e.g. https://react.dev/learn")
@@ -98,7 +103,12 @@ export function listCaptureTargets(targets = captureTargets) {
     default: fallback,
     targets: [...targets]
       .sort((a, b) => Number(b.kind === fallback) - Number(a.kind === fallback))
-      .map((t) => ({ kind: t.kind, label: t.label })),
+      .map((t) => ({
+        kind: t.kind,
+        label: t.label,
+        button: t.button ?? `Save as ${t.label.toLowerCase()}`,
+        needsUrl: Boolean(t.needsUrl),
+      })),
   }
 }
 

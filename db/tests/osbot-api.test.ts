@@ -157,7 +157,11 @@ describe("osbot API: capture", () => {
     const { status, json } = await call(routes.captureTargetsGET, "GET", "/api/internal/osbot/capture/targets")
     expect(status).toBe(200)
     expect(json.default).toBe("note")
-    expect(json.targets.map((t: { kind: string }) => t.kind)).toEqual(["note", "link", "idea"])
+    expect(json.targets).toEqual([
+      { kind: "note", label: "Note", button: "Save as note", needsUrl: false },
+      { kind: "link", label: "Link", button: "Save as link", needsUrl: true },
+      { kind: "idea", label: "Idea", button: "Save as idea", needsUrl: false },
+    ])
   })
 
   it("saves a note for the site owner, split into title and body", async () => {
