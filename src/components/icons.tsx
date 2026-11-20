@@ -175,3 +175,8 @@ export const SidebarIcon = bold(P.SidebarSimple)
 export const DownloadLine = bold(P.ArrowLineDown)
 export const Heart = bold(P.Heart)
 export const Question = bold(P.Question)
+// pwa
+export const DeviceMobile = bold(P.DeviceMobile)
+export const ShareIos = bold(P.Export)
+export const PlusSquare = bold(P.PlusSquare)
+export const Lightning = bold(P.Lightning)
