@@ -1,23 +1,36 @@
 import { Suspense } from "react"
+import Link from "next/link"
 import { connection } from "next/server"
 import { Briefcase } from "@/components/icons"
+import { NAV_FORWARD, Page, Reveal, SkeletonExit } from "@/components/motion"
 import { PageHeader } from "@/components/shell/page-header"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ProjectCard } from "../components/project-card"
 import { getPublishedProjects } from "../public"
 
 export default function PublicProjectsPage() {
   return (
-    <div className="grid gap-6">
-      <PageHeader
-        eyebrow="Projects"
-        title="Things I've built"
-        description="Products, experiments and coursework — each with a short case study and, where it exists, a live demo."
-      />
-      <Suspense fallback={<GridSkeleton />}>
-        <Grid />
-      </Suspense>
-    </div>
+    <Page>
+      <div className="grid gap-6">
+        <PageHeader
+          eyebrow="Projects"
+          title="Things I've built"
+          description="Products, experiments and coursework — each with a short case study and, where it exists, a live demo."
+        />
+        <Suspense
+          fallback={
+            <SkeletonExit>
+              <GridSkeleton />
+            </SkeletonExit>
+          }
+        >
+          <Reveal>
+            <Grid />
+          </Reveal>
+        </Suspense>
+      </div>
+    </Page>
   )
 }
 
@@ -31,6 +44,9 @@ async function Grid() {
         <Briefcase className="size-6 text-text-accent" />
         <p className="text-card-title">Case studies are on their way</p>
         <p className="text-meta text-muted-foreground">Check back soon, or read the CV in the meantime.</p>
+        <Link href="/cv" transitionTypes={NAV_FORWARD} className={buttonVariants({ size: "lg" })}>
+          Read the CV
+        </Link>
       </div>
     )
   }

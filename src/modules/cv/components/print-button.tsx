@@ -1,14 +1,21 @@
 "use client"
 
-import { Printer } from "@/components/icons"
+import { DownloadLine } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 
-/** Opens the browser's print dialog; "Save as PDF" there gives the PDF résumé. */
+/**
+ * "Download PDF": opens the print dialog, where every browser offers Save as
+ * PDF. print.css turns the page into a plain A4 résumé (no chrome, black on
+ * white, no dark theme), so there is no separate PDF to keep in sync.
+ */
 export function PrintButton() {
   return (
-    <Button variant="outline" size="lg" onClick={() => window.print()} className="print:hidden">
-      <Printer />
-      Save as PDF
-    </Button>
+    <div className="grid justify-items-end gap-1 print:hidden">
+      <Button size="lg" onClick={() => window.print()} className="max-sm:h-11">
+        <DownloadLine />
+        Download PDF
+      </Button>
+      <p className="text-caption text-muted-foreground">Choose “Save as PDF” in the dialog</p>
+    </div>
   )
 }

@@ -207,6 +207,33 @@ describe("app.submit_feedback", () => {
     expect(await pgError(submit(ip))).toBe("OS430")
   })
 
+  // db/modules/feedback.sql: the form shows "Try again in m:ss" from DETAIL.
+  it("says how many seconds until the sender may try again", async () => {
+    const detail = async (p: Promise<unknown>) => {
+      try {
+        await p
+      } catch (e) {
+        return Number((e as { detail?: string }).detail)
+      }
+      return null
+    }
+    const burst = sender()
+    await admin`
+      insert into feedback_submissions (challenge, ip_hash, created_at)
+      select ${`burst-${run}-`} || g, ${burst}, now() - interval '4 minutes' from generate_series(1, 3) g`
+    const wait = await detail(submit(burst))
+    expect(wait).toBeGreaterThan(355)
+    expect(wait).toBeLessThanOrEqual(360)
+
+    const daily = sender()
+    await admin`
+      insert into feedback_submissions (challenge, ip_hash, created_at)
+      select ${`daily-${run}-`} || g, ${daily}, now() - interval '23 hours' from generate_series(1, 20) g`
+    const until = await detail(submit(daily))
+    expect(until).toBeGreaterThan(3595)
+    expect(until).toBeLessThanOrEqual(3600)
+  })
+
   it("forgets submissions older than a day", async () => {
     const ip = sender()
     await admin`

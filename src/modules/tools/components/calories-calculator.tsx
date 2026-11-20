@@ -62,10 +62,10 @@ export function CaloriesCalculator() {
     <div className="grid gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start">
       <form className="grid gap-5" onSubmit={(e) => e.preventDefault()} aria-label="Your details">
         <ChoiceGroup legend="Sex" value={sex} options={SEX_OPTIONS} onChange={setSex} />
-        <div className="grid grid-cols-3 gap-3">
-          <NumberField label="Age" value={age} onChange={setAge} unit="yrs" error={show(age, errors.age)} />
-          <NumberField label="Height" value={height} onChange={setHeight} unit="cm" error={show(height, errors.heightCm)} />
-          <NumberField label="Weight" value={weight} onChange={setWeight} unit="kg" error={show(weight, errors.weightKg)} />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <NumberField label="Age" value={age} onChange={setAge} unit="yrs" error={show(age, errors.age)} range={{ min: 15, max: 100, step: 1 }} />
+          <NumberField label="Height" value={height} onChange={setHeight} unit="cm" error={show(height, errors.heightCm)} range={{ min: 120, max: 220, step: 1 }} />
+          <NumberField label="Weight" value={weight} onChange={setWeight} unit="kg" error={show(weight, errors.weightKg)} range={{ min: 35, max: 180, step: 0.5 }} />
         </div>
         <ChoiceGroup legend="Activity" value={activity} options={ACTIVITY_OPTIONS} onChange={setActivity} layout="list" />
         <ChoiceGroup legend="Goal" value={goal} options={GOAL_OPTIONS} onChange={setGoal} />
@@ -77,6 +77,7 @@ export function CaloriesCalculator() {
             unit="g/kg"
             hint="1.6–2.2 suits most active people"
             error={show(protein, errors.proteinPerKg)}
+            range={{ min: 0.8, max: 3, step: 0.1 }}
           />
           <NumberField
             label="Fat"
@@ -85,6 +86,7 @@ export function CaloriesCalculator() {
             unit="%"
             hint="Share of calories"
             error={show(fat, errors.fatPercent)}
+            range={{ min: 15, max: 45, step: 1 }}
           />
         </div>
       </form>

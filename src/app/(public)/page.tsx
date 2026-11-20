@@ -1,19 +1,21 @@
-import { Suspense, type ReactNode } from "react"
+import { Suspense, type CSSProperties, type ReactNode } from "react"
 import Link from "next/link"
 import { connection } from "next/server"
 import { ArrowRight, ChatText } from "@/components/icons"
+import { NAV_FORWARD, Page, Reveal, SkeletonExit } from "@/components/motion"
 import { Meridian } from "@/components/site/meridian"
+import { ScrollReveal } from "@/components/site/scroll-reveal"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { pageMetadata, siteDescription } from "@/lib/site"
+import { cn } from "@/lib/utils"
 import { getLatestPublishedIdeas } from "@/modules/ideas/public"
 import { IdeaCard } from "@/modules/ideas/components/idea-card"
 import { ProjectCard } from "@/modules/projects/components/project-card"
 import { getFeaturedProjects } from "@/modules/projects/public"
 import { GridSkeleton } from "@/modules/projects/routes/public-index"
 
-export const metadata = {
-  title: { absolute: "Anwar — economics student and web developer in Prague" },
-}
+export const metadata = pageMetadata({ title: null, description: siteDescription, path: "/", type: "profile" })
 
 const facts = [
   { label: "Based in", value: "Prague, Czech Republic" },
@@ -22,81 +24,139 @@ const facts = [
   { label: "Speaks", value: "Russian · Kazakh · Czech · English" },
 ]
 
+/** Staggered entrance: the n-th line of the hero rises after the one before it. */
+const rise = (i: number) => ({ "--i": i }) as CSSProperties
+
 // Static except the two content rows, which stream from the (cached) database.
 export default function HomePage() {
   return (
-    <div className="grid gap-10 md:gap-14">
-      <section
-        aria-labelledby="hero-title"
-        className="glass grid gap-8 rounded-xl p-5 [--glass-shadow:var(--shadow-glass-lg)] sm:p-8 md:p-10"
-      >
-        <div className="grid gap-4">
-          <p className="text-eyebrow text-text-accent">Economics × web development</p>
-          <h1
-            id="hero-title"
-            className="max-w-3xl font-display text-[34px] leading-[1.05] font-bold tracking-[-0.035em] text-balance sm:text-5xl md:text-6xl"
+    <Page>
+      <div className="grid gap-10 md:gap-14">
+        <section
+          aria-labelledby="hero-title"
+          className="glass grid gap-8 rounded-xl p-5 [--glass-shadow:var(--shadow-glass-lg)] sm:p-8 md:p-10"
+        >
+          <div className="grid gap-4">
+            <p style={rise(0)} className="enter-rise text-eyebrow text-text-accent">
+              Economics × web development
+            </p>
+            <h1
+              id="hero-title"
+              style={rise(1)}
+              className="enter-rise max-w-3xl font-display text-[34px] leading-[1.05] font-bold tracking-[-0.035em] text-balance sm:text-5xl md:text-6xl"
+            >
+              Hi, I&apos;m Anwar. I build where business strategy meets code.
+            </h1>
+            <p
+              style={rise(2)}
+              className="enter-rise max-w-2xl text-base text-pretty text-muted-foreground md:text-lg"
+            >
+              I study Economics and Management at UCT Prague and build web products with TypeScript and React —
+              things like a shift planner for restaurants and shops. The goal: lead teams that turn a business problem
+              into software people actually use.
+            </p>
+            {/* The one path: read the CV, then the work, then say something. */}
+            <div style={rise(3)} className="enter-rise grid grid-cols-2 gap-2 pt-1 sm:flex sm:flex-wrap">
+              <Link
+                href="/cv"
+                transitionTypes={NAV_FORWARD}
+                className={cn(buttonVariants({ size: "lg" }), "col-span-2 max-sm:h-11")}
+              >
+                Read the CV
+                <ArrowRight />
+              </Link>
+              <Link
+                href="/projects"
+                transitionTypes={NAV_FORWARD}
+                className={cn(buttonVariants({ variant: "outline", size: "lg" }), "max-sm:h-11")}
+              >
+                See projects
+              </Link>
+              <Link
+                href="/feedback"
+                transitionTypes={NAV_FORWARD}
+                className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "text-text-accent max-sm:h-11")}
+              >
+                <ChatText />
+                Say hello
+              </Link>
+            </div>
+          </div>
+          <div style={rise(4)} className="enter-rise">
+            <Meridian />
+          </div>
+        </section>
+
+        <ScrollReveal>
+          <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {facts.map((f) => (
+              <div key={f.label} className="glass grid content-start gap-1.5 rounded-xl p-4">
+                <dt className="text-eyebrow text-text-accent">{f.label}</dt>
+                <dd className="text-body-strong text-pretty">{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </ScrollReveal>
+
+        <ScrollReveal>
+          <Row title="Featured projects" href="/projects" more="All projects">
+            <Suspense
+              fallback={
+                <SkeletonExit>
+                  <GridSkeleton />
+                </SkeletonExit>
+              }
+            >
+              <Reveal>
+                <Featured />
+              </Reveal>
+            </Suspense>
+          </Row>
+        </ScrollReveal>
+
+        <ScrollReveal>
+          <Row title="Latest ideas" href="/ideas" more="All ideas">
+            <Suspense
+              fallback={
+                <SkeletonExit>
+                  <IdeasSkeleton />
+                </SkeletonExit>
+              }
+            >
+              <Reveal>
+                <LatestIdeas />
+              </Reveal>
+            </Suspense>
+          </Row>
+        </ScrollReveal>
+
+        <ScrollReveal>
+          <section
+            aria-labelledby="feedback-title"
+            className="glass grid gap-4 rounded-xl p-5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-6"
           >
-            Hi, I&apos;m Anwar. I build where business strategy meets code.
-          </h1>
-          <p className="max-w-2xl text-base text-pretty text-muted-foreground md:text-lg">
-            I study Economics and Management at UCT Prague and build web products with TypeScript and React —
-            things like a shift planner for restaurants and shops. The goal: lead teams that turn a business problem
-            into software people actually use.
-          </p>
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Link href="/cv" className={buttonVariants({ size: "lg" })}>
-              Read the CV
-              <ArrowRight />
+            <span className="flex size-10 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+              <ChatText className="size-5" />
+            </span>
+            <div className="grid gap-1">
+              <h2 id="feedback-title" className="text-card-title">
+                Something to say?
+              </h2>
+              <p className="text-meta text-muted-foreground">
+                An idea, a bug, a job, a complaint — send it. Anonymous is fine.
+              </p>
+            </div>
+            <Link
+              href="/feedback"
+              transitionTypes={NAV_FORWARD}
+              className={cn(buttonVariants({ size: "lg" }), "max-sm:h-11")}
+            >
+              Send feedback
             </Link>
-            <Link href="/projects" className={buttonVariants({ variant: "outline", size: "lg" })}>
-              See projects
-            </Link>
-          </div>
-        </div>
-        <Meridian />
-      </section>
-
-      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {facts.map((f) => (
-          <div key={f.label} className="glass grid content-start gap-1.5 rounded-xl p-4">
-            <dt className="text-eyebrow text-text-accent">{f.label}</dt>
-            <dd className="text-body-strong text-pretty">{f.value}</dd>
-          </div>
-        ))}
-      </dl>
-
-      <Row title="Featured projects" href="/projects" more="All projects">
-        <Suspense fallback={<GridSkeleton />}>
-          <Featured />
-        </Suspense>
-      </Row>
-
-      <Row title="Latest ideas" href="/ideas" more="All ideas">
-        <Suspense fallback={<IdeasSkeleton />}>
-          <LatestIdeas />
-        </Suspense>
-      </Row>
-
-      <section
-        aria-labelledby="feedback-title"
-        className="glass grid gap-4 rounded-xl p-5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-6"
-      >
-        <span className="flex size-10 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
-          <ChatText className="size-5" />
-        </span>
-        <div className="grid gap-1">
-          <h2 id="feedback-title" className="text-card-title">
-            Something to say?
-          </h2>
-          <p className="text-meta text-muted-foreground">
-            An idea, a bug, a job, a complaint — send it. Anonymous is fine.
-          </p>
-        </div>
-        <Link href="/feedback" className={buttonVariants({ size: "lg" })}>
-          Send feedback
-        </Link>
-      </section>
-    </div>
+          </section>
+        </ScrollReveal>
+      </div>
+    </Page>
   )
 }
 
@@ -110,7 +170,8 @@ function Row({ title, href, more, children }: { title: string; href: string; mor
         </h2>
         <Link
           href={href}
-          className="text-meta flex items-center gap-1 rounded text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+          transitionTypes={NAV_FORWARD}
+          className="text-meta -my-3 -mr-2 flex min-h-11 items-center gap-1 rounded-lg px-2 text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           {more}
           <ArrowRight className="size-3.5" />

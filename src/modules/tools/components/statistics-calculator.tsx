@@ -3,7 +3,8 @@
 import { useDeferredValue, useState } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { formatNumber, formatPrecise, parseNumberInput } from "../lib/format"
-import { histogram, parseNumbers, percentile, summarize, type Summary } from "../lib/statistics"
+import { parseNumbers, percentile, summarize, type Summary } from "../lib/statistics"
+import { Distribution } from "./distribution-chart"
 import { NumberField, ResultPanel, ResultRow, SectionLabel } from "./fields"
 
 const SAMPLE = "12, 15, 15, 18, 21, 22, 22, 22, 25, 27, 30, 31, 34, 38, 41, 45, 52, 60"
@@ -29,7 +30,7 @@ export function StatisticsCalculator() {
           <button
             type="button"
             onClick={() => setText(text ? "" : SAMPLE)}
-            className="rounded-md px-1.5 py-0.5 text-xs text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="-mr-1.5 flex min-h-11 items-center rounded-md px-1.5 text-xs text-text-accent md:min-h-7 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {text ? "Clear" : "Use sample data"}
           </button>
@@ -154,7 +155,7 @@ function SummaryView({ summary: s, p, onP }: { summary: Summary; p: string; onP:
         </p>
       </section>
 
-      <Histogram values={s.sorted} />
+      <Distribution summary={s} />
     </>
   )
 }
@@ -170,32 +171,3 @@ function Headline({ label, value, className }: { label: string; value: string; c
   )
 }
 
-function Histogram({ values }: { values: number[] }) {
-  const bins = histogram(values)
-  const peak = Math.max(...bins.map((b) => b.count))
-  return (
-    <section className="grid gap-3" aria-labelledby="histogram-heading">
-      <SectionLabel id="histogram-heading">Distribution</SectionLabel>
-      <ul className="flex h-32 items-end gap-0.5" aria-label={`Histogram with ${bins.length} equal-width bins`}>
-        {bins.map((bin, i) => (
-          <li
-            key={i}
-            className="flex h-full min-w-0 flex-1 flex-col justify-end"
-            title={`${fmt(bin.from)} – ${fmt(bin.to)}: ${bin.count}`}
-          >
-            <span className="sr-only">{`${fmt(bin.from)} to ${fmt(bin.to)}: ${bin.count}`}</span>
-            <div
-              aria-hidden
-              className="rounded-t-sm bg-accent-600/80"
-              style={{ height: bin.count === 0 ? 0 : `max(2px, ${(bin.count / peak) * 100}%)` }}
-            />
-          </li>
-        ))}
-      </ul>
-      <div className="flex justify-between font-mono text-xs text-muted-foreground tabular" aria-hidden>
-        <span>{formatPrecise(bins[0].from, 5)}</span>
-        <span>{formatPrecise(bins[bins.length - 1].to, 5)}</span>
-      </div>
-    </section>
-  )
-}

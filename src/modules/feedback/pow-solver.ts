@@ -15,10 +15,13 @@ function toHex(buffer: ArrayBuffer) {
 export async function solveChallenge(
   { challenge, salt, maxNumber }: { challenge: string; salt: string; maxNumber: number },
   signal?: AbortSignal,
+  /** Share of the search space covered so far (0–1), after each batch. The answer can come at any point. */
+  onProgress?: (share: number) => void,
 ): Promise<number | null> {
   const encoder = new TextEncoder()
   for (let start = 0; start <= maxNumber; start += BATCH) {
     if (signal?.aborted) return null
+    onProgress?.(start / (maxNumber + 1))
     const end = Math.min(start + BATCH - 1, maxNumber)
     const candidates = Array.from({ length: end - start + 1 }, (_, i) => start + i)
     const digests = await Promise.all(

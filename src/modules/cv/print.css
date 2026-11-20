@@ -30,17 +30,28 @@
   .cv-sheet .glass {
     background: none !important;
     box-shadow: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
     padding: 0 !important;
   }
 
-  .cv-sheet .glass::before {
+  /*
+   * The frosted blur must go, or Chromium flattens the sheet into an image and
+   * the PDF's text can't be selected or searched. Written as a filter function
+   * (not `none`): the CSS pipeline drops `backdrop-filter: none !important`
+   * when it merges the -webkit- prefix.
+   */
+  .cv-sheet,
+  .cv-sheet .glass {
+    -webkit-backdrop-filter: opacity(1) !important;
+    backdrop-filter: opacity(1) !important;
+  }
+
+  .cv-sheet .glass::before,
+  .cv-sheet::before {
     display: none !important;
   }
 
   .cv-sheet a {
-    color: inherit !important;
+    color: #111 !important;
     text-decoration: none !important;
   }
 

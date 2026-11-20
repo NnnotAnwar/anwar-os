@@ -2,7 +2,7 @@
 
 import { updateTag } from "next/cache"
 import { actions } from "./actions"
-import { entryRefInput, moveEntryInput, profileInput, PUBLIC_CV_TAG, saveEntryInput, type EntryKind } from "./schema"
+import { entryRefInput, moveEntryInput, profileInput, PUBLIC_CV_TAG, reorderEntriesInput, saveEntryInput, type EntryKind } from "./schema"
 
 // Each save drops the public CV cache so /cv shows the edit on the next load.
 // The editor owns its state while open, so nothing here re-renders /app/cv.
@@ -44,6 +44,18 @@ export async function moveCvEntry(input: { kind: EntryKind; id: string; directio
   if (!parsed.success) return
   await actions.moveEntry.handler(parsed.data)
   updateTag(PUBLIC_CV_TAG)
+}
+
+export async function reorderCvEntries(input: { kind: EntryKind; ids: string[] }): Promise<{ ok: boolean }> {
+  const parsed = reorderEntriesInput.safeParse(input)
+  if (!parsed.success) return { ok: false }
+  try {
+    await actions.reorderEntries.handler(parsed.data)
+    updateTag(PUBLIC_CV_TAG)
+    return { ok: true }
+  } catch {
+    return { ok: false }
+  }
 }
 
 export async function deleteCvEntry(input: { kind: EntryKind; id: string }) {

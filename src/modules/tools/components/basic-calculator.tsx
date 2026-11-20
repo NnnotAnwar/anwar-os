@@ -34,6 +34,20 @@ const KEYS: Key[] = [
   { label: "=", action: "equals", aria: "Equals", tone: "accent" },
 ]
 
+/** Physical keys → the pad key they light up. */
+const TYPED_KEYS: Record<string, string> = {
+  ...Object.fromEntries("0123456789().%".split("").map((c) => [c, c])),
+  ",": ".",
+  "+": "+",
+  "-": "−",
+  "*": "×",
+  x: "×",
+  "/": "÷",
+  Enter: "=",
+  "=": "=",
+  Escape: "C",
+}
+
 /** Plain digits that can be fed back into the evaluator (it has no exponent syntax). */
 function reusable(value: number): string | undefined {
   const text = String(value)
@@ -46,6 +60,15 @@ export function BasicCalculator() {
   const [history, setHistory] = useState<Entry[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const nextId = useRef(0)
+  // The pad key matching what was just typed lights up briefly, so typing and tapping feel like one keypad.
+  const [lit, setLit] = useState<string | null>(null)
+  const litTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  function flash(label: string) {
+    clearTimeout(litTimer.current)
+    setLit(label)
+    litTimer.current = setTimeout(() => setLit(null), 140)
+  }
 
   const preview = expression.trim() ? evaluate(expression) : undefined
 
@@ -118,9 +141,17 @@ export function BasicCalculator() {
               value={expression}
               onChange={(e) => update(e.target.value)}
               onKeyDown={(e) => {
+                if (e.metaKey || e.ctrlKey || e.altKey) return
+                const label = TYPED_KEYS[e.key]
+                if (label) flash(label)
                 if (e.key === "Escape") {
                   e.preventDefault()
                   clear()
+                } else if (e.key === "ArrowUp" && !expression.trim() && history[0]) {
+                  // Up on an empty line brings the last result back, like a terminal.
+                  e.preventDefault()
+                  const text = reusable(history[0].value)
+                  if (text) insert(text)
                 }
               }}
               placeholder="12 × (3 + 4)"
@@ -137,7 +168,7 @@ export function BasicCalculator() {
               type="button"
               onClick={backspace}
               aria-label="Delete last character"
-              className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="absolute top-1/2 right-2 flex size-10 -translate-y-1/2 md:size-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <Delete className="size-4" aria-hidden />
             </button>
@@ -165,8 +196,9 @@ export function BasicCalculator() {
               aria-label={key.aria}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => press(key)}
+              data-lit={lit === key.label || undefined}
               className={cn(
-                "h-12 rounded-lg font-mono text-lg transition-colors outline-none select-none active:translate-y-px",
+                "press h-12 rounded-lg font-mono text-lg outline-none select-none data-lit:scale-[0.94] data-lit:brightness-110 dark:data-lit:brightness-125 max-sm:h-14",
                 key.tone === "accent"
                   ? "bg-primary text-primary-foreground hover:bg-primary/85"
                   : key.tone === "op"
@@ -179,7 +211,7 @@ export function BasicCalculator() {
           ))}
         </div>
         <p id="calc-help" className="text-xs text-muted-foreground">
-          Type or tap. Enter calculates, Esc clears. 200 + 10% gives 220.
+          Type or tap. Enter calculates, Esc clears, ↑ brings back the last result. 200 + 10% gives 220.
         </p>
       </div>
 

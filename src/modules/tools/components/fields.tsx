@@ -1,8 +1,10 @@
 "use client"
 
-import { useId, type ReactNode } from "react"
+import { useId, type CSSProperties, type ReactNode } from "react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { parseNumberInput } from "../lib/format"
+import "./tools.css"
 
 /**
  * A labelled text field for numbers. It stays a text input with a decimal
@@ -16,6 +18,7 @@ export function NumberField({
   hint,
   error,
   className,
+  range,
 }: {
   label: string
   value: string
@@ -24,9 +27,13 @@ export function NumberField({
   hint?: ReactNode
   error?: string
   className?: string
+  /** Adds a slider under the field, kept in sync both ways: drag for a rough value, type for an exact one. */
+  range?: { min: number; max: number; step: number }
 }) {
   const id = useId()
   const describedBy = [error && `${id}-error`, hint && `${id}-hint`].filter(Boolean).join(" ") || undefined
+  const typed = parseNumberInput(value)
+  const sliderValue = range ? Math.min(range.max, Math.max(range.min, Number.isFinite(typed) ? typed : range.min)) : 0
   return (
     <div className={cn("grid content-start gap-1.5", className)}>
       <label htmlFor={id} className="text-sm font-medium">
@@ -54,6 +61,20 @@ export function NumberField({
           </span>
         )}
       </div>
+      {range && (
+        <input
+          type="range"
+          min={range.min}
+          max={range.max}
+          step={range.step}
+          value={sliderValue}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={`${label}${unit ? ` (${unit})` : ""}`}
+          aria-valuetext={`${sliderValue}${unit ? ` ${unit}` : ""}`}
+          style={{ "--fill": `${((sliderValue - range.min) / (range.max - range.min)) * 100}%` } as CSSProperties}
+          className="tool-slider h-6 w-full cursor-pointer"
+        />
+      )}
       {error ? (
         <p id={`${id}-error`} className="text-xs text-destructive">
           {error}

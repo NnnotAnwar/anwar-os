@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server"
 import { createElement, Fragment } from "react"
 import { describe, expect, it } from "vitest"
-import { markdownToText, parseBlocks, renderMarkdown, safeHref } from "./markdown"
+import { Markdown, markdownOutline, markdownToText, parseBlocks, renderMarkdown, safeHref } from "./markdown"
 
 const html = (source: string) => renderToStaticMarkup(createElement(Fragment, null, renderMarkdown(source)))
 
@@ -53,5 +53,25 @@ describe("safeHref", () => {
 describe("markdownToText", () => {
   it("strips syntax for previews", () => {
     expect(markdownToText("## Hi\n- **bold** [link](https://x.y)")).toBe("Hi bold link")
+  })
+})
+
+describe("outline", () => {
+  const body = "Intro\n\n## The problem\n\nText\n\n### Plan **A**\n\n## The problem\n\n## Plánuj směny"
+
+  it("lifts the top heading level to h2 and gives every heading a unique id", () => {
+    expect(markdownOutline(body)).toEqual([
+      { id: "the-problem", text: "The problem", level: 2 },
+      { id: "plan-a", text: "Plan A", level: 3 },
+      { id: "the-problem-2", text: "The problem", level: 2 },
+      { id: "planuj-smeny", text: "Plánuj směny", level: 2 },
+    ])
+    const out = renderToStaticMarkup(createElement(Markdown, { source: body, outline: true }))
+    expect(out).toContain('<h2 id="the-problem"')
+    expect(out).toContain('<h3 id="plan-a"')
+  })
+
+  it("leaves the default rendering alone", () => {
+    expect(html("## Title")).toMatch(/^<h3 class=/)
   })
 })

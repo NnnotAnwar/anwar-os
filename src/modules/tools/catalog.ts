@@ -1,4 +1,6 @@
+import type { Metadata } from "next"
 import { Calculator, Flame, Sigma, TrendingUp, type AppIcon } from "@/components/icons"
+import { pageMetadata } from "@/lib/site"
 
 export type ToolInfo = {
   slug: string
@@ -41,8 +43,8 @@ export function toolInfo(slug: ToolSlug): ToolInfo {
   return TOOLS.find((t) => t.slug === slug)!
 }
 
-/** Page metadata for a calculator route. */
-export function toolMetadata(slug: ToolSlug) {
+/** Page metadata for a calculator route; the public copy also gets its canonical URL and social fields. */
+export function toolMetadata(slug: ToolSlug, base?: "/tools"): Metadata {
   const { title, description } = toolInfo(slug)
-  return { title, description }
+  return base ? pageMetadata({ title, description, path: `${base}/${slug}` }) : { title, description }
 }

@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { connection } from "next/server"
 import { Lightbulb } from "@/components/icons"
+import { Page, Reveal, SkeletonExit } from "@/components/motion"
 import { PageHeader } from "@/components/shell/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { IdeaCard } from "../components/idea-card"
@@ -9,16 +10,26 @@ import type { IdeaStatus } from "../schema"
 
 export default function PublicIdeasPage() {
   return (
-    <div className="grid gap-6">
-      <PageHeader
-        eyebrow="Ideas"
-        title="Thinking out loud"
-        description="Ideas I'm exploring, building or have shipped — published on purpose, so you can tell me which ones are worth it."
-      />
-      <Suspense fallback={<IdeasSkeleton />}>
-        <Ideas />
-      </Suspense>
-    </div>
+    <Page>
+      <div className="grid gap-6">
+        <PageHeader
+          eyebrow="Ideas"
+          title="Thinking out loud"
+          description="Ideas I'm exploring, building or have shipped — published on purpose, so you can tell me which ones are worth it."
+        />
+        <Suspense
+          fallback={
+            <SkeletonExit>
+              <IdeasSkeleton />
+            </SkeletonExit>
+          }
+        >
+          <Reveal>
+            <Ideas />
+          </Reveal>
+        </Suspense>
+      </div>
+    </Page>
   )
 }
 

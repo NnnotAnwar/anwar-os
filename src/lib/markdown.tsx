@@ -7,8 +7,62 @@ import type { ReactNode } from "react"
  * (#, ##, ###), paragraphs, - / 1. lists, > quotes, ``` code blocks, `code`,
  * **bold**, *italic*, [links](https://…) and bare https:// links.
  */
-export function Markdown({ source, className }: { source: string; className?: string }) {
-  return <div className={className}>{renderMarkdown(source)}</div>
+export function Markdown({
+  source,
+  className,
+  outline,
+}: {
+  source: string
+  className?: string
+  /**
+   * Long-form reading (case studies): the body's top heading level becomes an
+   * h2 whatever the author typed, and headings get ids for a table of contents
+   * (see markdownOutline). Off by default.
+   */
+  outline?: boolean
+}) {
+  return <div className={className}>{renderMarkdown(source, outline ? outlineOptions(source) : undefined)}</div>
+}
+
+export type OutlineItem = { id: string; text: string; level: 2 | 3 | 4 }
+
+type RenderOptions = { shift: number; ids: Map<number, string> }
+
+/** "What I built" → "what-i-built"; duplicates get -2, -3. Diacritics fold (Směny → smeny). */
+function slugify(text: string, taken: Set<string>) {
+  const base =
+    markdownToText(text)
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, "-")
+      .replace(/^-+|-+$/g, "") || "section"
+  let id = base
+  for (let n = 2; taken.has(id); n++) id = `${base}-${n}`
+  taken.add(id)
+  return id
+}
+
+function outlineOptions(source: string): RenderOptions {
+  const blocks = parseBlocks(source)
+  const levels = blocks.flatMap((b) => (b.kind === "heading" ? [b.level] : []))
+  const top = levels.length ? Math.min(...levels) : 1
+  const taken = new Set<string>()
+  const ids = new Map<number, string>()
+  blocks.forEach((b, i) => {
+    if (b.kind === "heading") ids.set(i, slugify(b.text, taken))
+  })
+  return { shift: top - 1, ids }
+}
+
+/** Headings of a long body as `outline` renders them: id, plain text, HTML level. */
+export function markdownOutline(source: string): OutlineItem[] {
+  const { shift, ids } = outlineOptions(source)
+  return parseBlocks(source).flatMap((b, i) =>
+    b.kind === "heading"
+      ? [{ id: ids.get(i)!, text: markdownToText(b.text), level: (b.level - shift + 1) as 2 | 3 | 4 }]
+      : [],
+  )
 }
 
 type Block =
@@ -149,16 +203,21 @@ function externalProps(href: string) {
   return href.startsWith("/") || href.startsWith("mailto:") ? {} : { rel: "noreferrer", target: "_blank" }
 }
 
-export function renderMarkdown(source: string): ReactNode[] {
+export function renderMarkdown(source: string, options?: RenderOptions): ReactNode[] {
   return parseBlocks(source).map((block, i) => {
     const key = `b${i}`
     switch (block.kind) {
       case "heading": {
         // The page title is the h1, so markdown headings start one level down.
-        const Tag = (["h2", "h3", "h4"] as const)[block.level - 1]
-        const size = ["text-xl", "text-lg", "text-base"][block.level - 1]
+        const level = block.level - (options?.shift ?? 0)
+        const Tag = (["h2", "h3", "h4"] as const)[level - 1]
+        const size = ["text-xl", "text-lg", "text-base"][level - 1]
         return (
-          <Tag key={key} className={`mt-8 mb-2 font-semibold tracking-tight first:mt-0 ${size}`}>
+          <Tag
+            key={key}
+            id={options?.ids.get(i)}
+            className={`mt-8 mb-2 scroll-mt-24 font-semibold tracking-tight first:mt-0 ${size}`}
+          >
             {renderInline(block.text, key)}
           </Tag>
         )

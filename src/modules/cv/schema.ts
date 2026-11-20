@@ -85,6 +85,8 @@ export type SaveEntryInput = z.infer<typeof saveEntryInput>
 
 export const entryRefInput = z.object({ kind: z.enum(entryKinds), id: z.uuid() })
 export const moveEntryInput = entryRefInput.extend({ direction: z.enum(["up", "down"]) })
+/** A whole section in its new order (drag to reorder). Ids missing from the list keep their place after it. */
+export const reorderEntriesInput = z.object({ kind: z.enum(entryKinds), ids: z.array(z.uuid()).min(1).max(500) })
 export const setPublishedInput = z.object({ value: z.boolean() })
 
 export type Profile = Omit<ProfileInput, "contacts"> & { contacts: CvContact[]; updatedAt: string }
