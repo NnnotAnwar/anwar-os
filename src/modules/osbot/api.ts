@@ -1,7 +1,7 @@
 import "server-only"
 import { sql } from "drizzle-orm"
 import { z } from "zod"
-import { actAs } from "@/core/auth"
+import { actAs, loadViewer, type Viewer } from "@/core/auth"
 import { db } from "@/db"
 import { ReplayCache, verifyRequest } from "./signature"
 
@@ -17,8 +17,7 @@ import { ReplayCache, verifyRequest } from "./signature"
 const MAX_BODY_BYTES = 64 * 1024
 const replay = new ReplayCache()
 
-export type Owner = { id: string; timezone: string }
-export type OsbotContext = { owner: Owner; url: URL; body: unknown }
+export type OsbotContext = { owner: Viewer; url: URL; body: unknown }
 
 /** A client error the bot can show as is. */
 export class OsbotApiError extends Error {
@@ -34,12 +33,10 @@ export class OsbotApiError extends Error {
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store", "X-Robots-Tag": "noindex" } })
 
-async function siteOwner(): Promise<Owner | null> {
-  const rows = await db.execute<{ id: string; timezone: string | null }>(
-    sql`select u.id, u.timezone from auth."user" u where u.id = app.site_owner_id()`,
-  )
-  const row = rows[0]
-  return row ? { id: row.id, timezone: row.timezone || "Europe/Prague" } : null
+async function siteOwner(): Promise<Viewer | null> {
+  const rows = await db.execute<{ id: string | null }>(sql`select app.site_owner_id() as id`)
+  const id = rows[0]?.id
+  return id ? loadViewer(id) : null
 }
 
 async function readBody(request: Request): Promise<string | null> {
@@ -93,7 +90,7 @@ export function osbotRoute(handler: (ctx: OsbotContext) => Promise<unknown>) {
     try {
       const owner = await siteOwner()
       if (!owner) return json({ error: "no_owner", message: "No owner account yet." }, 503)
-      const result = await actAs(owner.id, () => handler({ owner, url, body }))
+      const result = await actAs(owner, () => handler({ owner, url, body }))
       return result instanceof Response ? result : json(result ?? { ok: true })
     } catch (error) {
       if (error instanceof OsbotApiError) return json({ error: error.code, message: error.message }, error.status)

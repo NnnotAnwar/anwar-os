@@ -96,6 +96,8 @@ afterAll(async () => {
   await admin`delete from notes_notes where title like ${`%${marker}%`}`
   await admin`delete from ideas_ideas where title like ${`%${marker}%`}`
   await admin`delete from links_links where note like ${`%${marker}%`}`
+  await admin`delete from inbox_items where text like ${`%${marker}%`}`
+  await admin`delete from tasks_tasks where title like ${`%${marker}%`}`
   await admin`delete from calendar_events where id in (${ownerEvent}, ${bobEvent})`
   await admin`delete from feedback_items where message like ${`%${marker}%`}`
   await admin`delete from auth."user" where id = ${bob}`
@@ -156,8 +158,10 @@ describe("osbot API: capture", () => {
   it("lists destinations with the default first", async () => {
     const { status, json } = await call(routes.captureTargetsGET, "GET", "/api/internal/osbot/capture/targets")
     expect(status).toBe(200)
-    expect(json.default).toBe("note")
+    expect(json.default).toBe("inbox")
     expect(json.targets).toEqual([
+      { kind: "inbox", label: "Inbox", button: "Save to Inbox", needsUrl: false },
+      { kind: "task", label: "Task", button: "Save as task", needsUrl: false },
       { kind: "note", label: "Note", button: "Save as note", needsUrl: false },
       { kind: "link", label: "Link", button: "Save as link", needsUrl: true },
       { kind: "idea", label: "Idea", button: "Save as idea", needsUrl: false },
@@ -174,9 +178,27 @@ describe("osbot API: capture", () => {
     expect(await as(bob, (sql) => sql`select id from notes_notes where id = ${json.id}`)).toHaveLength(0)
   })
 
-  it("uses the default destination when no kind is given", async () => {
-    const { json } = await call(routes.capturePOST, "POST", path, { text: `Default ${marker}` })
-    expect(json.kind).toBe("note")
+  it("sends to the inbox by default, marked as from Telegram, with the link pulled out", async () => {
+    const { status, json } = await call(routes.capturePOST, "POST", path, {
+      text: `Look at this ${marker} https://osbot-${run}.invalid/a`,
+      url: `https://osbot-${run}.invalid/a`,
+    })
+    expect(status).toBe(200)
+    expect(json.kind).toBe("inbox")
+    const [row] = await admin`select owner_id, source, url from inbox_items where id = ${json.id}`
+    expect(row).toEqual({ owner_id: owner, source: "telegram", url: `https://osbot-${run}.invalid/a` })
+  })
+
+  it("adds a task through the tasks quick-add parser", async () => {
+    const { status, json } = await call(routes.capturePOST, "POST", path, {
+      kind: "task",
+      text: `Call the bank ${marker} tomorrow !high\nAsk about the card`,
+    })
+    expect(status).toBe(200)
+    const [row] = await admin`select owner_id, title, priority, due_date, notes from tasks_tasks where id = ${json.id}`
+    expect(row).toMatchObject({ owner_id: owner, title: `Call the bank ${marker}`, priority: "high", notes: "Ask about the card" })
+    expect(row!.due_date).not.toBeNull()
+    expect(json.url).toMatch(new RegExp(`/app/tasks\\?task=${json.id}$`))
   })
 
   it("saves an idea as raw and private", async () => {
@@ -252,6 +274,18 @@ describe("osbot API: today, heartbeat, feedback", () => {
     const titles = json.events.map((e: { title: string }) => e.title)
     expect(titles.filter((t: string) => t === `Dentist ${marker}`).length).toBeLessThanOrEqual(1)
     expect(typeof json.newFeedback).toBe("number")
+    // The task captured above is due tomorrow, so it isn't listed yet.
+    expect(json.tasks.some((t: { title: string }) => t.title.includes(marker))).toBe(false)
+    expect(typeof json.tasksTotal).toBe("number")
+  })
+
+  it("lists tasks that are due or overdue", async () => {
+    const [task] = await admin`
+      insert into tasks_tasks (owner_id, title, due_date) values (${owner}, ${`Overdue ${marker}`}, current_date - 3) returning id`
+    const { json } = await call(routes.todayGET, "GET", "/api/internal/osbot/today")
+    const listed = json.tasks.find((t: { title: string }) => t.title === `Overdue ${marker}`)
+    expect(listed).toMatchObject({ overdue: true, time: null })
+    expect(listed.url).toMatch(new RegExp(`task=${task!.id}$`))
   })
 
   it("records the heartbeat for the owner only", async () => {

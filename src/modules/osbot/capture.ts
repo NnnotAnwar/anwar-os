@@ -1,35 +1,34 @@
 import "server-only"
 import { z } from "zod"
-import { actions as ideas } from "@/modules/ideas/actions"
-import { actions as links } from "@/modules/links/actions"
-import { actions as notes } from "@/modules/notes/actions"
+import { hasModule, runModuleAction } from "@/core/module-actions"
+import { InboxInputError } from "@/modules/inbox/actions"
+import { TaskInputError } from "@/modules/tasks/actions"
 
 // Where osbot can save things. The bot asks GET capture/targets and builds its
-// "Save as …" buttons from this list, so adding a destination is one entry
-// here and no bot change. The target marked `isDefault` receives /save and is
-// the first button.
+// "Save to Inbox / Save as …" buttons from this list, so adding a destination is
+// one entry here and no bot change. Every save goes through the owning
+// module's own action (runModuleAction), as the owner (actAs in api.ts).
 //
-// Planned: the inbox module's captureToInbox({ text, url? }). Once it is on
-// main, add
-//   { kind: "inbox", label: "Inbox", button: "Save to Inbox", isDefault: true,
-//     save: ({ text, url }) => … captureToInbox({ text, url }) … }
-// and drop `isDefault` from "note". (OSBOT_DEFAULT_CAPTURE overrides the
-// default without a code change.)
+// Inbox is the default: /save and the first button. /note, /link, /idea and
+// /task in the bot are direct shortcuts to the other targets.
+// OSBOT_DEFAULT_CAPTURE=<kind> overrides the default without a code change.
 
 export type CaptureResult = { kind: string; id: string; title: string; url: string; duplicate: boolean }
 
 export type CaptureTarget = {
   kind: string
+  /** Module that owns the destination; hidden when the owner can't use it. */
+  module: string
   label: string
   /** Inline button text in Telegram. Default: "Save as <label, lowercase>". */
   button?: string
   /** Only offered for messages that contain a URL. */
   needsUrl?: boolean
   isDefault?: boolean
-  /** Runs inside actAs(owner): module actions act as the site owner. */
   save: (input: { text: string; url?: string }) => Promise<CaptureResult>
 }
 
+/** A problem with the input; its message is shown to the owner in Telegram. */
 export class CaptureError extends Error {}
 
 const URL_IN_TEXT = /https?:\/\/[^\s<>"']+/i
@@ -53,51 +52,97 @@ function requireText(text: string) {
   return text
 }
 
+/** Module actions report bad input as zod errors or *InputError; both are safe to show. */
+async function run<T>(moduleId: string, name: string, input: unknown): Promise<T> {
+  try {
+    return await runModuleAction<T>(moduleId, name, input)
+  } catch (error) {
+    if (error instanceof z.ZodError) throw new CaptureError(error.issues[0]?.message ?? "That couldn't be saved.")
+    if (error instanceof InboxInputError || error instanceof TaskInputError) throw new CaptureError(error.message)
+    throw error
+  }
+}
+
 export const captureTargets: CaptureTarget[] = [
   {
-    kind: "note",
-    label: "Note",
+    kind: "inbox",
+    module: "inbox",
+    label: "Inbox",
+    button: "Save to Inbox",
     isDefault: true,
+    save: async ({ text, url }) => {
+      const item = await run<{ id: string; text: string; url: string | null }>("inbox", "capture", {
+        text,
+        url: url ?? null,
+        source: "telegram",
+      })
+      const title = splitTitle(item.text || item.url || "", 120).title
+      return { kind: "inbox", id: item.id, title, url: `${baseUrl()}/app/inbox`, duplicate: false }
+    },
+  },
+  {
+    kind: "task",
+    module: "tasks",
+    label: "Task",
     save: async ({ text }) => {
-      const fields = notes.create.input.parse(splitTitle(requireText(text)))
-      const { id } = await notes.create.handler(fields)
+      const { title, body } = splitTitle(requireText(text), 300)
+      // The tasks parser reads "tomorrow 10:00 !high #University" from the title.
+      const task = await run<{ id: string; title: string }>("tasks", "quickAdd", { text: title })
+      if (body) await run("tasks", "update", { id: task.id, notes: body })
+      return { kind: "task", id: task.id, title: task.title, url: `${baseUrl()}/app/tasks?task=${task.id}`, duplicate: false }
+    },
+  },
+  {
+    kind: "note",
+    module: "notes",
+    label: "Note",
+    save: async ({ text }) => {
+      const fields = splitTitle(requireText(text))
+      const { id } = await run<{ id: string }>("notes", "create", fields)
       return { kind: "note", id, title: fields.title, url: `${baseUrl()}/app/notes/${id}`, duplicate: false }
     },
   },
   {
     kind: "link",
+    module: "links",
     label: "Link",
     needsUrl: true,
     save: async ({ text, url: given }) => {
       const url = given || URL_IN_TEXT.exec(text)?.[0]
       if (!url) throw new CaptureError("No link found. Send a full web address, e.g. https://react.dev/learn")
       const note = text.replace(url, "").trim()
-      const parsed = links.create.input.safeParse({ url, note })
-      if (!parsed.success) throw new CaptureError(parsed.error.issues[0]?.message ?? "That doesn't look like a link.")
-      const result = await links.create.handler(parsed.data)
-      return { kind: "link", id: result.id, title: result.title, url: `${baseUrl()}/app/links`, duplicate: result.duplicate }
+      const link = await run<{ id: string; title: string; duplicate: boolean }>("links", "create", { url, note })
+      return { kind: "link", id: link.id, title: link.title, url: `${baseUrl()}/app/links/${link.id}`, duplicate: link.duplicate }
     },
   },
   {
     kind: "idea",
+    module: "ideas",
     label: "Idea",
     save: async ({ text }) => {
-      const fields = ideas.create.input.parse(splitTitle(requireText(text)))
-      const { id } = await ideas.create.handler(fields)
+      const fields = splitTitle(requireText(text))
+      const { id } = await run<{ id: string }>("ideas", "create", fields)
       return { kind: "idea", id, title: fields.title, url: `${baseUrl()}/app/ideas/${id}`, duplicate: false }
     },
   },
 ]
 
-/** The default destination: OSBOT_DEFAULT_CAPTURE if it names a target, else the one marked isDefault. */
-export function defaultCaptureKind(targets = captureTargets, env: Record<string, string | undefined> = process.env) {
+/** Targets whose module the owner can use (all of them, for the owner). */
+async function available(targets: CaptureTarget[]) {
+  const usable = await Promise.all(targets.map((t) => hasModule(t.module)))
+  return targets.filter((_, i) => usable[i])
+}
+
+/** The default: OSBOT_DEFAULT_CAPTURE if it names a target, else the one marked isDefault. */
+export function defaultCaptureKind(targets: CaptureTarget[], env: Record<string, string | undefined> = process.env) {
   const wanted = env.OSBOT_DEFAULT_CAPTURE?.trim()
   if (wanted && targets.some((t) => t.kind === wanted)) return wanted
-  return (targets.find((t) => t.isDefault) ?? targets[0]!).kind
+  return (targets.find((t) => t.isDefault) ?? targets[0])?.kind ?? null
 }
 
 /** Targets for the bot, default first. */
-export function listCaptureTargets(targets = captureTargets) {
+export async function listCaptureTargets(all = captureTargets) {
+  const targets = await available(all)
   const fallback = defaultCaptureKind(targets)
   return {
     default: fallback,
@@ -119,9 +164,10 @@ export const captureInput = z.object({
   url: z.string().trim().max(2100).optional(),
 })
 
-export async function capture(input: z.infer<typeof captureInput>, targets = captureTargets): Promise<CaptureResult> {
+export async function capture(input: z.infer<typeof captureInput>, all = captureTargets): Promise<CaptureResult> {
+  const targets = await available(all)
   const kind = input.kind || defaultCaptureKind(targets)
   const target = targets.find((t) => t.kind === kind)
-  if (!target) throw new CaptureError(`Unknown destination "${kind}".`)
+  if (!target) throw new CaptureError(`Unknown destination "${kind ?? ""}".`)
   return target.save({ text: input.text.trim(), url: input.url || undefined })
 }

@@ -2,6 +2,7 @@ import "server-only"
 import { and, eq, gte, inArray, isNotNull, lt, or, sql } from "drizzle-orm"
 import { z } from "zod"
 import { asViewer } from "@/core/auth"
+import { hasModule, runModuleAction } from "@/core/module-actions"
 import {
   calendarEvents,
   calendarReminderDeliveries,
@@ -10,11 +11,11 @@ import {
   osbotFeedbackAlerts,
   osbotHeartbeats,
 } from "@/db/schema"
-import { actions as calendar } from "@/modules/calendar/actions"
 import { formatDayMonth, formatTimeRange, formatWeekdayLong } from "@/modules/calendar/lib/format"
 import { addDays, startOfLocalDay, wallClock } from "@/modules/calendar/lib/zoned"
-import { actions as feedback } from "@/modules/feedback/actions"
-import { kindLabels, preview } from "@/modules/feedback/schema"
+import type { Occurrence } from "@/modules/calendar/schema"
+import { kindLabels, preview, type FeedbackItem } from "@/modules/feedback/schema"
+import type { Task } from "@/modules/tasks/schema"
 import { deliveryKey, dueReminders, MAX_LOOKBACK_MINUTES, parseDeliveryKey, type DueReminder } from "./reminders"
 
 // What the internal osbot API does. Every function here runs inside actAs(owner)
@@ -152,13 +153,30 @@ export async function ackReminders({ keys }: z.infer<typeof ackRemindersInput>):
 // ---------------------------------------------------------------------------
 
 export type TodayItem = { title: string; location: string; allDay: boolean; start: string; end: string; time: string }
-export type Today = { date: string; timezone: string; events: TodayItem[]; newFeedback: number; url: string }
+export type TodayTask = { title: string; overdue: boolean; dueDate: string; time: string | null; url: string }
+export type Today = {
+  date: string
+  timezone: string
+  events: TodayItem[]
+  tasks: TodayTask[]
+  /** Open tasks due today or earlier, including any beyond the listed ones. */
+  tasksTotal: number
+  newFeedback: number
+  url: string
+}
 
 export async function today(ownerTimezone: string, now = new Date()): Promise<Today> {
   const local = wallClock(now, ownerTimezone)
   const from = startOfLocalDay(local, ownerTimezone)
   const to = startOfLocalDay(addDays(local, 1), ownerTimezone)
-  const [occurrences, counts] = await Promise.all([calendar.range.handler({ from, to }), feedback.counts.handler({})])
+  const base = baseUrl()
+  const [occurrences, due, counts] = await Promise.all([
+    runModuleAction<Occurrence[]>("calendar", "range", { from, to }),
+    (await hasModule("tasks"))
+      ? runModuleAction<{ tasks: Task[]; total: number; today: string }>("tasks", "dueToday", { limit: 15 })
+      : null,
+    runModuleAction<Record<string, number>>("feedback", "counts", {}),
+  ])
   return {
     date: `${formatWeekdayLong(now, "en", ownerTimezone)} ${formatDayMonth(now, "en", ownerTimezone)}`,
     timezone: ownerTimezone,
@@ -170,8 +188,16 @@ export async function today(ownerTimezone: string, now = new Date()): Promise<To
       end: o.end,
       time: o.allDay ? "All day" : formatTimeRange(new Date(o.start), new Date(o.end), ownerTimezone),
     })),
-    newFeedback: counts.new,
-    url: `${baseUrl()}/app/calendar`,
+    tasks: (due?.tasks ?? []).map((t) => ({
+      title: t.title,
+      overdue: t.dueDate !== null && t.dueDate < due!.today,
+      dueDate: t.dueDate ?? due!.today,
+      time: t.dueTime,
+      url: `${base}/app/tasks?task=${t.id}`,
+    })),
+    tasksTotal: due?.total ?? 0,
+    newFeedback: counts.new ?? 0,
+    url: `${base}/app/calendar`,
   }
 }
 
@@ -192,7 +218,7 @@ export type FeedbackAlert = {
 
 /** New feedback from the last few days that nobody has alerted the owner about yet. */
 export async function newFeedback(now = new Date()): Promise<FeedbackAlert[]> {
-  const items = await feedback.list.handler({ filter: "new", limit: 50 })
+  const items = await runModuleAction<FeedbackItem[]>("feedback", "list", { filter: "new", limit: 50 })
   const recent = items.filter((i) => now.getTime() - new Date(i.created_at).getTime() < FEEDBACK_ALERT_WINDOW_MS)
   if (!recent.length) return []
   const alerted = await asViewer((tx) =>

@@ -1,6 +1,6 @@
 import "server-only"
 import { sql } from "drizzle-orm"
-import { actAs } from "@/core/auth"
+import { actAs, loadViewer } from "@/core/auth"
 import { db } from "@/db"
 import { notifyOwner } from "@/modules/feedback/notify"
 import { ackFeedback, osbotStatus } from "./service"
@@ -29,12 +29,13 @@ export async function alertNewFeedback(feedbackId: string, text: string, deps: D
   try {
     const osbotConfigured = Boolean(env.OSBOT_API_SECRET)
     const ownerId = osbotConfigured ? await siteOwnerId() : null
-    if (ownerId) {
-      const status = await actAs(ownerId, () => osbotStatus())
+    const owner = ownerId ? await loadViewer(ownerId) : null
+    if (owner) {
+      const status = await actAs(owner, () => osbotStatus())
       if (status.connected) return "osbot"
     }
     const sent = await notify(text)
-    if (sent && ownerId) await actAs(ownerId, () => ackFeedback([feedbackId], "direct"))
+    if (sent && owner) await actAs(owner, () => ackFeedback([feedbackId], "direct"))
     return sent ? "direct" : "none"
   } catch (error) {
     console.error("feedback alert failed", error)
