@@ -1,0 +1,27 @@
+[project]
+name = "osbot"
+version = "0.1.0"
+description = "anwar.os's own Telegram bot: quick capture, agenda, reminders and feedback alerts"
+requires-python = ">=3.12"
+dependencies = [
+    "aiogram==3.32.0",
+    # Also aiogram's HTTP client; used directly for the internal web API.
+    "aiohttp==3.14.5",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.2.0",
+    "pytest-asyncio==1.5.0",
+]
+
+[tool.uv]
+# Not an installable package: the bot runs as `python -m osbot` from this folder.
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+asyncio_default_test_loop_scope = "function"
