@@ -34,18 +34,13 @@ export function pageMetadata({
   path: string
   type?: "website" | "article" | "profile"
 }): Metadata {
+  // Shared cards carry the same "· Anwar" suffix the tab title gets from the template.
+  const social = title ? `${title} · Anwar` : siteTitle
   return {
     title: title ?? { absolute: siteTitle },
     description,
     alternates: { canonical: absoluteUrl(path) },
-    openGraph: {
-      type,
-      siteName,
-      locale: "en_US",
-      url: absoluteUrl(path),
-      title: title ?? siteTitle,
-      description,
-    },
-    twitter: { card: "summary_large_image", title: title ?? siteTitle, description },
+    openGraph: { type, siteName, locale: "en_US", url: absoluteUrl(path), title: social, description },
+    twitter: { card: "summary_large_image", title: social, description },
   }
 }

@@ -126,7 +126,8 @@ export async function ogImage({ eyebrow, title, subtitle }: { eyebrow: string; t
                 {eyebrow}
               </div>
               <div style={{ display: "flex", fontSize: 28, fontWeight: 700, color: ink, letterSpacing: "-0.02em" }}>
-                anwar<span style={{ color: accent }}>.os</span>
+                <span>anwar</span>
+                <span style={{ color: accent, marginLeft: -6 }}>.os</span>
               </div>
             </div>
             <div
