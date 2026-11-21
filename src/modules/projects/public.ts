@@ -18,6 +18,7 @@ function toPublic(project: Project): PublicProject {
   const rest: Partial<Project> = { ...project }
   delete rest.isPublic
   delete rest.sortOrder
+  delete rest.serviceName // infrastructure detail, never public
   return rest as PublicProject
 }
 

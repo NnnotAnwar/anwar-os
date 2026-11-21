@@ -12,7 +12,21 @@ import { moveProject, setProjectPublished } from "../server-actions"
 import { StatusPill } from "./status-pill"
 
 /** The showcase in its public order. Arrows reorder; the eye publishes in one tap. */
-export function ProjectList({ projects, locale, now }: { projects: Project[]; locale: string; now: string }) {
+/** A linked service's state from Ops ("Running · 1a2b3c4"). */
+export type DeployState = { label: string; ok: boolean; down: boolean }
+
+export function ProjectList({
+  projects,
+  locale,
+  now,
+  deploys,
+}: {
+  projects: Project[]
+  locale: string
+  now: string
+  /** By Ops service name; undefined when no project links one. */
+  deploys?: Record<string, DeployState>
+}) {
   const [pending, startTransition] = useTransition()
   const [optimistic, apply] = useOptimistic(
     projects,
@@ -87,6 +101,24 @@ export function ProjectList({ projects, locale, now }: { projects: Project[]; lo
               <span className={cn("truncate", !project.isPublic && "italic")}>
                 {project.isPublic ? `/projects/${project.slug}` : "Draft"}
               </span>
+              {project.serviceName && deploys && (
+                <span className="inline-flex shrink-0 items-center gap-1.5" title={`Ops service ${project.serviceName}`}>
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "size-2 rounded-full",
+                      deploys[project.serviceName]?.ok
+                        ? "bg-emerald-500"
+                        : deploys[project.serviceName]?.down
+                          ? "bg-destructive"
+                          : "bg-muted-foreground/50",
+                    )}
+                  />
+                  <span className="tabular-nums max-sm:sr-only">
+                    {deploys[project.serviceName]?.label ?? `${project.serviceName}: not connected`}
+                  </span>
+                </span>
+              )}
               <time dateTime={project.updatedAt} className="ml-auto shrink-0 tabular-nums max-sm:hidden">
                 {formatRelative(new Date(project.updatedAt), nowDate, locale)}
               </time>

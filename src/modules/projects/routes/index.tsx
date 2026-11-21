@@ -5,8 +5,10 @@ import { PageHeader } from "@/components/shell/page-header"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { requireViewer } from "@/core/auth"
+import { actions as opsActions } from "@/modules/ops/actions"
+import { serviceStatus, shortTag, statusLabels } from "@/modules/ops/lib/status"
 import { actions } from "../actions"
-import { ProjectList } from "../components/project-list"
+import { ProjectList, type DeployState } from "../components/project-list"
 
 export default function ProjectsPage() {
   return (
@@ -40,14 +42,31 @@ async function Projects() {
   const projects = await actions.list.handler({ limit: 200 })
   if (projects.length === 0) return <EmptyState />
   const published = projects.filter((p) => p.isPublic).length
+  const deploys = projects.some((p) => p.serviceName) ? await deployStates() : undefined
   return (
     <div className="grid gap-2">
       <p className="text-meta text-muted-foreground tabular-nums">
         {published} of {projects.length} published
       </p>
-      <ProjectList projects={projects} locale={viewer.locale} now={new Date().toISOString()} />
+      <ProjectList projects={projects} locale={viewer.locale} now={new Date().toISOString()} deploys={deploys} />
     </div>
   )
+}
+
+/** Deploy state per Ops service, for projects linked to one. Empty when the panel isn't connected. */
+async function deployStates(): Promise<Record<string, DeployState>> {
+  try {
+    const res = await opsActions.services.handler({ stats: false })
+    if (!res.connected) return {}
+    return Object.fromEntries(
+      res.services.map((s) => {
+        const status = serviceStatus(s)
+        return [s.name, { label: `${statusLabels[status]} · ${shortTag(s.tag)}`, ok: status === "ok", down: status === "down" || status === "attention" }]
+      }),
+    )
+  } catch {
+    return {}
+  }
 }
 
 function EmptyState() {
