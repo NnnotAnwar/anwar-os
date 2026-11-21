@@ -1,0 +1,34 @@
+# anwar.os. Rendered by infra/deploy.sh to /opt/edge/sites/anwar-os.caddy with
+# __DOMAIN__ replaced by DOMAIN from infra/.env. Don't edit the rendered file.
+
+__DOMAIN__ {
+	import security_headers
+
+	# zstd/gzip for text responses. Streaming (Suspense / PPR) still works:
+	# responses without Content-Length are flushed as they arrive.
+	encode zstd gzip
+
+	# The osbot API is for the bot inside the stack (it calls http://web:3000
+	# directly). It is HMAC-signed anyway; this keeps it off the internet too.
+	respond /api/internal/* 404
+
+	# `anwar-os-web` is web's alias on the shared edge network (compose.prod.yml).
+	reverse_proxy anwar-os-web:3000 {
+		# Next drains in-flight requests on SIGTERM; give Caddy a few retries
+		# while a container is being recreated during a deploy.
+		lb_try_duration 10s
+		lb_try_interval 250ms
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# www -> apex. Needs the www A/AAAA records (docs/DEPLOY.md, "DNS"); without
+# them Caddy keeps retrying the www certificate (the apex is unaffected).
+www.__DOMAIN__ {
+	import security_headers
+	redir https://__DOMAIN__{uri} permanent
+}

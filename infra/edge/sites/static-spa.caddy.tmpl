@@ -1,0 +1,37 @@
+# A static single-page app (e.g. Planuj Směny's Vite build) served straight
+# from /srv/sites/__NAME__ on the host. Its backend lives elsewhere (Supabase).
+#
+# Install (docs/DEPLOY.md, "A second project on this server"):
+#   sed -e 's/__DOMAIN__/smeny.example.com/g' -e 's/__NAME__/planuj-smeny/g' \
+#     static-spa.caddy.tmpl > /opt/edge/sites/planuj-smeny.caddy
+#   then reload Caddy.
+
+__DOMAIN__ {
+	import security_headers
+	encode zstd gzip
+
+	root * /srv/sites/__NAME__
+
+	# Hashed build assets never change: cache them for a year. Everything else
+	# (index.html for any client route) must be revalidated so a deploy takes
+	# effect on the next load. `header` runs before try_files rewrites the path,
+	# so match on "not an asset" rather than on /index.html.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	@notAssets not path /assets/*
+	header @notAssets Cache-Control "no-cache"
+
+	# Client-side routing: unknown paths get index.html.
+	try_files {path} /index.html
+	file_server
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+www.__DOMAIN__ {
+	import security_headers
+	redir https://__DOMAIN__{uri} permanent
+}

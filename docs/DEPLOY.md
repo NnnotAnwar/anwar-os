@@ -15,25 +15,51 @@ Architecture background: [ARCHITECTURE.md §3](ARCHITECTURE.md#3-infrastructure)
 | Path | Role |
 |---|---|
 | `Dockerfile` | `runner` target: Next.js standalone server (~75 MB compressed). `migrator` target: runs `pnpm db:migrate` / `pnpm owner:create` |
-| `infra/compose.prod.yml` | `caddy`, `web`, `db`, `migrate` (one-shot), `bot-expenses` + `bot-osbot` (profile `bots`), `ops-agent` (profile `ops`) |
+| `infra/compose.prod.yml` | `web`, `db`, `migrate` (one-shot), `bot-expenses` + `bot-osbot` (profile `bots`), `ops-agent` (profile `ops`) |
 | `services/ops-agent/` | the control panel's Docker agent (Go, stdlib only, ~7 MB image) |
-| `infra/Caddyfile` | TLS, security headers, compression, www → apex |
+| `infra/edge/` | the **shared edge**: one Caddy for every project on the server (`compose.yml`, `Caddyfile` with the security-header snippet, site templates `sites/*.caddy.tmpl`) |
 | `infra/.env.example` | every variable, documented. The real `.env` lives only on the server |
 | `infra/bootstrap.sh` | hardens a fresh Ubuntu 24.04 (idempotent) |
 | `infra/deploy.sh` | deploy / rollback / status on the server |
 | `infra/ci-gate.sh` | SSH forced command for the CI key |
 | `infra/backup/` | `backup.sh`, `restore.sh`, systemd service + timer |
 | `.github/workflows/deploy.yml` | build multi-arch images (web, migrate, both bots) → GHCR → `deploy.sh <sha>` over SSH |
-| `.github/workflows/infra.yml` | shellcheck + compose + Caddyfile validation |
+| `.github/workflows/infra.yml` | shellcheck + compose + Caddy config validation (edge + rendered sites) |
 
 On the server everything lives in a checkout of this repo at `/opt/anwar-os/repo`
 (public repo, cloned over HTTPS, no credentials). `deploy.sh` checks out the exact
-commit it deploys, so the compose file, Caddyfile and `db/init` always match the
+commit it deploys, so the compose file, site template and `db/init` always match the
 images. Run compose commands from `/opt/anwar-os/repo/infra`; this alias helps:
 
 ```sh
 echo "alias dc='docker compose -f /opt/anwar-os/repo/infra/compose.prod.yml --env-file /opt/anwar-os/repo/infra/.env'" >> ~/.bash_aliases
+echo "alias edge='docker compose -f /opt/anwar-os/repo/infra/edge/compose.yml --env-file /opt/edge/.env'" >> ~/.bash_aliases
 ```
+
+### One server, several projects
+
+The server is laid out to host more than anwar.os (next up: Planuj Směny).
+Ports 80/443 belong to the **edge** stack (`infra/edge/compose.yml`, compose
+project `edge`): a single Caddy that gets certificates for every domain on the
+server. Projects never publish ports. Each one:
+
+- joins the external Docker network `edge` and gives its web container an alias
+  (`anwar-os-web`), so names never clash between projects;
+- writes its own site file to `/opt/edge/sites/<project>.caddy` and reloads
+  Caddy (anwar.os: `deploy.sh` renders `infra/edge/sites/anwar-os.caddy.tmpl`);
+- keeps its database and other services on its own internal network.
+
+| On the server | What |
+|---|---|
+| `/opt/edge/.env` | `ACME_EMAIL` (Let's Encrypt account for all sites) |
+| `/opt/edge/sites/*.caddy` | one file per project, written by that project's deploy |
+| `/srv/sites/<project>/` | static builds served by the edge Caddy |
+| `/opt/anwar-os/` | this project (repo checkout, `.env`, deploy history) |
+
+Memory budget on a CAX21 (8 GB): anwar.os is capped at ~3.6 GB (web 1 GB,
+db 1.5 GB, bots, ops-agent; `migrate` only while deploying), Caddy 256 MB.
+That leaves ~4 GB for a second project and the page cache. Limits are in
+`mem_limit:` per service.
 
 ---
 
@@ -111,13 +137,15 @@ the `docker` group), disables root login and password auth, enables ufw (22 rate
 limited, 80, 443/tcp, 443/udp), unattended security upgrades (reboots at 04:30 when
 needed), fail2ban for sshd, Docker Engine + compose plugin from Docker's apt repo
 (arm64 or amd64), timezone Europe/Prague, swap if RAM < 4 GB (not on a CAX21),
-installs `age`, `rclone`, `git`, and clones the repo to `/opt/anwar-os/repo`.
+installs `age`, `rclone`, `git`, clones the repo to `/opt/anwar-os/repo`, and
+prepares the shared edge: the `edge` Docker network, `/opt/edge` (with `.env`
+from the example), `/opt/edge/sites` and `/srv/sites`.
 
 **Before closing the root session**, open a new terminal and check
 `ssh deploy@<IPV4>` works. Re-running the script is safe.
 
 Docker publishes ports through its own iptables rules, bypassing ufw. That's fine
-here (only Caddy publishes 80/443), but never add `ports:` to `db` or other
+here (only the edge Caddy publishes 80/443), but never add `ports:` to `db` or other
 services; keep them on the internal network.
 
 ## 5. Object Storage
@@ -142,7 +170,13 @@ cp .env.example .env && chmod 600 .env
 nano .env
 ```
 
-Fill in (`.env.example` explains each one): `DOMAIN=anwar-os.com`, `ACME_EMAIL`,
+First the edge (once per server, shared by every project):
+
+```sh
+nano /opt/edge/.env        # ACME_EMAIL=you@example.com
+```
+
+Then anwar.os. Fill in (`.env.example` explains each one): `DOMAIN=anwar-os.com`,
 `POSTGRES_PASSWORD` and `OS_APP_PASSWORD` (`openssl rand -hex 32`),
 `BETTER_AUTH_SECRET` (`openssl rand -base64 32`), the `S3_*` values,
 `BACKUP_S3_BUCKET`, `BACKUP_AGE_RECIPIENT` (the `age1...` public key). Leave the bot
@@ -174,9 +208,10 @@ Then, as `deploy`:
 ```
 
 This starts Postgres (creating `os_app` via `db/init/01-roles.sh` on the empty
-volume), runs migrations, starts `web` and waits for `/api/health`, then starts
-Caddy, which requests certificates for `anwar-os.com` and `www.anwar-os.com`
-(watch with `dc logs -f caddy`). Open `https://anwar-os.com`.
+volume), runs migrations, starts `web` and waits for `/api/health`, then writes
+`/opt/edge/sites/anwar-os.caddy`, starts the edge Caddy if it isn't running and
+reloads it. Caddy requests certificates for `anwar-os.com` and `www.anwar-os.com`
+(watch with `edge logs -f caddy`). Open `https://anwar-os.com`.
 
 ## 8. First owner
 
@@ -254,7 +289,8 @@ arm64 + amd64 on native runners, tags them `:<sha>` and `:latest`, and runs
 2. `docker compose run --rm migrate`. If it fails, web is never touched.
 3. Recreate `web`, wait for its healthcheck (`/api/health` = Postgres reachable).
    If it doesn't become healthy, the previous commit and image are restored.
-4. Reload Caddy, record the sha in `infra/.deploy-history`, then deploy the bot.
+4. Render the site file into `/opt/edge/sites`, reload the edge Caddy (a
+   rejected config keeps the previous file and fails the deploy), record the sha in `infra/.deploy-history`, then deploy the bot.
 
 The images carry no secrets and no environment; one image runs anywhere.
 
@@ -286,7 +322,7 @@ sub-account with SSH key login, put the private key at `/root/.ssh/storagebox`, 
 set `BACKUP_TARGET=sftp` plus the `BACKUP_SFTP_*` variables in `.env`. Everything
 else is the same (rclone speaks both).
 
-Not in the database backup: `.env` (password manager), Caddy's certificates
+Not in the database backup: `.env` and `/opt/edge/.env` (password manager), Caddy's certificates
 (re-issued automatically), container images (rebuilt by CI), and app files in
 Object Storage (phase 4; enable bucket versioning or a second sync then).
 
@@ -338,7 +374,7 @@ password, starts everything and waits for health.
 
 ### Rebuild the server from scratch
 
-New server → steps 2–6 (restore `.env` from the password manager, update DNS if the
+New server → steps 2–6 (restore `.env` and `/opt/edge/.env` from the password manager, update DNS if the
 IP changed) → `deploy.sh <sha>` (creates an empty, migrated database) →
 `restore.sh --into-live latest` → install the backup timer. Caddy gets new
 certificates on its own.
@@ -435,12 +471,13 @@ with `/var/run/docker.sock`, on the `internal` network (no ports, no internet).
 2. `deploy.sh <current sha>`. It pulls `anwar-os-ops-agent:<sha>`, starts it
    after web and waits for its healthcheck. `DOCKER_GID` is read from the socket
    (set it in `.env` for hand-run `dc up`).
-3. Open `/app/ops`: the cards list caddy, web, db, ops-agent (protected) and
+3. Open `/app/ops`: the cards list web, db, ops-agent, the edge Caddy (as
+   `edge.caddy`; all protected) and
    the bots. Every action lands in "Activity" (table `ops_events`).
 
 **Rules** (enforced by the agent, not the UI): only `os.managed=true` containers
-of this compose project exist for it (one-off `compose run` containers don't);
-`os.protected=true` ones (caddy, web, db, ops-agent) can be restarted but never
+of the projects in `OPS_AGENT_PROJECTS` (default `anwar-os,edge`) exist for it (one-off `compose run` containers don't);
+`os.protected=true` ones (edge.caddy, web, db, ops-agent) can be restarted but never
 stopped or deployed; a deploy can only switch the tag of the image the service
 already runs. Requests are HMAC-SHA256 signed over timestamp, nonce, method,
 path and body; the agent refuses anything older than 60 s or a reused nonce.
@@ -463,14 +500,17 @@ matches sha tags to commits of `GITHUB_REPO` for the message and date. Set
 
 ## 16. Day-2 notes
 
-- Logs: `dc logs -f web`, `dc logs --tail 200 caddy`. Docker rotates them
+- Logs: `dc logs -f web`, `edge logs --tail 200 caddy`. Docker rotates them
   (10 MB × 5 per container).
 - `dc ps` shows health; `/api/health` is public for uptime monitors.
 - **Labels:** services carry `os.managed=true` (listed by ops-agent),
-  `os.protected=true` (visible but not stoppable/deployable from the panel: caddy,
-  web, db), `os.role` (edge/app/data/bot); bot images add `os.kind=bot` and
+  `os.protected=true` (visible but not stoppable/deployable from the panel: the
+  edge Caddy, web, db), `os.role` (edge/app/data/bot); bot images add `os.kind=bot` and
   `os.name`. One-shot jobs are `os.managed=false`.
-- Updating Caddy: bump the tag in `compose.prod.yml`, deploy. Postgres minor
+- Updating Caddy: bump the tag in `infra/edge/compose.yml`, then
+  `edge pull && edge up -d` (a second or two without HTTPS for every site).
+  Reload after editing a site file by hand:
+  `edge exec caddy caddy reload --config /etc/caddy/base/Caddyfile --adapter caddyfile`. Postgres minor
   updates: `dc pull db && dc up -d db`. A **major** upgrade (17 → 18) needs a dump
   and restore into a new volume; don't just change the tag.
 - Rotating `BETTER_AUTH_SECRET` signs everyone out. Rotating a database password:
@@ -482,19 +522,19 @@ matches sha tags to commits of `GITHUB_REPO` for the message and date. Set
   shared by every IPv6 visitor; the per-account limit still applies. See
   "Security headers and limits" below.
 
-## 15. Security headers and limits
+## 17. Security headers and limits
 
 Each header is set in exactly one place, so nothing is sent twice with
 different values:
 
 | Header | Where | Value / notes |
 |---|---|---|
-| `Strict-Transport-Security` | `infra/Caddyfile` | 1 year, `includeSubDomains` |
-| `X-Content-Type-Options` | `infra/Caddyfile` | `nosniff` |
-| `Referrer-Policy` | `infra/Caddyfile` | `strict-origin-when-cross-origin` (the files `raw` route sends `no-referrer` itself) |
-| `X-Frame-Options` | `infra/Caddyfile` | `DENY`, for old browsers; the CSP's `frame-ancestors 'none'` says the same |
-| `Cross-Origin-Opener-Policy` | `infra/Caddyfile` | `same-origin` |
-| `Permissions-Policy` | `infra/Caddyfile` | camera, microphone, geolocation, payment, usb off (passkeys use WebAuthn, which isn't listed, so it stays allowed) |
+| `Strict-Transport-Security` | `infra/edge/Caddyfile` | 1 year, `includeSubDomains` |
+| `X-Content-Type-Options` | `infra/edge/Caddyfile` | `nosniff` |
+| `Referrer-Policy` | `infra/edge/Caddyfile` | `strict-origin-when-cross-origin` (the files `raw` route sends `no-referrer` itself) |
+| `X-Frame-Options` | `infra/edge/Caddyfile` | `DENY`, for old browsers; the CSP's `frame-ancestors 'none'` says the same |
+| `Cross-Origin-Opener-Policy` | `infra/edge/Caddyfile` | `same-origin` |
+| `Permissions-Policy` | `infra/edge/Caddyfile` | camera, microphone, geolocation, payment, usb off (passkeys use WebAuthn, which isn't listed, so it stays allowed) |
 | `Server`, `X-Powered-By` | removed by Caddy | Next's `X-Powered-By` is also off (`poweredByHeader: false`) |
 | `Content-Security-Policy` (pages) | `src/proxy.ts` → `src/core/csp.ts` | per request, fresh nonce: `script-src 'self' 'nonce-…' 'strict-dynamic'`, Fontshare for styles/fonts, `https:` images, the `S3_ENDPOINT` origin (and `bucket.host` when not path-style) for uploads and previews, `frame-ancestors 'none'`, `upgrade-insecure-requests` |
 | `Content-Security-Policy` (`/sw.js`, `/offline.html`) | `next.config.ts` | static strict policies; these files skip the proxy |
@@ -519,3 +559,29 @@ restart doesn't reset them:
 Both are on when `NODE_ENV=production`; `AUTH_RATE_LIMIT=off` (or `on`) in
 `.env` overrides that. The client address is the last `X-Forwarded-For` entry,
 which Caddy sets.
+
+## 18. A second project on this server
+
+A **static SPA** (Planuj Směny's Vite frontend, backend on Supabase) needs no
+container at all; the edge Caddy serves the files:
+
+1. DNS: A/AAAA for its domain (and `www`) → this server.
+2. Upload the build: `rsync -a --delete dist/ deploy@<IPV4>:/srv/sites/planuj-smeny/`
+   (from CI: a second SSH key with its own forced command, like `ci-gate.sh`).
+3. Site file, once:
+   ```sh
+   cd /opt/anwar-os/repo/infra/edge/sites
+   sed -e 's/__DOMAIN__/smeny.example.com/g' -e 's/__NAME__/planuj-smeny/g' \
+     static-spa.caddy.tmpl > /opt/edge/sites/planuj-smeny.caddy
+   edge exec caddy caddy reload --config /etc/caddy/base/Caddyfile --adapter caddyfile
+   ```
+   Then a new build only needs step 2: `index.html` is served `no-cache`,
+   hashed `/assets/*` are immutable.
+
+A project **with its own containers** follows the anwar.os pattern: its own
+directory in `/opt/<project>`, its own compose project name, no `ports:`, web on
+the external `edge` network with an alias `<project>-web`, `mem_limit:` on every
+service, and its deploy writing `/opt/edge/sites/<project>.caddy` then reloading
+Caddy. Add the project to `OPS_AGENT_PROJECTS` in anwar.os's `.env` (e.g.
+`anwar-os,edge,planuj-smeny`) to manage it from `/app/ops`; its services show up
+as `planuj-smeny.web` and so on.

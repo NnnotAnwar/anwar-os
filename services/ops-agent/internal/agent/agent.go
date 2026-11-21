@@ -1,8 +1,8 @@
 // Package agent is the HTTP API web uses to see and control managed containers.
 //
 // Rules, enforced here and nowhere else:
-//   - only containers labelled os.managed=true (and, if configured, in the
-//     compose project) exist for the API; anything else is a 404
+//   - only containers labelled os.managed=true (and, if configured, in one of
+//     the compose projects) exist for the API; anything else is a 404
 //   - os.protected=true containers can be listed, read, started and restarted,
 //     but never stopped or deployed
 //   - deploys only change the tag of the image the container already runs
@@ -65,10 +65,13 @@ type Engine interface {
 }
 
 type Config struct {
-	// Project limits the agent to one compose project (com.docker.compose.project).
-	// Empty = any project. Production sets it, so a stray `docker run` of a bot
-	// image (whose image carries os.managed=true) is invisible.
-	Project string
+	// Projects limits the agent to these compose projects
+	// (com.docker.compose.project). Empty = any project. Production sets it, so a
+	// stray `docker run` of a bot image (whose image carries os.managed=true) is
+	// invisible. The first one is the primary project: its services keep their
+	// plain names ("web"); services of the others are qualified
+	// ("planuj-smeny.web"), so two projects can both have a "web".
+	Projects []string
 	// DeployTimeout bounds the wait for a new container to become healthy.
 	DeployTimeout time.Duration
 	// Settle is how long a container without a healthcheck must stay running.
@@ -134,7 +137,7 @@ func (a *Agent) visible(labels map[string]string, containerName string) bool {
 	if labels[LabelManaged] != "true" {
 		return false
 	}
-	if a.cfg.Project != "" && labels[labelComposeProject] != a.cfg.Project {
+	if len(a.cfg.Projects) > 0 && !contains(a.cfg.Projects, labels[labelComposeProject]) {
 		return false
 	}
 	if strings.EqualFold(labels[labelComposeOneoff], "true") { // `compose run` jobs
@@ -149,6 +152,32 @@ func ServiceName(labels map[string]string, containerName string) string {
 		return s
 	}
 	return strings.TrimPrefix(containerName, "/")
+}
+
+// QualifiedName is the name the API uses for a service: the plain service name
+// in the primary project, "<project>.<service>" in any other project.
+func QualifiedName(labels map[string]string, containerName, primary string) string {
+	svc := ServiceName(labels, containerName)
+	if project := labels[labelComposeProject]; project != "" && primary != "" && project != primary {
+		return project + "." + svc
+	}
+	return svc
+}
+
+func (a *Agent) primary() string {
+	if len(a.cfg.Projects) == 0 {
+		return ""
+	}
+	return a.cfg.Projects[0]
+}
+
+func contains(list []string, v string) bool {
+	for _, x := range list {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }
 
 func firstName(names []string) string {
@@ -192,7 +221,7 @@ func (a *Agent) resolve(ctx context.Context, name string) (*docker.Inspect, erro
 	}
 	var match []docker.Summary
 	for _, c := range list {
-		if ServiceName(c.Labels, firstName(c.Names)) == name || firstName(c.Names) == name {
+		if QualifiedName(c.Labels, firstName(c.Names), a.primary()) == name || firstName(c.Names) == name {
 			match = append(match, c)
 		}
 	}
@@ -263,7 +292,7 @@ func zeroTime(s string) string {
 	return s
 }
 
-func toService(c *docker.Inspect) Service {
+func toService(c *docker.Inspect, primary string) Service {
 	labels := c.Labels()
 	repo, tag := SplitImage(c.ImageRef())
 	health := "none"
@@ -271,7 +300,7 @@ func toService(c *docker.Inspect) Service {
 		health = c.State.Health.Status
 	}
 	return Service{
-		Name:         ServiceName(labels, c.ContainerName()),
+		Name:         QualifiedName(labels, c.ContainerName(), primary),
 		Container:    c.ContainerName(),
 		Image:        repo,
 		Tag:          tag,
@@ -430,7 +459,7 @@ func (a *Agent) listServices(w http.ResponseWriter, r *http.Request) {
 			a.fail(w, err)
 			return
 		}
-		svcs = append(svcs, toService(in))
+		svcs = append(svcs, toService(in, a.primary()))
 		ids = append(ids, in.ID)
 	}
 	if r.URL.Query().Get("stats") != "0" {
@@ -449,7 +478,7 @@ func (a *Agent) getService(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, err)
 		return
 	}
-	svc := []Service{toService(c)}
+	svc := []Service{toService(c, a.primary())}
 	a.withStats(r.Context(), svc, []string{c.ID})
 	writeJSON(w, http.StatusOK, svc[0])
 }
@@ -498,7 +527,7 @@ func (a *Agent) mutation(r *http.Request, action string, timeout time.Duration,
 		a.log.Warn("refused", "service", name, "action", action, "reason", err.Error())
 		return errorResponse(err)
 	}
-	svc := ServiceName(c.Labels(), c.ContainerName())
+	svc := QualifiedName(c.Labels(), c.ContainerName(), a.primary())
 	if !a.lock(svc) {
 		return errorResponse(errBusy)
 	}
@@ -539,7 +568,7 @@ func (a *Agent) lifecycle(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"ok": true, "service": toService(fresh)}, nil
+		return map[string]any{"ok": true, "service": toService(fresh, a.primary())}, nil
 	})
 	writeJSON(w, status, out)
 }

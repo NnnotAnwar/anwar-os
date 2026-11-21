@@ -1,0 +1,33 @@
+# Shared edge for every project on this server (infra/edge/compose.yml).
+# Global options and the security-header snippet live here; each project's
+# sites come from /etc/caddy/sites/*.caddy (written by that project's deploy).
+#
+# Reload after a site file changes (deploy scripts do this):
+#   docker compose -f compose.yml --env-file /opt/edge/.env exec caddy \
+#     caddy reload --config /etc/caddy/base/Caddyfile --adapter caddyfile
+{
+	email {$ACME_EMAIL}
+}
+
+(security_headers) {
+	header {
+		# HTTPS only for a year. Add "; preload" and submit to hstspreload.org
+		# only once you're sure every subdomain will always have TLS.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Cross-Origin-Opener-Policy "same-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		-Server
+		-X-Powered-By
+
+		# Content-Security-Policy: deliberately NOT set here. Apps that need one
+		# send it themselves (anwar.os: a fresh nonce per response from
+		# src/proxy.ts). A second CSP from Caddy would be enforced on top of it.
+		# Overview of who sets what: docs/DEPLOY.md, "Security headers".
+	}
+}
+
+# Every project's sites. A glob with no matches is fine (fresh server).
+import /etc/caddy/sites/*.caddy

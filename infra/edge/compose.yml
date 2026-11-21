@@ -1,0 +1,67 @@
+# The shared edge of the server: one Caddy that owns ports 80/443 and serves
+# every project's domains with automatic HTTPS. Projects never publish ports;
+# they join the external `edge` network and give their web container an alias
+# (anwar-os-web, planuj-smeny-web, ...) that their site file proxies to.
+#
+#   docker network create edge                       once (bootstrap.sh does it)
+#   docker compose -f compose.yml --env-file /opt/edge/.env up -d
+#
+# Site files live on the server in /opt/edge/sites/<project>.caddy. Each
+# project's deploy writes its own file from a template in this folder and
+# reloads Caddy (anwar.os: infra/deploy.sh). Static sites are served from
+# /srv/sites/<project>.
+#
+# This folder is mounted as a directory, not single files: a `git checkout`
+# replaces files with new inodes, and a single-file bind mount would keep
+# showing the container the old Caddyfile.
+
+name: edge
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    command: ["caddy", "run", "--config", "/etc/caddy/base/Caddyfile", "--adapter", "caddyfile"]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in /opt/edge/.env}
+    volumes:
+      - .:/etc/caddy/base:ro
+      - ${EDGE_SITES_DIR:-/opt/edge/sites}:/etc/caddy/sites:ro
+      - ${EDGE_STATIC_DIR:-/srv/sites}:/srv/sites:ro
+      - caddy_data:/data # certificates + ACME account: keep across rebuilds
+      - caddy_config:/config
+    networks:
+      - edge
+    healthcheck:
+      # Admin API listens on localhost:2019 inside the container only.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+      start_interval: 1s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    labels:
+      os.managed: "true"
+      os.protected: "true"
+      os.role: edge
+
+networks:
+  edge:
+    external: true
+    name: edge
+
+volumes:
+  caddy_data: {}
+  caddy_config: {}

@@ -11,7 +11,9 @@
 #
 # Does: deploy user (sudo, docker), SSH keys-only + no root login, ufw (22/80/443),
 # unattended security upgrades, fail2ban, Docker Engine + compose plugin from
-# Docker's apt repo, timezone Europe/Prague, swap if RAM < 4 GB, /opt/anwar-os.
+# Docker's apt repo, timezone Europe/Prague, swap if RAM < 4 GB, /opt/anwar-os,
+# and the shared edge for every project on the server: the `edge` Docker network,
+# /opt/edge (Caddy's .env + per-project site files) and /srv/sites (static sites).
 # Works on amd64 and arm64.
 #
 # Optional env:
@@ -256,6 +258,17 @@ app_dir() {
   install -d -m 700 /var/backups/anwar-os
 }
 
+# One Caddy (infra/edge/compose.yml) serves every project on this server. Each
+# project writes /opt/edge/sites/<name>.caddy; static builds go to /srv/sites/<name>.
+edge_dirs() {
+  log "edge: /opt/edge, /srv/sites, docker network 'edge'"
+  install -d -m 755 -o "$DEPLOY_USER" -g "$DEPLOY_USER" /opt/edge /opt/edge/sites /srv/sites
+  if [[ ! -f /opt/edge/.env ]]; then
+    install -m 600 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$APP_DIR/repo/infra/edge/.env.example" /opt/edge/.env
+  fi
+  docker network inspect edge >/dev/null 2>&1 || docker network create edge >/dev/null
+}
+
 summary() {
   cat <<EOF
 
@@ -264,10 +277,11 @@ Done. Before closing this root session, check in a NEW terminal that
 works: root login and passwords are now disabled.
 
 Next steps (docs/DEPLOY.md):
-  1. cp $APP_DIR/repo/infra/.env.example $APP_DIR/repo/infra/.env, fill it, chmod 600
-  2. docker login ghcr.io (as $DEPLOY_USER) unless the images are public
-  3. $APP_DIR/repo/infra/deploy.sh <sha>
-  4. install the backup timer (docs/DEPLOY.md, "Backups")
+  1. set ACME_EMAIL in /opt/edge/.env (Let's Encrypt account for every site here)
+  2. cp $APP_DIR/repo/infra/.env.example $APP_DIR/repo/infra/.env, fill it, chmod 600
+  3. docker login ghcr.io (as $DEPLOY_USER) unless the images are public
+  4. $APP_DIR/repo/infra/deploy.sh <sha>   (starts the edge Caddy too)
+  5. install the backup timer (docs/DEPLOY.md, "Backups")
 EOF
 }
 
@@ -284,6 +298,7 @@ main() {
   docker_engine
   swap
   app_dir
+  edge_dirs
   summary
 }
 

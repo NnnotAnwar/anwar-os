@@ -34,7 +34,7 @@ Docker error or failed deploy.
 |---|---|---|
 | `OPS_AGENT_SECRET` | required | shared HMAC secret, ≥ 32 chars |
 | `OPS_AGENT_ADDR` | `:8080` | listen address |
-| `OPS_AGENT_PROJECT` | (any) | only this compose project's containers |
+| `OPS_AGENT_PROJECTS` | (any) | comma-separated compose projects to manage, e.g. `anwar-os,edge`. The first is primary: its services keep plain names (`web`), others are qualified (`edge.caddy`). `OPS_AGENT_PROJECT` (one project) still works |
 | `OPS_AGENT_DEPLOY_TIMEOUT` | `240` | seconds to wait for a healthy new container |
 | `OPS_AGENT_SETTLE` | `10` | seconds a container without a healthcheck must stay up |
 | `OPS_AGENT_REGISTRY_USER` / `_TOKEN` / `_HOST` | — / — / `ghcr.io` | pull private images |
@@ -53,6 +53,6 @@ Locally against Docker Desktop (socket group is 0 there):
 ```sh
 docker build -t anwar-os-ops-agent:local services/ops-agent
 docker run -d --name ops-agent-dev --group-add 0 -p 127.0.0.1:55470:8080 \
-  -e OPS_AGENT_SECRET=$(openssl rand -hex 32) -e OPS_AGENT_PROJECT=<project> \
+  -e OPS_AGENT_SECRET=$(openssl rand -hex 32) -e OPS_AGENT_PROJECTS=<project> \
   -v /var/run/docker.sock:/var/run/docker.sock anwar-os-ops-agent:local
 ```

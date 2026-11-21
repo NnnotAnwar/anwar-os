@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -62,7 +63,7 @@ func main() {
 	}
 
 	a := agent.New(engine, sign.NewVerifier([]byte(secret)), agent.Config{
-		Project:       os.Getenv("OPS_AGENT_PROJECT"),
+		Projects:      projects(),
 		DeployTimeout: seconds("OPS_AGENT_DEPLOY_TIMEOUT", 240),
 		Settle:        seconds("OPS_AGENT_SETTLE", 10),
 		Version:       version,
@@ -88,7 +89,7 @@ func main() {
 		_ = srv.Shutdown(shutdown)
 	}()
 
-	log.Info("ops-agent listening", "addr", addr, "version", version, "project", os.Getenv("OPS_AGENT_PROJECT"))
+	log.Info("ops-agent listening", "addr", addr, "version", version, "projects", strings.Join(projects(), ","))
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Error("server stopped", "err", err.Error())
 		os.Exit(1)
@@ -125,4 +126,20 @@ func cut(addr string) (string, string, bool) {
 		}
 	}
 	return "", "", false
+}
+
+// projects reads OPS_AGENT_PROJECTS ("anwar-os,planuj-smeny"; the first is the
+// primary) or, for older .env files, the single OPS_AGENT_PROJECT.
+func projects() []string {
+	raw := os.Getenv("OPS_AGENT_PROJECTS")
+	if raw == "" {
+		raw = os.Getenv("OPS_AGENT_PROJECT")
+	}
+	var out []string
+	for _, p := range strings.Split(raw, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

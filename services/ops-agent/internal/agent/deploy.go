@@ -108,7 +108,7 @@ func (a *Agent) Deploy(ctx context.Context, c *docker.Inspect, tag string) (*Dep
 	}
 	fresh, err := a.engine.Inspect(ctx, newID)
 	if err == nil {
-		svc := toService(fresh)
+		svc := toService(fresh, a.primary())
 		res.Service = &svc
 	}
 	res.OK = true

@@ -72,11 +72,11 @@ data layer under `actions.ts` and the auth layer change.
 ┌───────────────────────────── Hetzner VPS (Ubuntu LTS) ─────────────────────────────┐
 │  ufw: 22 (keys only), 80, 443        unattended-upgrades        fail2ban            │
 │                                                                                     │
-│  caddy ──► web (Next.js, :3000) ──► postgres (:5432, internal network only)         │
-│             │                         ▲   ▲                                         │
-│             └─(HMAC)─► ops-agent ─────┘   │ docker.sock (read/write, agent only)    │
-│                                           │                                         │
-│  bot-expenses (aiogram) ──────────────────┘  bot-osbot (notifications, capture) ... │
+│  edge caddy ──► web (Next.js, :3000) ──► postgres (:5432, internal network only)    │
+│                  │                         ▲   ▲                                    │
+│                  └─(HMAC)─► ops-agent ─────┘   │ docker.sock (agent only)           │
+│                                                │                                    │
+│  bot-expenses (aiogram) ───────────────────────┘  bot-osbot (alerts, capture) ...   │
 │                                                                                     │
 │  backup (cron): pg_dump → age-encrypted → off-site (Storage Box / Object Storage)   │
 └─────────────────────────────────────────────────────────────────────────────────────┘
@@ -84,8 +84,12 @@ data layer under `actions.ts` and the auth layer change.
 
 - **Server size:** the stack is light (Next ~300 MB, Postgres ~200 MB, each bot
   ~60 MB, Caddy ~30 MB). A 4 GB ARM or x86 instance is enough; 8 GB gives headroom
-  for builds and future services.
-- **Provisioning as code:** `infra/` holds `compose.prod.yml`, `Caddyfile`, a
+  for builds and a second project (memory is capped per service with `mem_limit`).
+- **Several projects per server:** ports 80/443 belong to a shared edge stack
+  (`infra/edge`, one Caddy). Each project joins the external `edge` network under
+  its own alias and drops a site file into `/opt/edge/sites`; static SPAs are
+  served from `/srv/sites/<project>` (docs/DEPLOY.md §18).
+- **Provisioning as code:** `infra/` holds `compose.prod.yml`, `edge/`, a
   `bootstrap.sh` that hardens a fresh Ubuntu box (user, SSH keys only, ufw,
   unattended upgrades, Docker), and the backup script. Rebuilding the server is
   bootstrap → copy `.env` → `docker compose up -d` → restore last dump.
@@ -234,7 +238,7 @@ internet; only `web` can call it, signing each request with an HMAC secret.
 | `POST /services/:name/{start,stop,restart}` | lifecycle |
 | `POST /services/:name/deploy` `{ tag }` | `docker compose pull` + recreate that one service, waits for healthcheck, rolls back to the previous tag on failure |
 
-Only labelled services can be touched; `db`, `caddy`, `ops-agent` itself and
+Only labelled services can be touched; `db`, the edge `caddy`, `ops-agent` itself and
 `web` are excluded from stop and deploy from the UI. Every call is written to
 `ops_events` (who, what, when, result) and shown in the panel.
 

@@ -110,7 +110,7 @@ func TestIntegration(t *testing.T) {
 	run("unmanaged", "alpine:3.20", "sleep", "3600")
 
 	eng := docker.New(socket())
-	a := agent.New(eng, sign.NewVerifier(itSecret), agent.Config{Project: project, DeployTimeout: 60 * time.Second, Settle: 2 * time.Second, Version: "it"},
+	a := agent.New(eng, sign.NewVerifier(itSecret), agent.Config{Projects: []string{project}, DeployTimeout: 60 * time.Second, Settle: 2 * time.Second, Version: "it"},
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	srv := httptest.NewServer(a.Handler())
 	defer srv.Close()

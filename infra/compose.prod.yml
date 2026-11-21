@@ -5,9 +5,16 @@
 #   docker compose -f compose.prod.yml up -d          first start (migrates, then web)
 #   ./deploy.sh <git-sha>                             normal deploy / rollback
 #
+# The server can host more than one project: ports 80/443 belong to the shared
+# edge stack (infra/edge: one Caddy for every domain). This stack publishes no
+# ports; deploy.sh writes its site file to /opt/edge/sites and reloads Caddy.
+# Memory limits keep one project from starving the others.
+#
 # Networks
-#   edge      caddy <-> web. Not internal: Caddy needs egress for ACME, web for
-#             outbound APIs (object storage, Telegram, mail).
+#   edge      the shared, external network (docker network create edge). Only
+#             web joins it, under the alias `anwar-os-web`, which is what the
+#             edge Caddy proxies to. Not internal: web needs outbound APIs
+#             (object storage, Telegram, mail).
 #   internal  web/migrate/bots <-> db, and osbot -> web over HTTP. `internal:
 #             true` = no route to the internet; Postgres is never published.
 #   egress    outbound-only network for bots (Telegram API). Nothing listens on it.
@@ -38,37 +45,6 @@ x-hardening: &hardening
     - no-new-privileges:true
 
 services:
-  caddy:
-    image: caddy:2.10-alpine
-    restart: unless-stopped
-    <<: *hardening
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp" # HTTP/3
-    environment:
-      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
-      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data # certificates + ACME account: keep across rebuilds
-      - caddy_config:/config
-    networks:
-      - edge
-    depends_on:
-      - web
-    healthcheck:
-      # Admin API listens on localhost:2019 inside the container only.
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    logging: *logging
-    labels:
-      os.managed: "true"
-      os.protected: "true"
-      os.role: edge
-
   web:
     image: ghcr.io/nnnotanwar/anwar-os-web:${WEB_TAG:-latest}
     restart: unless-stopped
@@ -77,6 +53,7 @@ services:
     <<: *hardening
     cap_drop:
       - ALL
+    mem_limit: 1g
     environment:
       NODE_ENV: production
       # Passwords are hex (openssl rand -hex 32), so they're URL-safe here.
@@ -111,8 +88,10 @@ services:
     expose:
       - "3000"
     networks:
-      - edge
-      - internal
+      edge:
+        # Unique across projects: the edge Caddy proxies to anwar-os-web:3000.
+        aliases: [anwar-os-web]
+      internal: {}
     depends_on:
       db:
         condition: service_healthy
@@ -142,6 +121,7 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     <<: *hardening
+    mem_limit: 1536m
     shm_size: 256mb
     environment:
       POSTGRES_USER: postgres
@@ -179,6 +159,7 @@ services:
     image: ghcr.io/nnnotanwar/anwar-os-migrate:${WEB_TAG:-latest}
     restart: "no"
     <<: *hardening
+    mem_limit: 768m
     environment:
       MIGRATION_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/anwar_os
     networks:
@@ -281,8 +262,10 @@ services:
     stop_grace_period: 5m # lets a running deploy finish or roll back
     environment:
       OPS_AGENT_SECRET: ${OPS_AGENT_SECRET:-}
-      # Only this compose project's os.managed=true containers are visible.
-      OPS_AGENT_PROJECT: anwar-os
+      # Compose projects whose os.managed=true containers the panel sees. The
+      # first is primary (plain names: "web"); others are qualified
+      # ("edge.caddy", "planuj-smeny.web"). Add a project here to manage it.
+      OPS_AGENT_PROJECTS: ${OPS_AGENT_PROJECTS:-anwar-os,edge}
       OPS_AGENT_DEPLOY_TIMEOUT: ${OPS_AGENT_DEPLOY_TIMEOUT:-240}
       # Optional: pull private GHCR packages (a PAT with read:packages).
       OPS_AGENT_REGISTRY_USER: ${OPS_AGENT_REGISTRY_USER:-}
@@ -300,12 +283,12 @@ services:
       os.role: edge
 
 networks:
-  edge: {}
+  edge:
+    external: true
+    name: edge
   internal:
     internal: true
   egress: {}
 
 volumes:
   pgdata: {}
-  caddy_data: {}
-  caddy_config: {}

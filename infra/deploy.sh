@@ -11,6 +11,10 @@
 # Runs as the `deploy` user from the repo checkout (/opt/anwar-os/repo by default).
 # Images are tagged with the full commit sha by .github/workflows/deploy.yml.
 #
+# The server can host several projects. Ports 80/443 belong to the shared edge
+# Caddy (infra/edge, config in /opt/edge); this script only writes anwar.os's
+# own site file there (/opt/edge/sites/anwar-os.caddy) and reloads it.
+#
 # Note on rollbacks: migrations are not reversed. Write them expand/contract style
 # (add columns/tables first, drop in a later release) so the previous web image
 # keeps working against the newer schema.
@@ -21,6 +25,8 @@ REPO_DIR="$(cd "$INFRA_DIR/.." && pwd)"
 ENV_FILE="$INFRA_DIR/.env"
 HISTORY_FILE="$INFRA_DIR/.deploy-history"
 LOCK_FILE="$INFRA_DIR/.deploy.lock"
+EDGE_DIR="${EDGE_DIR:-/opt/edge}"
+SITE_NAME=anwar-os
 BRANCH="${DEPLOY_BRANCH:-main}"
 WAIT_TIMEOUT="${DEPLOY_WAIT_TIMEOUT:-180}"
 
@@ -28,6 +34,9 @@ log() { printf '[deploy %s] %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 die() { log "ERROR: $*" >&2; exit 1; }
 
 compose() { docker compose -f "$INFRA_DIR/compose.prod.yml" --env-file "$ENV_FILE" "$@"; }
+
+# The shared edge stack (one Caddy for every project on the server).
+edge() { docker compose -f "$INFRA_DIR/edge/compose.yml" --env-file "$EDGE_DIR/.env" "$@"; }
 
 # ops-agent joins the Docker socket's group; take it from the socket unless .env
 # pins it. Process env wins over --env-file in compose.
@@ -83,9 +92,31 @@ checkout() {
   git -C "$REPO_DIR" checkout --quiet --detach "$1"
 }
 
-reload_caddy() {
-  compose up -d --wait --wait-timeout 60 caddy
-  compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null
+ensure_edge_network() {
+  docker network inspect edge >/dev/null 2>&1 || docker network create edge >/dev/null
+}
+
+# Render this project's site file into the shared edge and reload Caddy. A
+# rejected config leaves the running one untouched; the previous file is put
+# back so the next reload doesn't trip over it either.
+publish_site() {
+  local domain site prev
+  domain="$(env_get DOMAIN)"
+  [[ "$domain" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || die "DOMAIN in .env is not a hostname: '$domain'"
+  [[ -f "$EDGE_DIR/.env" ]] || die "missing $EDGE_DIR/.env (copy infra/edge/.env.example, set ACME_EMAIL)"
+  install -d "$EDGE_DIR/sites"
+  site="$EDGE_DIR/sites/$SITE_NAME.caddy"
+  prev="$site.prev"
+  [[ -f "$site" ]] && cp "$site" "$prev"
+  sed "s/__DOMAIN__/$domain/g" "$INFRA_DIR/edge/sites/$SITE_NAME.caddy.tmpl" >"$site.new"
+  mv "$site.new" "$site"
+
+  edge up -d --wait --wait-timeout 60 caddy
+  if ! edge exec -T caddy caddy reload --config /etc/caddy/base/Caddyfile --adapter caddyfile >/dev/null; then
+    if [[ -f "$prev" ]]; then mv "$prev" "$site"; else rm -f "$site"; fi
+    die "the edge Caddy rejected the $SITE_NAME site config; kept the previous one"
+  fi
+  rm -f "$prev"
 }
 
 start_web() { compose up -d --no-deps --wait --wait-timeout "$WAIT_TIMEOUT" web; }
@@ -162,6 +193,7 @@ deploy() {
     die "image pull failed (did CI finish pushing $sha? is the server logged in to ghcr.io?)"
   fi
 
+  ensure_edge_network
   compose up -d --wait --wait-timeout 120 db
 
   log "running migrations"
@@ -179,7 +211,7 @@ deploy() {
     die "new web container failed its healthcheck; rolled back"
   fi
 
-  reload_caddy
+  publish_site
   printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$sha" >>"$HISTORY_FILE"
   log "web is live at $sha"
 
@@ -235,6 +267,8 @@ status() {
   printf 'BOT_OSBOT_TAG:    %s\n' "$(env_get BOT_OSBOT_TAG)"
   printf 'OPS_AGENT_TAG:    %s\n\n' "$(env_get OPS_AGENT_TAG)"
   compose ps
+  printf '\nedge (shared):\n'
+  edge ps 2>/dev/null || printf '  not running (or %s/.env missing)\n' "$EDGE_DIR"
   if [[ -f "$HISTORY_FILE" ]]; then
     printf '\nlast deploys:\n'
     tail -n 5 "$HISTORY_FILE"

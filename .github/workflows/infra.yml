@@ -31,9 +31,16 @@ jobs:
                  -e 's/^BETTER_AUTH_SECRET=$/BETTER_AUTH_SECRET=ci/' infra/.env
           docker compose -f infra/compose.prod.yml --env-file infra/.env config --quiet
           COMPOSE_PROFILES=bots,ops docker compose -f infra/compose.prod.yml --env-file infra/.env config --quiet
+          ACME_EMAIL=ci@example.com docker compose -f infra/edge/compose.yml config --quiet
 
       - name: Caddyfile
+        # The edge Caddyfile with every site template rendered, as on a server
+        # hosting anwar.os and a static SPA next to it.
         run: |
-          docker run --rm -e DOMAIN=anwar-os.com -e ACME_EMAIL=ci@example.com \
-            -v "$PWD/infra/Caddyfile:/etc/caddy/Caddyfile:ro" \
-            caddy:2.10-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          mkdir -p /tmp/sites
+          sed 's/__DOMAIN__/anwar-os.com/g' infra/edge/sites/anwar-os.caddy.tmpl > /tmp/sites/anwar-os.caddy
+          sed -e 's/__DOMAIN__/smeny.example.com/g' -e 's/__NAME__/planuj-smeny/g' \
+            infra/edge/sites/static-spa.caddy.tmpl > /tmp/sites/planuj-smeny.caddy
+          docker run --rm -e ACME_EMAIL=ci@example.com \
+            -v "$PWD/infra/edge:/etc/caddy/base:ro" -v /tmp/sites:/etc/caddy/sites:ro \
+            caddy:2.10-alpine caddy validate --config /etc/caddy/base/Caddyfile --adapter caddyfile

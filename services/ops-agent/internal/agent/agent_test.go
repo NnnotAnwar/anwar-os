@@ -219,7 +219,7 @@ func world() *fakeEngine {
 }
 
 func newAgent(f *fakeEngine) *Agent {
-	return New(f, sign.NewVerifier(secret), Config{Project: "proj", DeployTimeout: 3 * time.Second, Settle: time.Millisecond},
+	return New(f, sign.NewVerifier(secret), Config{Projects: []string{"proj"}, DeployTimeout: 3 * time.Second, Settle: time.Millisecond},
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
@@ -320,6 +320,64 @@ func TestListsOnlyManagedServicesOfTheProject(t *testing.T) {
 	}
 	if !slices.Equal(names, []string{"bot-expenses", "web"}) {
 		t.Fatalf("services = %v", names)
+	}
+}
+
+// Two projects on one server, both with a "web": the primary keeps plain names,
+// the second is qualified, and a third, unlisted project stays invisible.
+func TestServesSeveralProjectsWithoutNameClashes(t *testing.T) {
+	f := world()
+	f.add("pweb1", "planuj-smeny-web-1", map[string]string{LabelManaged: "true", labelComposeService: "web", labelComposeProject: "planuj-smeny"}, "ghcr.io/o/planner:aaa", true)
+	a := New(f, sign.NewVerifier(secret), Config{Projects: []string{"proj", "planuj-smeny"}, DeployTimeout: 3 * time.Second, Settle: time.Millisecond},
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h := a.Handler()
+
+	code, body := call(t, h, "GET", "/services", "", true)
+	if code != 200 {
+		t.Fatalf("status %d: %v", code, body)
+	}
+	var names []string
+	for _, s := range body["services"].([]any) {
+		names = append(names, s.(map[string]any)["name"].(string))
+	}
+	if !slices.Equal(names, []string{"bot-expenses", "planuj-smeny.web", "web"}) {
+		t.Fatalf("services = %v", names)
+	}
+
+	if code, body := call(t, h, "POST", "/services/planuj-smeny.web/restart", "", true); code != 200 {
+		t.Fatalf("restart planuj-smeny.web = %d %v", code, body)
+	}
+	if code, _ := call(t, h, "POST", "/services/web/stop", "", true); code != 403 {
+		t.Fatalf("protected primary web: stop = %d, want 403", code)
+	}
+	if code, _ := call(t, h, "POST", "/services/elsewhere.other/restart", "", true); code != 404 {
+		t.Fatalf("unlisted project = %d, want 404", code)
+	}
+	restarted := false
+	for _, c := range f.calls {
+		// The fake records the first four characters of the container id.
+		switch c {
+		case "restart pweb":
+			restarted = true
+		case "restart web1":
+			t.Errorf("restarted the primary project's web instead")
+		}
+	}
+	if !restarted {
+		t.Fatalf("planuj-smeny web was not restarted; calls: %v", f.calls)
+	}
+}
+
+func TestQualifiedName(t *testing.T) {
+	l := map[string]string{labelComposeService: "web", labelComposeProject: "planuj-smeny"}
+	if got := QualifiedName(l, "x", "anwar-os"); got != "planuj-smeny.web" {
+		t.Errorf("other project = %q", got)
+	}
+	if got := QualifiedName(l, "x", "planuj-smeny"); got != "web" {
+		t.Errorf("primary project = %q", got)
+	}
+	if got := QualifiedName(l, "x", ""); got != "web" {
+		t.Errorf("no project filter = %q", got)
 	}
 }
 
