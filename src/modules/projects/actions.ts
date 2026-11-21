@@ -29,6 +29,7 @@ export const projectColumns = {
   repoUrl: p.repoUrl,
   demoUrl: p.demoUrl,
   coverUrl: p.coverUrl,
+  serviceName: p.serviceName,
   featured: p.featured,
   isPublic: p.isPublic,
   sortOrder: p.sortOrder,

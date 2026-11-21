@@ -35,6 +35,7 @@ type Form = {
   repoUrl: string
   demoUrl: string
   coverUrl: string
+  serviceName: string
   featured: boolean
   isPublic: boolean
 }
@@ -52,6 +53,7 @@ function toForm(project: Project | null): Form {
     repoUrl: project?.repoUrl ?? "",
     demoUrl: project?.demoUrl ?? "",
     coverUrl: project?.coverUrl ?? "",
+    serviceName: project?.serviceName ?? "",
     featured: project?.featured ?? false,
     isPublic: project?.isPublic ?? false,
   }
@@ -290,6 +292,21 @@ export function ProjectEditor({
             <UrlField label="Live site" value={value.liveUrl} onChange={(liveUrl) => update({ liveUrl })} />
             <UrlField label="Repository" value={value.repoUrl} onChange={(repoUrl) => update({ repoUrl })} />
             <UrlField label="Demo" value={value.demoUrl} onChange={(demoUrl) => update({ demoUrl })} />
+            <Field label="Service in Ops" hint="The service that runs it, e.g. web. Your list then shows its deploy state. Never public.">
+              {(fid) => (
+                <input
+                  id={fid}
+                  value={value.serviceName}
+                  onChange={(e) => update({ serviceName: e.target.value.trim().toLowerCase() })}
+                  placeholder="e.g. web"
+                  maxLength={63}
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  className={fieldClass}
+                />
+              )}
+            </Field>
             <UrlField
               label="Cover image"
               value={value.coverUrl}

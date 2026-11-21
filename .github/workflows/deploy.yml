@@ -1,6 +1,6 @@
 name: Deploy
 
-# push to main -> build the web, migrate, bot-expenses and bot-osbot images for linux/arm64
+# push to main -> build the web, migrate, bot-expenses, bot-osbot and ops-agent images for linux/arm64
 # (the server, a Hetzner CAX21) and linux/amd64 on native runners -> push to GHCR
 # as :<sha> and :latest -> SSH to the server and run infra/deploy.sh <sha>
 # (migrate, replace web, healthcheck gate, auto-rollback, then the bots that
@@ -38,6 +38,7 @@ env:
   MIGRATE_IMAGE: ghcr.io/nnnotanwar/anwar-os-migrate
   BOT_EXPENSES_IMAGE: ghcr.io/nnnotanwar/anwar-os-bot-expenses
   BOT_OSBOT_IMAGE: ghcr.io/nnnotanwar/anwar-os-bot-osbot
+  OPS_AGENT_IMAGE: ghcr.io/nnnotanwar/anwar-os-ops-agent
 
 jobs:
   plan:
@@ -159,18 +160,36 @@ jobs:
           cache-from: type=gha,scope=bot-osbot-${{ matrix.arch }}
           cache-to: type=gha,scope=bot-osbot-${{ matrix.arch }},mode=max
 
+      # Go, cross-compiled on the runner's own arch; ~7 MB scratch image.
+      - name: Build ops-agent (${{ matrix.platform }})
+        id: ops
+        uses: docker/build-push-action@v6
+        with:
+          context: services/ops-agent
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            VERSION=${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          outputs: type=image,name=${{ env.OPS_AGENT_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=ops-agent-${{ matrix.arch }}
+          cache-to: type=gha,scope=ops-agent-${{ matrix.arch }},mode=max
+
       - name: Export digests
         env:
           WEB_DIGEST: ${{ steps.web.outputs.digest }}
           MIGRATE_DIGEST: ${{ steps.migrate.outputs.digest }}
           BOT_DIGEST: ${{ steps.bot.outputs.digest }}
           OSBOT_DIGEST: ${{ steps.osbot.outputs.digest }}
+          OPS_DIGEST: ${{ steps.ops.outputs.digest }}
         run: |
-          mkdir -p "$RUNNER_TEMP/digests/web" "$RUNNER_TEMP/digests/migrate" "$RUNNER_TEMP/digests/bot-expenses" "$RUNNER_TEMP/digests/bot-osbot"
+          mkdir -p "$RUNNER_TEMP/digests/web" "$RUNNER_TEMP/digests/migrate" "$RUNNER_TEMP/digests/bot-expenses" "$RUNNER_TEMP/digests/bot-osbot" "$RUNNER_TEMP/digests/ops-agent"
           touch "$RUNNER_TEMP/digests/web/${WEB_DIGEST#sha256:}"
           touch "$RUNNER_TEMP/digests/migrate/${MIGRATE_DIGEST#sha256:}"
           touch "$RUNNER_TEMP/digests/bot-expenses/${BOT_DIGEST#sha256:}"
           touch "$RUNNER_TEMP/digests/bot-osbot/${OSBOT_DIGEST#sha256:}"
+          touch "$RUNNER_TEMP/digests/ops-agent/${OPS_DIGEST#sha256:}"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -220,6 +239,7 @@ jobs:
           publish "$MIGRATE_IMAGE" migrate
           publish "$BOT_EXPENSES_IMAGE" bot-expenses
           publish "$BOT_OSBOT_IMAGE" bot-osbot
+          publish "$OPS_AGENT_IMAGE" ops-agent
 
   deploy:
     name: Deploy to server

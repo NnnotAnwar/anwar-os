@@ -30,7 +30,7 @@ jobs:
                  -e 's/^OS_APP_PASSWORD=$/OS_APP_PASSWORD=ci/' \
                  -e 's/^BETTER_AUTH_SECRET=$/BETTER_AUTH_SECRET=ci/' infra/.env
           docker compose -f infra/compose.prod.yml --env-file infra/.env config --quiet
-          COMPOSE_PROFILES=bots docker compose -f infra/compose.prod.yml --env-file infra/.env config --quiet
+          COMPOSE_PROFILES=bots,ops docker compose -f infra/compose.prod.yml --env-file infra/.env config --quiet
 
       - name: Caddyfile
         run: |

@@ -112,3 +112,21 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  ops-agent:
+    name: ops-agent (Go unit + Docker integration)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/ops-agent
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/ops-agent/go.mod
+          cache: false # no dependencies to cache
+      - run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet -tags integration ./...
+      - run: go test ./...
+      # Throwaway labelled alpine containers against the runner's Docker.
+      - run: go test -tags integration -run Integration -count=1 -v .

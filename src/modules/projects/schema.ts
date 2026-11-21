@@ -36,6 +36,13 @@ export const projectFields = {
   repoUrl: optionalUrl,
   demoUrl: optionalUrl,
   coverUrl: optionalUrl,
+  /** The compose service in Ops that runs it (deploy state on the private list). */
+  serviceName: z
+    .string()
+    .trim()
+    .transform((v) => v || null)
+    .pipe(z.string().regex(/^[a-z0-9][a-z0-9_.-]{0,62}$/, "Use the service name from Ops, e.g. web.").nullable())
+    .default(null),
   featured: z.boolean(),
   isPublic: z.boolean(),
 }
@@ -67,6 +74,7 @@ export type Project = {
   repoUrl: string | null
   demoUrl: string | null
   coverUrl: string | null
+  serviceName: string | null
   featured: boolean
   isPublic: boolean
   sortOrder: number
@@ -74,7 +82,7 @@ export type Project = {
 }
 
 /** What visitors may see: no internal ordering or flags. */
-export type PublicProject = Omit<Project, "isPublic" | "sortOrder">
+export type PublicProject = Omit<Project, "isPublic" | "sortOrder" | "serviceName">
 
 /** Cache tag for every public read of projects (grid, case studies, landing). */
 export const PUBLIC_PROJECTS_TAG = "projects:public"
