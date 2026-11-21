@@ -1,12 +1,12 @@
 # Deploying anwar.os
 
-From "order the server" to "`https://anwarnnnot.com` is live with a tested backup".
+From "order the server" to "`https://anwar-os.com` is live with a tested backup".
 Architecture background: [ARCHITECTURE.md §3](ARCHITECTURE.md#3-infrastructure).
 
 | | |
 |---|---|
 | Server | Hetzner Cloud **CAX21** (arm64, 4 vCPU / 8 GB), Ubuntu 24.04, Falkenstein or Nuremberg |
-| Domain | `anwarnnnot.com` (registered at Vercel, DNS managed in Vercel) |
+| Domain | `anwar-os.com` (DNS at the registrar; steps below use Vercel DNS — adapt if it lives elsewhere) |
 | Files + backups | Hetzner Object Storage, same location as the server |
 | Images | `ghcr.io/nnnotanwar/anwar-os-{web,migrate,bot-expenses,bot-osbot,ops-agent}:<sha>`, linux/arm64 + linux/amd64 |
 
@@ -69,7 +69,7 @@ address of the assigned /64).
 ## 3. DNS records (Vercel)
 
 The domain was bought at Vercel, so its nameservers are Vercel's. Add the records
-in the Vercel dashboard → **Domains → anwarnnnot.com → DNS Records**, or with the
+in the Vercel dashboard → **Domains → anwar-os.com → DNS Records**, or with the
 CLI:
 
 | Name | Type | Value | TTL |
@@ -81,11 +81,11 @@ CLI:
 | `@` | CAA | `0 issue "letsencrypt.org"` | optional, limits who may issue certs |
 
 ```sh
-vercel dns add anwarnnnot.com @ A <IPV4>
-vercel dns add anwarnnnot.com @ AAAA <IPV6>
-vercel dns add anwarnnnot.com www A <IPV4>
-vercel dns add anwarnnnot.com www AAAA <IPV6>
-vercel dns add anwarnnnot.com @ CAA '0 issue "letsencrypt.org"'
+vercel dns add anwar-os.com @ A <IPV4>
+vercel dns add anwar-os.com @ AAAA <IPV6>
+vercel dns add anwar-os.com www A <IPV4>
+vercel dns add anwar-os.com www AAAA <IPV6>
+vercel dns add anwar-os.com @ CAA '0 issue "letsencrypt.org"'
 ```
 
 - If the domain is attached to a Vercel **project**, remove it there first
@@ -95,8 +95,8 @@ vercel dns add anwarnnnot.com @ CAA '0 issue "letsencrypt.org"'
 - Keep the MX/TXT records if you use the domain for email.
 - `www` is redirected to the apex by Caddy (it needs its own certificate, hence its
   own records).
-- Check from your laptop before the first start: `dig +short anwarnnnot.com A`,
-  `dig +short www.anwarnnnot.com AAAA` must return the server's addresses.
+- Check from your laptop before the first start: `dig +short anwar-os.com A`,
+  `dig +short www.anwar-os.com AAAA` must return the server's addresses.
 
 ## 4. Bootstrap the server
 
@@ -142,7 +142,7 @@ cp .env.example .env && chmod 600 .env
 nano .env
 ```
 
-Fill in (`.env.example` explains each one): `DOMAIN=anwarnnnot.com`, `ACME_EMAIL`,
+Fill in (`.env.example` explains each one): `DOMAIN=anwar-os.com`, `ACME_EMAIL`,
 `POSTGRES_PASSWORD` and `OS_APP_PASSWORD` (`openssl rand -hex 32`),
 `BETTER_AUTH_SECRET` (`openssl rand -base64 32`), the `S3_*` values,
 `BACKUP_S3_BUCKET`, `BACKUP_AGE_RECIPIENT` (the `age1...` public key). Leave the bot
@@ -175,8 +175,8 @@ Then, as `deploy`:
 
 This starts Postgres (creating `os_app` via `db/init/01-roles.sh` on the empty
 volume), runs migrations, starts `web` and waits for `/api/health`, then starts
-Caddy, which requests certificates for `anwarnnnot.com` and `www.anwarnnnot.com`
-(watch with `dc logs -f caddy`). Open `https://anwarnnnot.com`.
+Caddy, which requests certificates for `anwar-os.com` and `www.anwar-os.com`
+(watch with `dc logs -f caddy`). Open `https://anwar-os.com`.
 
 ## 8. First owner
 
@@ -189,7 +189,7 @@ docker compose -f compose.prod.yml run --rm migrate pnpm owner:create you@exampl
 # prompts for a password (min 12 chars)
 ```
 
-Sign in at `https://anwarnnnot.com/login`, then in **Settings → Sign-in methods**:
+Sign in at `https://anwar-os.com/login`, then in **Settings → Sign-in methods**:
 set up two-factor (store the backup codes), and add a passkey on each device you
 use (a passkey sign-in counts as two factors, so it skips the code). Optionally
 connect Google (see "Google sign-in" below). Phase 2 is done when `/app` works with
@@ -206,15 +206,15 @@ In [Google Cloud Console](https://console.cloud.google.com/):
 
 1. Create (or pick) a project, e.g. `anwar-os`.
 2. **APIs & Services → OAuth consent screen** (Google Auth Platform → Branding):
-   app name `anwar.os`, support email, authorized domain `anwarnnnot.com`,
+   app name `anwar.os`, support email, authorized domain `anwar-os.com`,
    developer contact. **Audience:** External. Scopes: only `openid`, `email`,
    `profile` (the defaults; no verification needed). While the app is in
    *Testing*, add your Google address under **Test users**; or press
    **Publish app** (basic scopes publish without review).
 3. **Credentials → Create credentials → OAuth client ID → Web application**,
    name `anwar.os web`:
-   - Authorized JavaScript origins: `https://anwarnnnot.com`
-   - Authorized redirect URIs: `https://anwarnnnot.com/api/auth/callback/google`
+   - Authorized JavaScript origins: `https://anwar-os.com`
+   - Authorized redirect URIs: `https://anwar-os.com/api/auth/callback/google`
    - (for local testing, a second client with `http://localhost:3000` and
      `http://localhost:3000/api/auth/callback/google`)
 4. Copy the client ID and secret into `infra/.env` as `GOOGLE_CLIENT_ID` and
@@ -234,14 +234,14 @@ To revoke: Settings → Disconnect, and/or delete the client in Cloud Console.
    ```
 2. Repository → Settings → Secrets and variables → Actions, **repository** secrets
    (not environment secrets: the plan job checks for them):
-   - `DEPLOY_HOST` = `<IPV4>` (or `anwarnnnot.com`)
+   - `DEPLOY_HOST` = `<IPV4>` (or `anwar-os.com`)
    - `DEPLOY_USER` = `deploy`
    - `DEPLOY_SSH_KEY` = contents of `~/.ssh/anwar-os-ci` (private key)
    - `DEPLOY_KNOWN_HOSTS` = output of `ssh-keyscan -t ed25519 <IPV4>`, after
      checking the fingerprint matches `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`
      on the server (without it, CI trusts the host key on first use and warns)
    - optional `DEPLOY_PORT` if SSH isn't on 22
-3. Variables: `PUBLIC_URL` = `https://anwarnnnot.com` (enables the post-deploy smoke test).
+3. Variables: `PUBLIC_URL` = `https://anwar-os.com` (enables the post-deploy smoke test).
 4. Optional: Settings → Environments → `production` → required reviewers, if you
    want to approve each deploy.
 

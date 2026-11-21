@@ -35,7 +35,7 @@ describe("contentSecurityPolicy", () => {
   })
 
   it("upgrades insecure requests only on https sites", () => {
-    expect(contentSecurityPolicy("n", { siteUrl: "https://anwarnnnot.com" })).toContain("upgrade-insecure-requests")
+    expect(contentSecurityPolicy("n", { siteUrl: "https://anwar-os.com" })).toContain("upgrade-insecure-requests")
     expect(contentSecurityPolicy("n", { siteUrl: "http://127.0.0.1:3304" })).not.toContain("upgrade-insecure-requests")
   })
 

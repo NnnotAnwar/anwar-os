@@ -37,7 +37,7 @@ export default function ServicesPage() {
 
         <ul className="glass grid divide-y divide-hairline overflow-hidden rounded-xl">
           <SystemRow href="/app/settings" icon={<Settings />} title="Settings" hint="Sign-in methods, two-factor, appearance" />
-          <SystemRow href="/" icon={<House />} title="Public site" hint="What visitors see at anwarnnnot.com" />
+          <SystemRow href="/" icon={<House />} title="Public site" hint="What visitors see at anwar-os.com" />
         </ul>
       </div>
     </Page>

@@ -16,9 +16,9 @@ describe("safeNext", () => {
 })
 
 describe("privateNext (where a Google sign-in goes after the 2FA step)", () => {
-  const base = "https://anwarnnnot.com"
+  const base = "https://anwar-os.com"
   it("turns a same-origin callback URL into its private path", () => {
-    expect(privateNext("https://anwarnnnot.com/app/calendar", base)).toBe("/app/calendar")
+    expect(privateNext("https://anwar-os.com/app/calendar", base)).toBe("/app/calendar")
     expect(privateNext("/app/notes", base)).toBe("/app/notes")
   })
   it("never points elsewhere", () => {
