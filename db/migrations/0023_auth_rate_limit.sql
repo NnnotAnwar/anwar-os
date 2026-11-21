@@ -1,0 +1,7 @@
+CREATE TABLE "auth"."rate_limit" (
+	"key" text PRIMARY KEY NOT NULL,
+	"count" integer NOT NULL,
+	"window_start" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE INDEX "rate_limit_window_start_idx" ON "auth"."rate_limit" USING btree ("window_start");
