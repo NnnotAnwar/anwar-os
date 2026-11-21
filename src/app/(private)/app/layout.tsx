@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { CommandPalette } from "@/components/shell/command-palette"
 import { CreateMenu } from "@/components/shell/create-menu"
 import { KeyboardShortcuts } from "@/components/shell/keyboard-shortcuts"
+import { ServiceWorker } from "@/components/pwa/service-worker"
 import { NavLink, TabLink } from "@/components/shell/nav-link"
 import { SearchIconTrigger, SearchTrigger } from "@/components/shell/search-trigger"
 import { UserMenu } from "@/components/shell/user-menu"
@@ -83,6 +84,7 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
         <Shortcuts />
       </Suspense>
       <CaptureSheet />
+      <ServiceWorker />
     </div>
   )
 }

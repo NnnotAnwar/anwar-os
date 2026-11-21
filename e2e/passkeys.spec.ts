@@ -47,6 +47,13 @@ async function signInWithPassword(page: Page) {
 }
 
 test("add a passkey, sign in with it, rename and remove it", async ({ context, page }) => {
+  // /login also starts a conditional (autofill) passkey request on load, and
+  // the virtual authenticator answers it at once, signing in before the button
+  // can be clicked (the click then hung on a page being replaced, ~1 run in 4).
+  // Hide autofill support so the button is the path under test.
+  await page.addInitScript(() => {
+    if (window.PublicKeyCredential) PublicKeyCredential.isConditionalMediationAvailable = async () => false
+  })
   await addVirtualAuthenticator(context, page)
   await signInWithPassword(page)
 

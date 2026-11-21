@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { YearRuler } from "@/components/year-ruler"
 import { ServiceGrid } from "@/components/services/service-grid"
 import { GetStarted } from "@/components/shell/get-started"
+import { InstallHint } from "@/components/pwa/install-hint"
 import { getSetup } from "@/core/onboarding"
 import { requireViewer } from "@/core/auth"
 import { modulesFor, type ViewerContext, type WidgetDef } from "@/core/module"
@@ -19,6 +20,7 @@ export default function TodayPage() {
         <Suspense fallback={<HeaderSkeleton />}>
           <TodayHeader />
         </Suspense>
+        <InstallHint />
         <Suspense fallback={null}>
           <Setup />
         </Suspense>

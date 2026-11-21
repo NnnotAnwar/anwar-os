@@ -8,6 +8,7 @@ import { nextCookies } from "better-auth/next-js"
 import { twoFactor } from "better-auth/plugins"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "@/db/schema"
+import { postgresRateLimitStorage } from "@/lib/rate-limit"
 import { safeNext } from "@/lib/safe-next"
 
 /**
@@ -33,6 +34,12 @@ export type AuthEnv = {
   baseURL?: string
   googleClientId?: string
   googleClientSecret?: string
+  /**
+   * Better Auth's limiter for /api/auth/*, stored in Postgres. On in production
+   * (AUTH_RATE_LIMIT=off/on overrides). Always set explicitly: Better Auth's own
+   * default follows NODE_ENV, which made tests depend on the shell they ran in.
+   */
+  rateLimit?: boolean
 }
 
 export function readAuthEnv(env: Record<string, string | undefined> = process.env): AuthEnv {
@@ -41,6 +48,7 @@ export function readAuthEnv(env: Record<string, string | undefined> = process.en
     baseURL: env.BETTER_AUTH_URL,
     googleClientId: env.GOOGLE_CLIENT_ID || undefined,
     googleClientSecret: env.GOOGLE_CLIENT_SECRET || undefined,
+    rateLimit: env.AUTH_RATE_LIMIT ? env.AUTH_RATE_LIMIT !== "off" : env.NODE_ENV === "production",
   }
 }
 
@@ -86,6 +94,12 @@ export function createAuth(db: PostgresJsDatabase<typeof schema>, env: AuthEnv) 
 
   return betterAuth({
     appName: "anwar.os",
+    // Per client IP and path; sign-in, 2FA and password routes get Better Auth's
+    // stricter built-in rules (3 per 10 s). Rows live in auth.rate_limit.
+    rateLimit: {
+      enabled: env.rateLimit ?? false,
+      customStorage: postgresRateLimitStorage(db),
+    },
     secret: env.secret,
     baseURL,
     database: drizzleAdapter(db, {

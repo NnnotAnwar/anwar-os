@@ -111,3 +111,19 @@ export const passkey = authSchema.table(
   },
   (t) => [index("passkey_user_id_idx").on(t.userId)],
 )
+
+/**
+ * Attempt counters for sign-in and the other auth endpoints (src/lib/rate-limit.ts),
+ * shared by Better Auth's HTTP limiter and the sign-in server actions. In
+ * Postgres, not memory, so a deploy's restart doesn't reset an attacker's count.
+ * One row per key (e.g. "sign-in:ip:203.0.113.7"), fixed windows.
+ */
+export const rateLimit = authSchema.table(
+  "rate_limit",
+  {
+    key: text("key").primaryKey(),
+    count: integer("count").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("rate_limit_window_start_idx").on(t.windowStart)],
+)
