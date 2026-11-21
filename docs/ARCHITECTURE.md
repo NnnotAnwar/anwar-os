@@ -234,7 +234,7 @@ internet; only `web` can call it, signing each request with an HMAC secret.
 | `POST /services/:name/{start,stop,restart}` | lifecycle |
 | `POST /services/:name/deploy` `{ tag }` | `docker compose pull` + recreate that one service, waits for healthcheck, rolls back to the previous tag on failure |
 
-Only labelled services can be touched; `postgres`, `caddy`, `ops-agent` itself and
+Only labelled services can be touched; `db`, `caddy`, `ops-agent` itself and
 `web` are excluded from stop and deploy from the UI. Every call is written to
 `ops_events` (who, what, when, result) and shown in the panel.
 
@@ -242,7 +242,7 @@ Only labelled services can be touched; `postgres`, `caddy`, `ops-agent` itself a
 
 - Service cards: status dot, uptime, last deploy, CPU/RAM.
 - Log viewer with follow mode.
-- Start / stop / restart with confirmation.
+- Restart in one tap, start with Undo, stop asks first (then Undo); deploy with Undo to the previous tag.
 - Deploy: picks from the latest image tags in GHCR (commit message shown).
 - Projects link to their services, so "Planuj Směny" shows its deploy state.
 

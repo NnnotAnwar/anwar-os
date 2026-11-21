@@ -176,6 +176,20 @@
       "when": 1795230513581,
       "tag": "0024_auth_rate_limit_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795230943567,
+      "tag": "0025_ops_bots_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795230944350,
+      "tag": "0026_ops_bots_rls",
+      "breakpoints": true
     }
   ]
 }
