@@ -152,6 +152,7 @@ type State struct {
 	Running    bool    `json:"Running"`
 	Restarting bool    `json:"Restarting"`
 	ExitCode   int     `json:"ExitCode"`
+	OOMKilled  bool    `json:"OOMKilled"`
 	Error      string  `json:"Error"`
 	StartedAt  string  `json:"StartedAt"`
 	FinishedAt string  `json:"FinishedAt"`

@@ -245,6 +245,7 @@ type Service struct {
 	StartedAt     string   `json:"started_at,omitempty"`
 	FinishedAt    string   `json:"finished_at,omitempty"`
 	ExitCode      int      `json:"exit_code"`
+	OOMKilled     bool     `json:"oom_killed"`
 	RestartCount  int      `json:"restart_count"`
 	Protected     bool     `json:"protected"`
 	Role          string   `json:"role,omitempty"`
@@ -280,6 +281,7 @@ func toService(c *docker.Inspect) Service {
 		StartedAt:    zeroTime(c.State.StartedAt),
 		FinishedAt:   zeroTime(c.State.FinishedAt),
 		ExitCode:     c.State.ExitCode,
+		OOMKilled:    c.State.OOMKilled,
 		RestartCount: c.RestartCount,
 		Protected:    labels[LabelProtected] == "true",
 		Role:         labels[LabelRole],
