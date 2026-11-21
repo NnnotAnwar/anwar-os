@@ -43,7 +43,8 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Everything except API routes, build assets and the static PWA/metadata files.
-    "/((?!api/|_next/static/|_next/image|favicon\\.ico|icon\\.svg|apple-icon\\.png|icons/|sw\\.js|offline\\.html|manifest\\.webmanifest|robots\\.txt|sitemap\\.xml).*)",
+    // Everything except API routes, build assets, the static PWA/metadata files
+    // and generated social images (no HTML, so no CSP needed).
+    "/((?!api/|_next/static/|_next/image|favicon\\.ico|icon\\.svg|apple-icon\\.png|icons/|sw\\.js|offline\\.html|manifest\\.webmanifest|robots\\.txt|sitemap\\.xml|.*opengraph-image|.*twitter-image).*)",
   ],
 }
