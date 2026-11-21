@@ -269,9 +269,11 @@ func (a *Agent) waitHealthy(ctx context.Context, id string) error {
 			case "healthy":
 				return nil
 			case "unhealthy":
-				msg := "new container is unhealthy"
+				msg := "new container failed its healthcheck"
 				if n := len(st.Health.Log); n > 0 {
-					msg += ": " + strings.TrimSpace(st.Health.Log[n-1].Output)
+					if out := strings.TrimSpace(st.Health.Log[n-1].Output); out != "" {
+						msg += ": " + out
+					}
 				}
 				return fmt.Errorf("%s", msg)
 			}

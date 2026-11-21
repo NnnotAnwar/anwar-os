@@ -23,7 +23,10 @@ export function BotsApp({
   bots,
   services,
   locale,
+  renderedAt,
 }: {
+  /** Server clock (ISO) so SSR and hydration agree. */
+  renderedAt: string
   bots: BotWithStats[]
   /** By service name; null when the control panel isn't connected. */
   services: Record<string, ServiceState> | null
@@ -32,7 +35,7 @@ export function BotsApp({
   const [editing, setEditing] = useState<Bot | "new" | null>(null)
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [adding, startAdding] = useTransition()
-  const [now] = useState(() => new Date())
+  const [now] = useState(() => new Date(renderedAt))
 
   function remove(bot: Bot) {
     removeWithUndo({
@@ -85,7 +88,7 @@ export function BotsApp({
               <BotCard
                 key={b.id}
                 bot={b}
-                service={b.serviceName && services ? (services[b.serviceName] ?? { label: "not running here", tone: "off" }) : null}
+                service={b.serviceName && services ? (services[b.serviceName] ?? { label: "· not running here", tone: "off" }) : null}
                 now={now}
                 locale={locale}
                 onEdit={() => setEditing(b)}

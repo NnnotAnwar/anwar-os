@@ -29,13 +29,13 @@ const POLL_MS = 10_000
  * one tap (restart; start with Undo); stop asks first; deploy goes through its
  * sheet and offers Undo (redeploy the previous tag) when it succeeds.
  */
-export function OpsPanel({ initial }: { initial: AgentService[] }) {
+export function OpsPanel({ initial, renderedAt }: { initial: AgentService[]; /** Server clock (ISO) so SSR and hydration agree. */ renderedAt: string }) {
   const [services, setServices] = useState(initial)
   const [busy, setBusy] = useState<Record<string, string>>({})
   const [logsFor, setLogsFor] = useState<string | null>(null)
   const [deployFor, setDeployFor] = useState<AgentService | null>(null)
   const [stopFor, setStopFor] = useState<AgentService | null>(null)
-  const [now, setNow] = useState(() => new Date())
+  const [now, setNow] = useState(() => new Date(renderedAt))
   const list = useRef<HTMLUListElement>(null)
 
   // A server refresh (after an action) brings a new snapshot: take it over.

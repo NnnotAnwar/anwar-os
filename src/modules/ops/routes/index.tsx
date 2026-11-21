@@ -56,7 +56,7 @@ async function Body() {
     <div className="grid gap-6">
       <section aria-labelledby="services-title" className="grid gap-3">
         {res.connected ? (
-          <OpsPanel initial={res.services} />
+          <OpsPanel initial={res.services} renderedAt={now.toISOString()} />
         ) : (
           <>
             <h2 id="services-title" className="text-eyebrow text-muted-foreground">

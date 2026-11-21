@@ -114,7 +114,7 @@ export function ServiceCard({
             </div>
           </dl>
 
-          <div className="flex flex-wrap gap-1.5" data-row-tools>
+          <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap" data-row-tools>
             <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => handlers.logs(s)}>
               <Terminal />
               Logs

@@ -68,5 +68,5 @@ async function Body() {
     }
   }
 
-  return <BotsApp bots={bots} services={services} locale={viewer.locale} />
+  return <BotsApp bots={bots} services={services} locale={viewer.locale} renderedAt={now.toISOString()} />
 }
