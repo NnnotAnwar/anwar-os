@@ -7,6 +7,15 @@ import postgres from "postgres"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 import { signedHeaders } from "@/modules/osbot/signature"
 
+// The handlers start with `await connection()` so the build never prerenders
+// them; outside Next there is no request scope for it, so it is stubbed here
+// (and asserted below: the 404 without a secret must not be prerenderable).
+const connection = vi.hoisted(() => vi.fn(async () => {}))
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  connection,
+}))
+
 const SECRET = `osbot-test-${randomBytes(24).toString("hex")}`
 process.env.OSBOT_API_SECRET = SECRET
 process.env.BETTER_AUTH_URL ??= "http://127.0.0.1:3303"
@@ -145,7 +154,10 @@ describe("osbot API: signatures", () => {
   it("is switched off without OSBOT_API_SECRET", async () => {
     delete process.env.OSBOT_API_SECRET
     try {
+      connection.mockClear()
       expect((await call(routes.todayGET, "GET", path)).status).toBe(404)
+      // Opted out of prerendering before the early return, or the build bakes it in.
+      expect(connection).toHaveBeenCalledOnce()
     } finally {
       process.env.OSBOT_API_SECRET = SECRET
     }
