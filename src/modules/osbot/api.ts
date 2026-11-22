@@ -1,4 +1,5 @@
 import "server-only"
+import { connection } from "next/server"
 import { sql } from "drizzle-orm"
 import { z } from "zod"
 import { actAs, loadViewer, type Viewer } from "@/core/auth"
@@ -58,6 +59,10 @@ export function parseInput<S extends z.ZodType>(schema: S, input: unknown): z.in
 
 export function osbotRoute(handler: (ctx: OsbotContext) => Promise<unknown>) {
   return async function route(request: Request): Promise<Response> {
+    // Always run per request. With Cache Components a GET handler that returns
+    // before touching the request is prerendered at build time, where
+    // OSBOT_API_SECRET is unset, which would bake the 404 below into the image.
+    await connection()
     const secret = process.env.OSBOT_API_SECRET
     if (!secret) return json({ error: "not_found" }, 404)
 
