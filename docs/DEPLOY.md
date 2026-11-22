@@ -162,6 +162,21 @@ Hetzner Cloud console → **Object Storage**, same location as the server:
    backups in a different Hetzner project with its own key and set
    `BACKUP_S3_ACCESS_KEY_ID` / `BACKUP_S3_SECRET_ACCESS_KEY`.
 3. Endpoint: `https://fsn1.your-objectstorage.com` (or `nbg1`), region `fsn1`.
+4. **CORS on the files bucket** (after `.env` is filled, step 6). Browsers upload
+   straight to the bucket with a presigned PUT, so without a CORS rule every
+   upload fails at the preflight (403). Allow only the site's origin:
+   ```sh
+   cd /opt/anwar-os/repo/infra
+   get() { grep -E "^$1=" .env | tail -1 | cut -d= -f2-; }
+   printf '{"CORSRules":[{"AllowedOrigins":["https://%s"],"AllowedMethods":["PUT","GET","HEAD"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}' "$(get DOMAIN)" > /tmp/cors.json
+   docker run --rm -v /tmp/cors.json:/cors.json:ro \
+     -e AWS_ACCESS_KEY_ID="$(get S3_ACCESS_KEY_ID)" -e AWS_SECRET_ACCESS_KEY="$(get S3_SECRET_ACCESS_KEY)" \
+     -e AWS_DEFAULT_REGION="$(get S3_REGION)" amazon/aws-cli:2.22.35 --endpoint-url "$(get S3_ENDPOINT)" \
+     s3api put-bucket-cors --bucket "$(get S3_BUCKET)" --cors-configuration file:///cors.json
+   rm /tmp/cors.json
+   ```
+   (aws-cli 2.22: newer versions send CRC checksums Hetzner doesn't accept.)
+   Check: a preflight with `Origin: https://anwar-os.com` must answer 200.
 
 ## 6. Configure `.env`
 
