@@ -185,7 +185,9 @@ services:
     cap_drop:
       - ALL
     <<: *hardening
-    mem_limit: 128m
+    # Python + aiogram + asyncpg settle around 110 MB; 128m kept them at the
+    # cgroup ceiling (constant reclaim into swap). 256m leaves headroom.
+    mem_limit: 256m
     stop_grace_period: 15s
     environment:
       # Not `:?` on purpose: compose interpolates every service even when its
@@ -220,7 +222,9 @@ services:
     cap_drop:
       - ALL
     <<: *hardening
-    mem_limit: 128m
+    # Python + aiogram + asyncpg settle around 110 MB; 128m kept them at the
+    # cgroup ceiling (constant reclaim into swap). 256m leaves headroom.
+    mem_limit: 256m
     stop_grace_period: 15s
     environment:
       # Not `:?`: compose interpolates every service even when its profile is off.

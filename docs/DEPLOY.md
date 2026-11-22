@@ -56,10 +56,12 @@ server. Projects never publish ports. Each one:
 | `/srv/sites/<project>/` | static builds served by the edge Caddy |
 | `/opt/anwar-os/` | this project (repo checkout, `.env`, deploy history) |
 
-Memory budget on a CAX21 (8 GB): anwar.os is capped at ~3.6 GB (web 1 GB,
-db 1.5 GB, bots, ops-agent; `migrate` only while deploying), Caddy 256 MB.
-That leaves ~4 GB for a second project and the page cache. Limits are in
-`mem_limit:` per service.
+Memory: the limits (`mem_limit:` per service) are ceilings, not reservations.
+anwar.os is capped at ~4 GB (web 1 GB, db 1.5 GB, each bot 256 MB, ops-agent,
+`migrate` only while deploying), Caddy 256 MB. Real use is far lower: on the
+current CAX11 (4 GB + 2 GB swap) the whole server idles around 1 GB with both
+bots on, and a static SPA like Shiftella adds nothing. Move to a CAX21 (Rescale,
+"CPU and RAM only") when that changes.
 
 ---
 
@@ -503,6 +505,16 @@ matches sha tags to commits of `GITHUB_REPO` for the message and date. Set
 - Logs: `dc logs -f web`, `edge logs --tail 200 caddy`. Docker rotates them
   (10 MB × 5 per container).
 - `dc ps` shows health; `/api/health` is public for uptime monitors.
+- **Locked out of SSH ("Connection refused")?** fail2ban bans an address for
+  an hour after 5 failed logins (a few `ssh root@…` tries after bootstrap are
+  enough, since root login is off). Wait it out, or unban from the Hetzner web
+  console: Rescue → Reset root password → console `>_` → log in as root →
+  `fail2ban-client set sshd unbanip <your IP>` → `passwd -l root`.
+- Editing on the server over SSH: `ssh -t deploy@<IPV4> nano <file>` (`-t`
+  for a terminal). Ghostty users: copy its terminfo once, or nano refuses to
+  start (`Error opening terminal: xterm-ghostty`):
+  `TERMINFO=/Applications/Ghostty.app/Contents/Resources/terminfo infocmp -x xterm-ghostty | ssh deploy@<IPV4> -- tic -x -`.
+- `deploy.sh` takes the **full** 40-character sha (`git rev-parse origin/main`).
 - **Labels:** services carry `os.managed=true` (listed by ops-agent),
   `os.protected=true` (visible but not stoppable/deployable from the panel: the
   edge Caddy, web, db), `os.role` (edge/app/data/bot); bot images add `os.kind=bot` and
