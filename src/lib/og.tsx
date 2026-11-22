@@ -12,34 +12,36 @@ type Font = { name: string; data: ArrayBuffer; weight: 500 | 700; style: "normal
 
 /**
  * Satoshi from Fontshare, the same source the site's CSS already loads it from.
- * Cached for good; if Fontshare can't be reached the card falls back to the
- * built-in face instead of failing the build.
+ * Cached for good once it loads. A failure throws, so nothing is cached and the
+ * next render tries again; fonts() then falls back to the built-in face.
  */
 async function satoshi(): Promise<{ weight: 500 | 700; base64: string }[]> {
   "use cache"
   cacheLife("max")
-  try {
-    const css = await fetch("https://api.fontshare.com/v2/css?f[]=satoshi@500,700&display=swap", {
-      signal: AbortSignal.timeout(5000),
-    }).then((r) => r.text())
-    const faces = [...css.matchAll(/@font-face\s*{([^}]*)}/g)].flatMap(([, block]) => {
-      const ttf = /url\('([^']+\.ttf)'\)\s*format\('truetype'\)/.exec(block!)?.[1]
-      const weight = Number(/font-weight:\s*(\d+)/.exec(block!)?.[1])
-      return ttf && (weight === 500 || weight === 700) ? [{ weight: weight as 500 | 700, url: ttf.startsWith("//") ? `https:${ttf}` : ttf }] : []
-    })
-    return await Promise.all(
-      faces.map(async ({ weight, url }) => {
-        const buffer = await fetch(url, { signal: AbortSignal.timeout(5000) }).then((r) => r.arrayBuffer())
-        return { weight, base64: Buffer.from(buffer).toString("base64") }
-      }),
-    )
-  } catch {
-    return []
-  }
+  const css = await fetch("https://api.fontshare.com/v2/css?f[]=satoshi@500,700&display=swap", {
+    signal: AbortSignal.timeout(5000),
+  }).then((r) => r.text())
+  const faces = [...css.matchAll(/@font-face\s*{([^}]*)}/g)].flatMap(([, block]) => {
+    const ttf = /url\('([^']+\.ttf)'\)\s*format\('truetype'\)/.exec(block!)?.[1]
+    const weight = Number(/font-weight:\s*(\d+)/.exec(block!)?.[1])
+    return ttf && (weight === 500 || weight === 700) ? [{ weight: weight as 500 | 700, url: ttf.startsWith("//") ? `https:${ttf}` : ttf }] : []
+  })
+  if (!faces.length) throw new Error("Fontshare returned no Satoshi faces")
+  return await Promise.all(
+    faces.map(async ({ weight, url }) => {
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
+      if (!res.ok) throw new Error(`Fontshare font ${res.status}`)
+      return { weight, base64: Buffer.from(await res.arrayBuffer()).toString("base64") }
+    }),
+  )
 }
 
 async function fonts(): Promise<Font[]> {
-  return (await satoshi()).map(({ weight, base64 }) => {
+  const faces = await satoshi().catch((error: unknown) => {
+    console.warn("og: Satoshi unavailable, using the built-in face", error)
+    return []
+  })
+  return faces.map(({ weight, base64 }) => {
     const bytes = Buffer.from(base64, "base64")
     return {
       name: "Satoshi",
@@ -153,6 +155,9 @@ export async function ogImage({ eyebrow, title, subtitle }: { eyebrow: string; t
         </div>
       </div>
     ),
-    { ...ogSize, fonts: loaded },
+    // No `fonts` key at all when Satoshi didn't load: an empty list makes
+    // ImageResponse throw ("No fonts are loaded"), which failed the build when
+    // Fontshare was unreachable from CI. Without the key it uses its own face.
+    { ...ogSize, ...(loaded.length ? { fonts: loaded } : {}) },
   )
 }
