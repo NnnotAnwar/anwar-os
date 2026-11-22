@@ -10,17 +10,28 @@ export const siteDescription =
 /**
  * The public origin, e.g. https://anwar.example. Better Auth already needs it
  * (BETTER_AUTH_URL), so canonical URLs and the sitemap read the same value.
+ *
+ * Read at call time, and call it only at request time (after `connection()` or
+ * another runtime read): the image is built without runtime env, where this is
+ * the http://localhost:3000 placeholder, and anything prerendered with it keeps
+ * that origin (robots.txt shipped "Sitemap: http://localhost:3000/sitemap.xml").
  */
-export const siteUrl = new URL(process.env.BETTER_AUTH_URL?.trim() || "http://localhost:3000")
+export function getSiteUrl(env: Record<string, string | undefined> = process.env) {
+  return new URL(env.BETTER_AUTH_URL?.trim() || "http://localhost:3000")
+}
 
-/** Absolute URL for a path on this site. */
-export const absoluteUrl = (path: string) => new URL(path, siteUrl).toString()
+/** Absolute URL for a path on this site. Request time only, see getSiteUrl. */
+export const absoluteUrl = (path: string) => new URL(path, getSiteUrl()).toString()
 
 /**
  * Metadata for one public page: title, description, canonical URL and the
  * matching Open Graph fields (a page's openGraph replaces the layout's, so the
  * shared ones are repeated here). The image comes from the nearest
  * opengraph-image file.
+ *
+ * URLs stay relative: Next resolves them against the public layout's
+ * metadataBase, computed per request. Absolute URLs built here would be frozen
+ * into the prerendered segments with the build's placeholder origin.
  */
 export function pageMetadata({
   title,
@@ -39,8 +50,8 @@ export function pageMetadata({
   return {
     title: title ?? { absolute: siteTitle },
     description,
-    alternates: { canonical: absoluteUrl(path) },
-    openGraph: { type, siteName, locale: "en_US", url: absoluteUrl(path), title: social, description },
+    alternates: { canonical: path },
+    openGraph: { type, siteName, locale: "en_US", url: path, title: social, description },
     twitter: { card: "summary_large_image", title: social, description },
   }
 }

@@ -4,15 +4,25 @@ import { AccountLink } from "@/components/site/account-link"
 import { SiteFooter } from "@/components/site/site-footer"
 import { SiteMenu, SiteNav } from "@/components/site/site-nav"
 import type { Metadata } from "next"
-import { siteDescription, siteName, siteTitle, siteUrl } from "@/lib/site"
+import { connection } from "next/server"
+import { getSiteUrl, siteDescription, siteName, siteTitle } from "@/lib/site"
 import "@/components/site/site.css"
 
-export const metadata: Metadata = {
-  metadataBase: siteUrl,
-  title: { default: siteTitle, template: "%s · Anwar" },
-  description: siteDescription,
-  openGraph: { type: "website", siteName, locale: "en_US" },
-  twitter: { card: "summary_large_image" },
+/**
+ * metadataBase is the runtime origin (BETTER_AUTH_URL), so the head resolves
+ * per request. As static `metadata` it was baked into the prerendered segments
+ * that client-side navigation uses, with the build's http://localhost:3000.
+ * Pages give relative canonical/og URLs (pageMetadata) that resolve against it.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  await connection()
+  return {
+    metadataBase: getSiteUrl(),
+    title: { default: siteTitle, template: "%s · Anwar" },
+    description: siteDescription,
+    openGraph: { type: "website", siteName, locale: "en_US" },
+    twitter: { card: "summary_large_image" },
+  }
 }
 
 // The public frame. Static: the header prerenders on every route; only the
