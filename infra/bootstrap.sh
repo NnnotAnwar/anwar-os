@@ -139,6 +139,9 @@ X11Forwarding no
 AllowAgentForwarding no
 ClientAliveInterval 300
 ClientAliveCountMax 2" || true
+  # With socket activation (24.04) sshd.service may never have run, so its
+  # RuntimeDirectory doesn't exist and `sshd -t` fails on it, not on the config.
+  install -d -m 0755 /run/sshd
   sshd -t || die "sshd config test failed; not reloading"
   # Ubuntu 24.04 socket-activates sshd; if the service isn't running, the next
   # connection starts it with the new config anyway.
