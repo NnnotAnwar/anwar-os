@@ -10,6 +10,11 @@
 }
 
 (security_headers) {
+	# Two blocks on purpose. A block that deletes headers is deferred: Caddy
+	# applies it only when a handler writes the response, so it is skipped on
+	# Caddy's own error responses (a basic_auth 401, a 502 while an app
+	# restarts). Setting headers in a separate block applies them right away,
+	# so every response carries them.
 	header {
 		# HTTPS only for a year. Add "; preload" and submit to hstspreload.org
 		# only once you're sure every subdomain will always have TLS.
@@ -19,13 +24,15 @@
 		X-Frame-Options "DENY"
 		Cross-Origin-Opener-Policy "same-origin"
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-		-Server
-		-X-Powered-By
 
 		# Content-Security-Policy: deliberately NOT set here. Apps that need one
 		# send it themselves (anwar.os: a fresh nonce per response from
 		# src/proxy.ts). A second CSP from Caddy would be enforced on top of it.
 		# Overview of who sets what: docs/DEPLOY.md, "Security headers".
+	}
+	header {
+		-Server
+		-X-Powered-By
 	}
 }
 
