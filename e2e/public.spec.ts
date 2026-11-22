@@ -32,6 +32,17 @@ test("every HTML response carries a fresh nonce CSP that the scripts use", async
   for (const tag of scripts) expect(tag, tag).toContain(`nonce="${nonce}"`)
 })
 
+test("an unknown address gets the site's own 404, inside the public frame", async ({ page, request }) => {
+  const response = await page.goto("/no-such-page")
+  expect(response?.status()).toBe(404)
+  await expect(page.getByRole("heading", { name: "This page isn't here", level: 1 })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Go to the start" })).toBeVisible()
+  // Real routes and files stay more specific than the catch-all.
+  for (const path of ["/robots.txt", "/sitemap.xml", "/manifest.webmanifest", "/sw.js", "/api/health"]) {
+    expect((await request.get(path)).status(), path).toBe(200)
+  }
+})
+
 test.describe("signed in", () => {
   test.use({ storageState: OWNER })
 
@@ -44,6 +55,13 @@ test.describe("signed in", () => {
       expect(await violations()).toEqual([])
     })
   }
+
+  test("an unknown /app address gets the app's 404, inside the shell", async ({ page }) => {
+    // 200, like every notFound() under /app: the shell streams first (noindex is still set).
+    await page.goto("/app/no-such-service")
+    await expect(page.getByRole("heading", { name: "Nothing lives at this address", level: 1 })).toBeVisible()
+    await expect(page.getByRole("link", { name: "Go to Today" })).toBeVisible()
+  })
 
   test("client navigation keeps working under the CSP", async ({ page }) => {
     const violations = await watchCsp(page)
