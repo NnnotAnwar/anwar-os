@@ -264,7 +264,7 @@ services:
       OPS_AGENT_SECRET: ${OPS_AGENT_SECRET:-}
       # Compose projects whose os.managed=true containers the panel sees. The
       # first is primary (plain names: "web"); others are qualified
-      # ("edge.caddy", "planuj-smeny.web"). Add a project here to manage it.
+      # ("edge.caddy", "shiftella.web"). Add a project here to manage it.
       OPS_AGENT_PROJECTS: ${OPS_AGENT_PROJECTS:-anwar-os,edge}
       OPS_AGENT_DEPLOY_TIMEOUT: ${OPS_AGENT_DEPLOY_TIMEOUT:-240}
       # Optional: pull private GHCR packages (a PAT with read:packages).

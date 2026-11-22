@@ -39,8 +39,8 @@ jobs:
         run: |
           mkdir -p /tmp/sites
           sed 's/__DOMAIN__/anwar-os.com/g' infra/edge/sites/anwar-os.caddy.tmpl > /tmp/sites/anwar-os.caddy
-          sed -e 's/__DOMAIN__/smeny.example.com/g' -e 's/__NAME__/planuj-smeny/g' \
-            infra/edge/sites/static-spa.caddy.tmpl > /tmp/sites/planuj-smeny.caddy
+          sed -e 's|__DOMAIN__|shiftella.app|g' -e 's|__ROOT__|shiftella/prod/current|g' \
+            infra/edge/sites/static-spa.caddy.tmpl > /tmp/sites/shiftella.caddy
           docker run --rm -e ACME_EMAIL=ci@example.com \
             -v "$PWD/infra/edge:/etc/caddy/base:ro" -v /tmp/sites:/etc/caddy/sites:ro \
             caddy:2.10-alpine caddy validate --config /etc/caddy/base/Caddyfile --adapter caddyfile

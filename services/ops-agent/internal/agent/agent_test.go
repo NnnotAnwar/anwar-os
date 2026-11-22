@@ -327,8 +327,8 @@ func TestListsOnlyManagedServicesOfTheProject(t *testing.T) {
 // the second is qualified, and a third, unlisted project stays invisible.
 func TestServesSeveralProjectsWithoutNameClashes(t *testing.T) {
 	f := world()
-	f.add("pweb1", "planuj-smeny-web-1", map[string]string{LabelManaged: "true", labelComposeService: "web", labelComposeProject: "planuj-smeny"}, "ghcr.io/o/planner:aaa", true)
-	a := New(f, sign.NewVerifier(secret), Config{Projects: []string{"proj", "planuj-smeny"}, DeployTimeout: 3 * time.Second, Settle: time.Millisecond},
+	f.add("pweb1", "shiftella-web-1", map[string]string{LabelManaged: "true", labelComposeService: "web", labelComposeProject: "shiftella"}, "ghcr.io/o/planner:aaa", true)
+	a := New(f, sign.NewVerifier(secret), Config{Projects: []string{"proj", "shiftella"}, DeployTimeout: 3 * time.Second, Settle: time.Millisecond},
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	h := a.Handler()
 
@@ -340,12 +340,12 @@ func TestServesSeveralProjectsWithoutNameClashes(t *testing.T) {
 	for _, s := range body["services"].([]any) {
 		names = append(names, s.(map[string]any)["name"].(string))
 	}
-	if !slices.Equal(names, []string{"bot-expenses", "planuj-smeny.web", "web"}) {
+	if !slices.Equal(names, []string{"bot-expenses", "shiftella.web", "web"}) {
 		t.Fatalf("services = %v", names)
 	}
 
-	if code, body := call(t, h, "POST", "/services/planuj-smeny.web/restart", "", true); code != 200 {
-		t.Fatalf("restart planuj-smeny.web = %d %v", code, body)
+	if code, body := call(t, h, "POST", "/services/shiftella.web/restart", "", true); code != 200 {
+		t.Fatalf("restart shiftella.web = %d %v", code, body)
 	}
 	if code, _ := call(t, h, "POST", "/services/web/stop", "", true); code != 403 {
 		t.Fatalf("protected primary web: stop = %d, want 403", code)
@@ -364,16 +364,16 @@ func TestServesSeveralProjectsWithoutNameClashes(t *testing.T) {
 		}
 	}
 	if !restarted {
-		t.Fatalf("planuj-smeny web was not restarted; calls: %v", f.calls)
+		t.Fatalf("shiftella web was not restarted; calls: %v", f.calls)
 	}
 }
 
 func TestQualifiedName(t *testing.T) {
-	l := map[string]string{labelComposeService: "web", labelComposeProject: "planuj-smeny"}
-	if got := QualifiedName(l, "x", "anwar-os"); got != "planuj-smeny.web" {
+	l := map[string]string{labelComposeService: "web", labelComposeProject: "shiftella"}
+	if got := QualifiedName(l, "x", "anwar-os"); got != "shiftella.web" {
 		t.Errorf("other project = %q", got)
 	}
-	if got := QualifiedName(l, "x", "planuj-smeny"); got != "web" {
+	if got := QualifiedName(l, "x", "shiftella"); got != "web" {
 		t.Errorf("primary project = %q", got)
 	}
 	if got := QualifiedName(l, "x", ""); got != "web" {

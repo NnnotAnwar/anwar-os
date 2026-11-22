@@ -1,29 +1,38 @@
-# A static single-page app (e.g. Planuj Směny's Vite build) served straight
-# from /srv/sites/__NAME__ on the host. Its backend lives elsewhere (Supabase).
+# A static single-page app (e.g. Shiftella's Vite build) served straight from
+# /srv/sites/__ROOT__ on the host. Its backend lives elsewhere (Supabase).
+# __ROOT__ may point at a release symlink (shiftella/prod/current): Caddy
+# resolves it per request, so swapping the symlink is an atomic deploy.
 #
 # Install (docs/DEPLOY.md, "A second project on this server"):
-#   sed -e 's/__DOMAIN__/smeny.example.com/g' -e 's/__NAME__/planuj-smeny/g' \
-#     static-spa.caddy.tmpl > /opt/edge/sites/planuj-smeny.caddy
+#   sed -e 's|__DOMAIN__|example.app|g' -e 's|__ROOT__|myapp/prod/current|g' \
+#     static-spa.caddy.tmpl > /opt/edge/sites/myapp.caddy
 #   then reload Caddy.
+#
+# A real app usually adds its own Content-Security-Policy here (the edge sets
+# none, see infra/edge/Caddyfile): nothing else on the way would send one.
 
 __DOMAIN__ {
 	import security_headers
 	encode zstd gzip
 
-	root * /srv/sites/__NAME__
+	root * /srv/sites/__ROOT__
 
-	# Hashed build assets never change: cache them for a year. Everything else
-	# (index.html for any client route) must be revalidated so a deploy takes
-	# effect on the next load. `header` runs before try_files rewrites the path,
-	# so match on "not an asset" rather than on /index.html.
-	@assets path /assets/*
-	header @assets Cache-Control "public, max-age=31536000, immutable"
-	@notAssets not path /assets/*
-	header @notAssets Cache-Control "no-cache"
+	# Hashed build assets never change: cache them for a year, and a missing
+	# one is a real 404 (not index.html, which a browser would try to run as
+	# JS after a deploy removed an old chunk).
+	handle /assets/* {
+		@exists file
+		header @exists Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
 
-	# Client-side routing: unknown paths get index.html.
-	try_files {path} /index.html
-	file_server
+	# Everything else (index.html for any client route, the manifest, sw.js)
+	# is revalidated, so a deploy takes effect on the next load.
+	handle {
+		header Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
 
 	log {
 		output stdout

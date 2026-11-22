@@ -38,7 +38,7 @@ echo "alias edge='docker compose -f /opt/anwar-os/repo/infra/edge/compose.yml --
 
 ### One server, several projects
 
-The server is laid out to host more than anwar.os (next up: Planuj Směny).
+The server is laid out to host more than anwar.os (next up: Shiftella, formerly Planuj Směny).
 Ports 80/443 belong to the **edge** stack (`infra/edge/compose.yml`, compose
 project `edge`): a single Caddy that gets certificates for every domain on the
 server. Projects never publish ports. Each one:
@@ -562,26 +562,30 @@ which Caddy sets.
 
 ## 18. A second project on this server
 
-A **static SPA** (Planuj Směny's Vite frontend, backend on Supabase) needs no
-container at all; the edge Caddy serves the files:
+A **static SPA** needs no container at all; the edge Caddy serves the files.
+Shiftella (formerly Planuj Směny: React + Vite, backend on hosted Supabase) is
+the first one:
 
-1. DNS: A/AAAA for its domain (and `www`) → this server.
-2. Upload the build: `rsync -a --delete dist/ deploy@<IPV4>:/srv/sites/planuj-smeny/`
-   (from CI: a second SSH key with its own forced command, like `ci-gate.sh`).
-3. Site file, once:
+1. DNS: A/AAAA for its domain (and `www`) → this server. On Cloudflare keep the
+   records **DNS only** (grey cloud) so Caddy gets its own certificates.
+2. Builds go to `/srv/sites/shiftella/{prod,dev}/releases/<sha>`, and a
+   `current` symlink points at the live one (the project's own release script
+   swaps it atomically; rollback = point it back). Upload from CI with a
+   separate SSH key whose forced command only allows that.
+3. Site file, once (the project may ship its own instead, with its CSP):
    ```sh
    cd /opt/anwar-os/repo/infra/edge/sites
-   sed -e 's/__DOMAIN__/smeny.example.com/g' -e 's/__NAME__/planuj-smeny/g' \
-     static-spa.caddy.tmpl > /opt/edge/sites/planuj-smeny.caddy
+   sed -e 's|__DOMAIN__|shiftella.app|g' -e 's|__ROOT__|shiftella/prod/current|g' \
+     static-spa.caddy.tmpl > /opt/edge/sites/shiftella.caddy
    edge exec caddy caddy reload --config /etc/caddy/base/Caddyfile --adapter caddyfile
    ```
-   Then a new build only needs step 2: `index.html` is served `no-cache`,
-   hashed `/assets/*` are immutable.
+   `index.html` and other non-asset files are served `no-cache`, hashed
+   `/assets/*` are immutable, and a missing asset is a real 404.
 
 A project **with its own containers** follows the anwar.os pattern: its own
 directory in `/opt/<project>`, its own compose project name, no `ports:`, web on
 the external `edge` network with an alias `<project>-web`, `mem_limit:` on every
 service, and its deploy writing `/opt/edge/sites/<project>.caddy` then reloading
 Caddy. Add the project to `OPS_AGENT_PROJECTS` in anwar.os's `.env` (e.g.
-`anwar-os,edge,planuj-smeny`) to manage it from `/app/ops`; its services show up
-as `planuj-smeny.web` and so on.
+`anwar-os,edge,myproject`) to manage it from `/app/ops`; its services show up
+as `myproject.web` and so on.

@@ -128,7 +128,7 @@ func cut(addr string) (string, string, bool) {
 	return "", "", false
 }
 
-// projects reads OPS_AGENT_PROJECTS ("anwar-os,planuj-smeny"; the first is the
+// projects reads OPS_AGENT_PROJECTS ("anwar-os,shiftella"; the first is the
 // primary) or, for older .env files, the single OPS_AGENT_PROJECT.
 func projects() []string {
 	raw := os.Getenv("OPS_AGENT_PROJECTS")

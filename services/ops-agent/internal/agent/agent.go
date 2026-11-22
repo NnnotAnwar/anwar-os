@@ -70,7 +70,7 @@ type Config struct {
 	// stray `docker run` of a bot image (whose image carries os.managed=true) is
 	// invisible. The first one is the primary project: its services keep their
 	// plain names ("web"); services of the others are qualified
-	// ("planuj-smeny.web"), so two projects can both have a "web".
+	// ("shiftella.web"), so two projects can both have a "web".
 	Projects []string
 	// DeployTimeout bounds the wait for a new container to become healthy.
 	DeployTimeout time.Duration

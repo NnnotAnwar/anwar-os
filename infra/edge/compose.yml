@@ -1,7 +1,7 @@
 # The shared edge of the server: one Caddy that owns ports 80/443 and serves
 # every project's domains with automatic HTTPS. Projects never publish ports;
 # they join the external `edge` network and give their web container an alias
-# (anwar-os-web, planuj-smeny-web, ...) that their site file proxies to.
+# (anwar-os-web, shiftella-web, ...) that their site file proxies to.
 #
 #   docker network create edge                       once (bootstrap.sh does it)
 #   docker compose -f compose.yml --env-file /opt/edge/.env up -d
