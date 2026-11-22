@@ -92,9 +92,17 @@ export async function statObject(key: string): Promise<{ size: number; mime: str
   }
 }
 
-/** Deletes objects in batches of 1000. Failures are logged: the rows are already gone. */
+/**
+ * Deletes objects in batches of 1000. Failures are logged, never thrown: the
+ * rows are already gone, so the delete the user asked for has happened. That
+ * includes storage that has since been unconfigured (the objects are orphaned).
+ */
 export async function removeObjects(keys: string[]) {
   if (!keys.length) return
+  if (!storageConfigured()) {
+    console.error("files: storage isn't configured; these objects are orphaned", keys)
+    return
+  }
   const { client, bucket } = storage()
   for (let i = 0; i < keys.length; i += 1000) {
     const batch = keys.slice(i, i + 1000)

@@ -10,6 +10,7 @@ import { Breadcrumbs } from "../components/breadcrumbs"
 import { FileDetails } from "../components/file-details"
 import { ItemIcon } from "../components/file-type-icon"
 import { rawHref } from "../lib/links"
+import { storageConfigured } from "../lib/s3"
 import { formatBytes, previewKind } from "../lib/validation"
 
 const getFile = cache(async (id: string) => (z.uuid().safeParse(id).success ? actions.getFile.handler({ id }) : null))
@@ -33,7 +34,9 @@ async function FileLoader({ params }: Pick<PageProps<"/app/files/file/[id]">, "p
   const { id } = await params
   const [viewer, file] = await Promise.all([requireViewer(), getFile(id)])
   if (!file) notFound()
-  const kind = previewKind(file.mime)
+  // Without storage the preview URL answers 503: say so instead of a broken image.
+  const storageReady = storageConfigured()
+  const kind = storageReady ? previewKind(file.mime) : null
   const added = new Intl.DateTimeFormat(viewer.locale === "en" ? "en-GB" : viewer.locale, {
     day: "numeric",
     month: "short",
@@ -56,7 +59,11 @@ async function FileLoader({ params }: Pick<PageProps<"/app/files/file/[id]">, "p
           ) : (
             <div className="grid justify-items-center gap-2 p-8 text-center">
               <ItemIcon item={file} className="size-12 [&_svg]:size-6" />
-              <p className="text-meta text-muted-foreground">No preview for this type. Download it to open.</p>
+              <p className="text-meta text-muted-foreground">
+                {storageReady
+                  ? "No preview for this type. Download it to open."
+                  : "File storage isn't configured, so this file can't be previewed or downloaded."}
+              </p>
             </div>
           )}
         </section>
