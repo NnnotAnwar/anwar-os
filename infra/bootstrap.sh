@@ -262,7 +262,10 @@ app_dir() {
 # project writes /opt/edge/sites/<name>.caddy; static builds go to /srv/sites/<name>.
 edge_dirs() {
   log "edge: /opt/edge, /srv/sites, docker network 'edge'"
-  install -d -m 755 -o "$DEPLOY_USER" -g "$DEPLOY_USER" /opt/edge /opt/edge/sites /srv/sites
+  install -d -m 755 -o "$DEPLOY_USER" -g "$DEPLOY_USER" /opt/edge /opt/edge/sites
+  # root-owned; each project owns only its own subdirectory (Shiftella's
+  # setup-shared.sh creates /srv/sites/shiftella for its deploy user).
+  install -d -m 755 -o root -g root /srv/sites
   if [[ ! -f /opt/edge/.env ]]; then
     install -m 600 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$APP_DIR/repo/infra/edge/.env.example" /opt/edge/.env
   fi
