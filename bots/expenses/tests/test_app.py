@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock
 from expenses_bot import app
 from expenses_bot.config import Config
 
+from .tg import fresh_dispatcher
+
 
 class FakeDispatcher:
     def __init__(self):
@@ -49,6 +51,6 @@ async def test_stop_event_stops_polling_and_heartbeat(monkeypatch):
 
 def test_build_dispatcher_wires_pool_and_routers():
     pool = object()
-    dp = app.build_dispatcher(pool)
+    dp = fresh_dispatcher(pool)
     assert dp["pool"] is pool
-    assert len(dp.sub_routers) == 2
+    assert [r.name for r in dp.sub_routers] == ["commands", "entries", "expense", "fallback"]

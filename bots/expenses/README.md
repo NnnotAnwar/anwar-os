@@ -4,21 +4,47 @@ Telegram bot that tracks personal expenses. It was `py-telegram` (aiogram 3 + SQ
 here it runs on the shared anwar.os Postgres in its own schema and as its own container
 (roadmap phase 5, ARCHITECTURE §8).
 
-Commands (unchanged from the old bot):
+## Using the bot
+
+Send an amount, optionally with a note: `250 coffee`, `89`, `15,50`, `coffee 250`,
+`250 kč tram`.
+
+- `250 food` / `250 food lunch` names a category directly and saves at once.
+- A note used before (`250 coffee`) is filed under the category it got most often.
+- Otherwise an inline category picker appears (most used in the last 90 days first).
+- The saved card shows amount, category, note, Prague time and the running day/month
+  totals, with **Undo · Amount · Category · Note** buttons. Amount and note are edited by
+  replying with text; the card is then replaced by an updated one.
+
+Persistent menu (reply keyboard): **📅 Today · 🗓 Week · 📊 Month · 🧾 History · ❓ Help**.
 
 | Command | Does |
 |---|---|
-| `/start`, `/help` | command list |
-| `/add` | asks for an amount (`15.50`, `15,5`, `50`), then a category button |
-| `/history` | last 5 expenses |
-| `/stats` | totals per category for the current month (Europe/Prague), total per currency |
+| `/start` | welcome, example, shows the menu |
+| `/help` | how to use the bot |
+| `/add` | asks for an amount (old flow, still works) |
+| `/today`, `/week`, `/month` | overview card: total, count, comparison with the previous period (up to the same point in time for the current period), daily average, top categories with bars; the day card lists its entries. ◀ ▶ move between periods, tabs switch day/week/month, the month card has **Export CSV** |
+| `/stats` | same as `/month` (old command) |
+| `/history` | recent entries, 8 per page; tap a number to edit or delete (delete asks to confirm) |
+| `/export [YYYY-MM]` | a month as CSV (UTF-8 with BOM; date, time, amount, currency, category, note) |
+| `/cancel` | leaves an edit in progress |
+
+At startup the bot syncs its command list (menu button), description and short description
+via the Bot API, writing only what differs (`expenses_bot/profile.py`); a failure there is
+logged and does not stop the bot.
+
+Messages are Telegram HTML (escaped user text), edited in place where possible, every button
+tap is answered, and buttons from old messages or a previous bot version get a short
+"expired" answer instead of spinning.
 
 All amounts are stored and shown in **CZK** (see "Currency" below).
 
 ## How it works
 
-- **aiogram 3, long polling.** No public endpoint needed. FSM state (an `/add` in
-  progress) is in memory, as before.
+- **aiogram 3, long polling.** No public endpoint needed. Conversation state is in memory, as
+  before: pending category pickers (amount + note) and an amount/note edit in progress.
+  Buttons carry expense ids and period dates, so they keep working after a restart; only a
+  picker for an entry with a note expires (it says so), one without a note still saves.
 - **Postgres via asyncpg**, pool of 1–4 connections, as role `bot_expenses`, which owns
   only schema `bot_expenses`.
 - **Migrations**: at startup the bot applies `db/migrations/*.sql` that are not yet in
@@ -41,7 +67,7 @@ All amounts are stored and shown in **CZK** (see "Currency" below).
 | Object | Contents |
 |---|---|
 | `users` | `telegram_id` (PK), `username` (nullable), `first_seen`, `last_seen` |
-| `expenses` | `id`, `telegram_user_id` → users, `amount_minor` bigint (> 0), `currency` (ISO, default `CZK`), `category`, `created_at` timestamptz, `external_ref` (unique, set by imports) |
+| `expenses` | `id`, `telegram_user_id` → users, `amount_minor` bigint (> 0), `currency` (ISO, default `CZK`), `category`, `note` (nullable, 1–200 chars, migration 0002), `created_at` timestamptz, `external_ref` (unique, set by imports) |
 | `activity_daily` | `(day, telegram_user_id)` → `updates` (messages + button taps per Prague day) |
 | `heartbeat` | exactly one row (`id = 1`) |
 | `schema_migrations` | applied migration versions |

@@ -24,10 +24,10 @@ async def test_bootstrap_guard_without_os_app(test_db):
 
 
 async def test_migrations_are_applied_once(pool, migrated):
-    assert migrated == ["0001_init"]
+    assert migrated == ["0001_init", "0002_expense_notes"]
     assert await db.migrate(pool) == []
-    versions = await pool.fetch("select version from bot_expenses.schema_migrations")
-    assert [r["version"] for r in versions] == ["0001_init"]
+    versions = await pool.fetch("select version from bot_expenses.schema_migrations order by version")
+    assert [r["version"] for r in versions] == ["0001_init", "0002_expense_notes"]
 
 
 async def test_os_app_gets_read_only_stats_access(test_db, pool, migrated):

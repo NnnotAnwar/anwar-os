@@ -1,81 +1,143 @@
+"""Logging a new expense: "250 coffee" -> (category picker) -> saved card."""
+
+from __future__ import annotations
+
 import logging
 
 import asyncpg
 from aiogram import F, Router, types
-from aiogram.filters import Command
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 
-from .. import repo
+from .. import categories, keyboards, render, repo
 from ..config import DEFAULT_CURRENCY
-from ..keyboards import CATEGORIES, CATEGORY_PREFIX, get_categories_keyboard
-from ..money import format_amount, parse_amount
+from ..keyboards import PickCb
+from ..money import Entry, parse_entry
+from ..ui import show
+from .common import (
+    Flow,
+    card_text,
+    category_candidates,
+    end_flow,
+    picker_names,
+    put_draft,
+    restore_draft,
+    take_draft,
+)
 
 log = logging.getLogger(__name__)
-router = Router()
+router = Router(name="expense")
+
+SAVE_FAILED = "⚠️ Couldn't save that, the database didn't answer. Please try again in a moment."
 
 
-class ExpenseStates(StatesGroup):
-    waiting_for_amount = State()
-    waiting_for_category = State()
+async def resolve_category(pool: asyncpg.Pool, user_id: int, text: str) -> tuple[str, str | None] | None:
+    """Category (and remaining note) for the text after the amount, if it is clear.
+
+    "food" / "food lunch" name a category directly; otherwise a note used before is filed
+    under the category it was filed under most often.
+    """
+    found = categories.match(text, await category_candidates(pool, user_id))
+    if found is not None:
+        return found
+    learned = await repo.category_for_note(pool, user_id, text)
+    if learned is not None:
+        return learned, text
+    return None
 
 
-@router.message(Command("add"))
-async def cmd_add(message: types.Message, state: FSMContext) -> None:
-    await message.answer("Please enter the expense amount (e.g., 15.50 or 50):")
-    await state.set_state(ExpenseStates.waiting_for_amount)
-
-
-@router.message(ExpenseStates.waiting_for_amount)
-async def process_amount(message: types.Message, state: FSMContext) -> None:
-    # message.text is None for stickers, photos etc.; the old bot crashed on those.
-    amount_minor = parse_amount(message.text)
-    if amount_minor is None:
-        await message.answer("❌ Invalid amount. Please enter a positive number (e.g., 15.50):")
-        return
-
-    await state.update_data(amount_minor=amount_minor)
-
-    await message.answer(
-        f"Amount set to {format_amount(amount_minor, DEFAULT_CURRENCY)}. Now, select a category:",
-        reply_markup=get_categories_keyboard(),
-    )
-    await state.set_state(ExpenseStates.waiting_for_category)
-
-
-@router.callback_query(ExpenseStates.waiting_for_category, F.data.startswith(CATEGORY_PREFIX))
-async def process_category(callback: types.CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
-    category = callback.data.removeprefix(CATEGORY_PREFIX)
-    amount_minor = (await state.get_data()).get("amount_minor")
-    if category not in CATEGORIES or amount_minor is None:
-        await state.clear()
-        await callback.answer("This button has expired. Use /add to start again.", show_alert=True)
-        return
-
-    # Clear first so a fast double tap cannot save the same expense twice.
-    await state.clear()
+async def save_and_reply(
+    message: types.Message, pool: asyncpg.Pool, user_id: int, amount_minor: int, category: str, note: str | None
+) -> None:
     try:
-        await repo.add_expense(pool, callback.from_user.id, amount_minor, category, DEFAULT_CURRENCY)
+        expense_id = await repo.add_expense(pool, user_id, amount_minor, category, DEFAULT_CURRENCY, note=note)
+        row = await repo.get_expense(pool, user_id, expense_id)
+        text = await card_text(pool, user_id, row, "s")
     except Exception:
         log.exception("failed to save expense")
-        # Put the flow back so the user can simply tap the category again.
-        await state.set_state(ExpenseStates.waiting_for_category)
-        await state.update_data(amount_minor=amount_minor)
+        await message.answer(SAVE_FAILED)
+        return
+    await message.answer(text, reply_markup=keyboards.expense_actions(expense_id))
+
+
+async def handle_entry(message: types.Message, state: FSMContext, pool: asyncpg.Pool, entry: Entry) -> None:
+    await end_flow(state)
+    user_id = message.from_user.id  # type: ignore[union-attr]
+    if entry.text:
+        resolved = await resolve_category(pool, user_id, entry.text)
+        if resolved is not None:
+            category, note = resolved
+            await save_and_reply(message, pool, user_id, entry.amount_minor, category, note)
+            return
+    names = await picker_names(pool, user_id)
+    sent = await message.answer(
+        render.picker(entry.amount_minor, entry.text),
+        reply_markup=keyboards.category_picker(names, entry.amount_minor, entry.text is not None),
+    )
+    await put_draft(state, sent.message_id, entry.amount_minor, entry.text)
+
+
+@router.message(StateFilter(Flow.amount))
+async def process_amount(message: types.Message, state: FSMContext, pool: asyncpg.Pool) -> None:
+    """The message after /add. Anything that is not an amount gets a specific hint."""
+    entry = parse_entry(message.text)
+    if entry is None:
+        await message.answer(render.invalid_amount())
+        return
+    await handle_entry(message, state, pool, entry)
+
+
+@router.message(StateFilter(None), F.text, ~F.text.startswith("/"))
+async def quick_entry(message: types.Message, state: FSMContext, pool: asyncpg.Pool) -> None:
+    entry = parse_entry(message.text)
+    if entry is None:
+        await message.answer(render.unknown_text())
+        return
+    await handle_entry(message, state, pool, entry)
+
+
+@router.callback_query(PickCb.filter())
+async def process_category(
+    callback: types.CallbackQuery, callback_data: PickCb, state: FSMContext, pool: asyncpg.Pool
+) -> None:
+    message = callback.message
+    message_id = message.message_id if message is not None else 0
+    user_id = callback.from_user.id
+
+    if callback_data.cat == "x":
+        await take_draft(state, message_id)
+        await show(callback, "Cancelled. Send an amount whenever you're ready.")
+        await callback.answer()
+        return
+
+    draft, used = await take_draft(state, message_id)
+    if used:
+        await callback.answer("Already saved.")
+        return
+    if draft is not None:
+        amount_minor, note = draft["a"], draft["n"]
+    elif not callback_data.note and callback_data.amount > 0:
+        # No note to lose: the button itself carries the amount (e.g. after a restart).
+        amount_minor, note = callback_data.amount, None
+    else:
+        await restore_draft(state, message_id, None)
+        await callback.answer("This entry expired (the bot restarted). Please send it again.", show_alert=True)
+        return
+
+    try:
+        category = categories.resolve(callback_data.cat, await category_candidates(pool, user_id))
+        if category is None:
+            await restore_draft(state, message_id, draft)
+            await callback.answer(render.stale(), show_alert=True)
+            return
+        expense_id = await repo.add_expense(pool, user_id, amount_minor, category, DEFAULT_CURRENCY, note=note)
+    except Exception:
+        log.exception("failed to save expense")
+        # Put the draft back so the user can simply tap the category again.
+        await restore_draft(state, message_id, draft or {"a": amount_minor, "n": note})
         await callback.answer("❌ Could not save the expense, please try again.", show_alert=True)
         return
 
-    await callback.message.edit_text(
-        f"✅ Successfully added expense:\n"
-        f"Amount: {format_amount(amount_minor, DEFAULT_CURRENCY)}\n"
-        f"Category: {category}"
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data.startswith(CATEGORY_PREFIX))
-async def stale_category(callback: types.CallbackQuery) -> None:
-    """A category button pressed outside the /add flow (old message, bot restart, double tap).
-
-    The old bot ignored these, leaving the button spinning forever.
-    """
-    await callback.answer("This button has expired. Use /add to start again.", show_alert=True)
+    row = await repo.get_expense(pool, user_id, expense_id)
+    await show(callback, await card_text(pool, user_id, row, "s"), keyboards.expense_actions(expense_id))
+    await callback.answer("Saved")

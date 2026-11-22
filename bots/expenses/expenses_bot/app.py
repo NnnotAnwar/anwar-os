@@ -10,18 +10,22 @@ from datetime import UTC, datetime
 
 import asyncpg
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 
 from . import BOT_NAME
 from .config import Config
 from .db import create_pool, migrate
-from .handlers import routers
+from .handlers import on_error, routers
 from .heartbeat import heartbeat_loop
 from .middleware import SeenUsersMiddleware
+from .profile import setup_bot_profile
 
 log = logging.getLogger(__name__)
 
 # Time given to in-flight handlers after SIGTERM (Docker's default stop timeout is 10 s).
 SHUTDOWN_TIMEOUT_SECONDS = 7
+PROFILE_TIMEOUT_SECONDS = 20
 
 
 def build_dispatcher(pool: asyncpg.Pool) -> Dispatcher:
@@ -31,7 +35,16 @@ def build_dispatcher(pool: asyncpg.Pool) -> Dispatcher:
     dp.update.outer_middleware(SeenUsersMiddleware())
     for router in routers:
         dp.include_router(router)
+    dp.errors.register(on_error)
     return dp
+
+
+def create_bot(token: str) -> Bot:
+    # Every message is Telegram HTML; user-provided text is escaped in render.py.
+    return Bot(
+        token=token,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML, link_preview_is_disabled=True),
+    )
 
 
 def _install_signal_handlers(stop: asyncio.Event) -> None:
@@ -61,8 +74,11 @@ async def run_bot(config: Config) -> None:
         applied = await migrate(pool)
         log.info("migrations up to date", extra={"applied": applied})
 
-        bot = Bot(token=config.bot_token)
+        bot = create_bot(config.bot_token)
         try:
+            # Never raises (failures are logged); bounded so a slow API can't delay polling long.
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(setup_bot_profile(bot), PROFILE_TIMEOUT_SECONDS)
             await _poll_until_stopped(bot, build_dispatcher(pool), pool, config, started_at, stop)
         finally:
             # Idempotent; needed when polling never started or was cancelled.
@@ -107,5 +123,6 @@ async def _poll_until_stopped(
             if not task.done():
                 task.cancel()
         await asyncio.gather(polling, heartbeat, stopper, return_exceptions=True)
-    if not polling.cancelled() and polling.exception() is not None:
-        raise polling.exception()
+    error = None if polling.cancelled() else polling.exception()
+    if error is not None:
+        raise error
