@@ -227,6 +227,8 @@ async function learnedCategory(tx: Tx, noteText: string): Promise<string | null>
  * returns the parsed draft for the bot's category picker.
  */
 export async function quickAdd(input: z.infer<typeof quickInput>, timezone: string): Promise<QuickResult> {
+  // The first thing a new owner may ever do in Budget: seed its defaults (a no-op afterwards).
+  await actions.ensureSetup.handler({})
   const today = todayIn(timezone)
   const [accounts, categories] = await Promise.all([
     actions.listAccounts.handler({ includeArchived: false }),
