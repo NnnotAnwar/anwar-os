@@ -120,10 +120,11 @@ export function CaptureForm({ onDone, compact = false, autoFocus = true }: { onD
           placeholder={compact ? "Capture a thought, a to-do, a link" : "e.g. Ask Petra about the shift swap · https://…"}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? "capture-error" : undefined}
+          // 16px on phones (max-md:text-base): iOS zooms the page into any field set smaller.
           className={
             compact
-              ? "text-body min-h-10 flex-1 resize-none bg-transparent py-2.5 outline-none placeholder:text-muted-foreground/80"
-              : "text-body min-h-24 w-full resize-none rounded-lg border border-field-border bg-field p-3 outline-none focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-accent-500/20"
+              ? "text-body min-h-10 flex-1 resize-none bg-transparent py-2.5 outline-none placeholder:text-muted-foreground/80 max-md:text-base"
+              : "text-body min-h-24 w-full resize-none rounded-lg border border-field-border bg-field p-3 outline-none focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-accent-500/20 max-md:text-base"
           }
         />
         {compact && (

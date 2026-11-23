@@ -98,7 +98,8 @@ export const QuickAdd = forwardRef<
           enterKeyHint="done"
           aria-invalid={Boolean(error)}
           aria-describedby={error ? "quick-task-error" : "quick-task-preview"}
-          className="text-body h-10 min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground/80"
+          // 16px on phones: iOS zooms the page into any field set smaller.
+          className="text-body h-10 min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground/80 max-md:text-base"
         />
         <Button type="submit" size="lg" disabled={pending || !text.trim()} className="shrink-0">
           <Plus />

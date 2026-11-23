@@ -31,7 +31,7 @@ export default function TodayPage() {
             </h2>
             <Link
               href="/app/services"
-              className="text-caption rounded text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="text-caption -my-3 rounded py-3 text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               All services
             </Link>
@@ -101,7 +101,7 @@ async function Widgets() {
             </h2>
             <Link
               href={w.href}
-              className="text-caption flex items-center gap-0.5 rounded text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="text-caption -my-3 flex items-center gap-0.5 rounded py-3 text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               {w.moduleName}
               <ArrowUpRight className="size-3" aria-hidden />

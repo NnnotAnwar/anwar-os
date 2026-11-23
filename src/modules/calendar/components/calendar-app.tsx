@@ -330,7 +330,8 @@ export function CalendarApp(props: Props) {
             placeholder={`Quick add on ${formatDayMonth(utcMidnight(selected), locale, "UTC")} — e.g. Dentist tomorrow 14:00`}
             autoComplete="off"
             aria-describedby={quickError ? "quick-error" : undefined}
-            className="text-meta h-9 min-w-0 flex-1 rounded-lg border border-field-border bg-field px-3 outline-none placeholder:text-muted-foreground focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-ring/20"
+            // 16px on phones: iOS zooms the page into any field set smaller.
+            className="text-meta h-9 min-w-0 flex-1 rounded-lg border border-field-border bg-field px-3 outline-none placeholder:text-muted-foreground focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-ring/20 max-md:h-10 max-md:text-base"
           />
           <Button type="submit" variant="outline" size="lg" disabled={adding || !quick.trim()}>
             Add
