@@ -89,5 +89,7 @@ describe("bot input", () => {
   it("refuses schemas that aren't a bot's", () => {
     expect(botInput.safeParse({ name: "x", telegramUsername: "", serviceName: "", statsSource: "public", description: "" }).success).toBe(false)
     expect(botInput.safeParse({ name: "x", telegramUsername: "", serviceName: "", statsSource: "osbot", description: "" }).success).toBe(true)
+    expect(botInput.safeParse({ name: "x", telegramUsername: "", serviceName: "", statsSource: "budget-bot", description: "" }).success).toBe(true)
+    expect(botInput.safeParse({ name: "x", telegramUsername: "", serviceName: "", statsSource: "budget-bots", description: "" }).success).toBe(false)
   })
 })

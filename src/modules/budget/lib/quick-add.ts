@@ -16,6 +16,14 @@ import { parseAmount } from "./money"
 export type QuickCategory = { id: string; name: string; kind: "income" | "expense" }
 export type QuickAccount = { id: string; name: string }
 
+/**
+ * Where quick add puts a transaction when the text names no account: the
+ * caller's choice, else the first CZK account, else the first one.
+ */
+export function defaultAccountId(accounts: { id: string; currency: string }[], preferred: string | null = null): string | null {
+  return preferred ?? accounts.find((x) => x.currency === "CZK")?.id ?? accounts[0]?.id ?? null
+}
+
 export type QuickResult =
   | {
       ok: true

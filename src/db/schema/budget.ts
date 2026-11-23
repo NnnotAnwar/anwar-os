@@ -173,6 +173,12 @@ export const budgetTransactions = pgTable(
     recurringId: uuid("recurring_id"),
     /** Both legs of a transfer between own accounts share this id. */
     transferId: uuid("transfer_id"),
+    /**
+     * Stable id of the row in the source it was imported from, e.g.
+     * "bot-expenses:42". Unique per owner, so re-running an import never
+     * duplicates; null for everything typed in.
+     */
+    importKey: text("import_key"),
     ...timestamps(),
   },
   (t) => [
@@ -184,6 +190,7 @@ export const budgetTransactions = pgTable(
       .onUpdate("cascade")
       .onDelete("restrict"),
     unique("budget_transactions_recurring_date_key").on(t.recurringId, t.occurredOn),
+    unique("budget_transactions_owner_import_key").on(t.ownerId, t.importKey),
     index("budget_transactions_owner_date_idx").on(t.ownerId, t.occurredOn.desc()),
     index("budget_transactions_owner_account_date_idx").on(t.ownerId, t.accountId, t.occurredOn),
     index("budget_transactions_owner_category_idx").on(t.ownerId, t.categoryId),
@@ -191,6 +198,7 @@ export const budgetTransactions = pgTable(
     check("budget_transactions_amount_nonzero", sql`${t.amountMinor} <> 0`),
     check("budget_transactions_note_length", sql`char_length(${t.note}) <= 500`),
     check("budget_transactions_tags_count", sql`cardinality(${t.tags}) <= 20`),
+    check("budget_transactions_import_key_length", sql`char_length(${t.importKey}) between 1 and 200`),
   ],
 )
 
@@ -241,4 +249,21 @@ export const budgetPlans = pgTable(
     check("budget_plans_start_first_of_month", sql`extract(day from ${t.startOn}) = 1`),
     check("budget_plans_currency_shape", sql`${t.currency} ~ '^[A-Z]{3}$'`),
   ],
+)
+
+/**
+ * The Telegram expense bot's last sign of life (one row per owner). The bot has
+ * no database access; it beats through /api/internal/budget-bot/heartbeat,
+ * which acts as the site owner. Read by the Bots panel.
+ */
+export const budgetBotHeartbeats = pgTable(
+  "budget_bot_heartbeats",
+  {
+    ownerId: ownerId().primaryKey(),
+    version: text("version").notNull().default("dev"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    lastBeatAt: timestamp("last_beat_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check("budget_bot_heartbeats_version_length", sql`char_length(${t.version}) between 1 and 80`)],
 )

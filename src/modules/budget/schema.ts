@@ -153,6 +153,14 @@ export const importInput = z.object({
         amountMinor: signedAmount,
         note: z.string().max(500).default(""),
         categoryName: z.string().max(60).nullable().default(null),
+        /**
+         * Stable id of the row in its source, e.g. "bot-expenses:42". A row whose
+         * key was imported before is skipped, whatever it looks like now; rows
+         * without a key are matched by date, amount and note instead.
+         */
+        importKey: z.string().trim().min(1).max(200).optional(),
+        /** When the source recorded it; kept as the transaction's created_at (the time of day). */
+        recordedAt: z.iso.datetime({ offset: true }).optional(),
       }),
     )
     .min(1, "Nothing to import.")
@@ -258,7 +266,5 @@ export type Overview = {
   accounts: Account[]
   transactionCount: number
 }
-
-export type BotTotals = { expenses: number; amounts: { currency: string; minor: number }[] }
 
 export class BudgetInputError extends Error {}

@@ -18,7 +18,7 @@ import { dedupeKey, markDuplicates } from "./lib/csv"
 import { monthOf, monthRange, todayIn } from "./lib/dates"
 import { savingsRate } from "./lib/money"
 import { actualMonths, comparePlan, netWorthByMonth, projectPlan, type ComparisonRow } from "./lib/projection"
-import { parseQuickAdd } from "./lib/quick-add"
+import { defaultAccountId, parseQuickAdd } from "./lib/quick-add"
 import { dueDates } from "./lib/recurring"
 import {
   archiveInput,
@@ -44,7 +44,6 @@ import {
   updateRecurringInput,
   updateTransactionInput,
   type Account,
-  type BotTotals,
   type Category,
   type CategoryTotal,
   type Goal,
@@ -278,45 +277,6 @@ function friendly(error: unknown): never {
 }
 
 // ---------------------------------------------------------------------------
-// Bot integration (read-only): the expense bot's daily stats view, when the
-// bot_expenses schema exists and os_app may read it. Any failure hides it.
-// ---------------------------------------------------------------------------
-
-async function loadBotTotals(month: string): Promise<BotTotals | null> {
-  const viewer = await requireViewer()
-  if (viewer.role !== "owner") return null
-  const { from, to } = monthRange(month)
-  try {
-    return await asViewer(async (tx) => {
-      const [visible] = await tx.execute<{ ok: boolean }>(
-        sql`select to_regclass('bot_expenses.stats_daily') is not null
-                   and has_table_privilege('bot_expenses.stats_daily', 'select') as ok`,
-      )
-      if (!visible?.ok) return null
-      const rows = await tx.execute<{ currency: string; minor: string; expenses: number }>(sql`
-        with days as (
-          select expenses, amounts_minor from bot_expenses.stats_daily where day between ${from} and ${to}
-        )
-        select coalesce(kv.key, '') as currency,
-               coalesce(sum(kv.value::bigint), 0) as minor,
-               (select coalesce(sum(expenses), 0)::int from days) as expenses
-        from days left join lateral jsonb_each_text(days.amounts_minor) kv on true
-        group by kv.key`)
-      const expenses = rows[0]?.expenses ?? 0
-      return {
-        expenses,
-        amounts: rows
-          .filter((r) => r.currency)
-          .map((r) => ({ currency: r.currency, minor: Number(r.minor) }))
-          .sort((x, y) => x.currency.localeCompare(y.currency)),
-      }
-    })
-  } catch {
-    return null
-  }
-}
-
-// ---------------------------------------------------------------------------
 // The module's operations. Descriptions are written for an LLM caller.
 // Amounts are integer minor units (1 CZK = 100); negative = money out.
 // ---------------------------------------------------------------------------
@@ -390,8 +350,7 @@ export const actions = {
       const today = await viewerToday()
       return asViewer(async (tx) => {
         const [accounts, categories] = await Promise.all([loadAccounts(tx, false), loadCategories(tx, false)])
-        const fallback = accountId ?? accounts.find((x) => x.currency === "CZK")?.id ?? accounts[0]?.id ?? null
-        const parsed = parseQuickAdd(text, { categories, accounts, today, defaultAccountId: fallback })
+        const parsed = parseQuickAdd(text, { categories, accounts, today, defaultAccountId: defaultAccountId(accounts, accountId) })
         if (!parsed.ok) throw new BudgetInputError(parsed.error)
         if (!parsed.accountId) throw new BudgetInputError("Add an account first.")
         const [row] = await tx
@@ -897,24 +856,55 @@ export const actions = {
 
   importTransactions: defineAction({
     description:
-      "Import transactions into one account. Rows already present (same date, signed amount and note, ignoring case and spacing) are skipped, counting repeats. categoryName is matched to an existing category by name (case-insensitive); unknown names stay uncategorised. Returns the new ids (for undo) and how many were skipped.",
+      "Import transactions into one account. Rows already present (same date, signed amount and note, ignoring case and spacing) are skipped, counting repeats; a row with an importKey (its stable id in the source) is skipped instead when that key was imported before, so re-running an import never duplicates. categoryName is matched to an existing category by name (case-insensitive, the kind that fits the sign first); unknown names stay uncategorised. Returns the new ids (for undo) and how many were skipped.",
     kind: "write",
     input: importInput,
     handler: ({ accountId, rows }): Promise<{ ids: string[]; skipped: number }> =>
       asViewer(async (tx) => {
         const [account] = await tx.select({ id: a.id }).from(a).where(eq(a.id, accountId))
         if (!account) throw new BudgetInputError("Choose an account to import into.")
-        const dates = rows.map((x) => x.occurredOn).sort()
-        const existing = await tx
-          .select({ occurredOn: t.occurredOn, amountMinor: t.amountMinor, note: t.note })
-          .from(t)
-          .where(and(eq(t.accountId, accountId), gte(t.occurredOn, dates[0]!), lte(t.occurredOn, dates.at(-1)!)))
-        const duplicate = markDuplicates(rows, existing.map(dedupeKey))
-        const fresh = rows.filter((_, i) => !duplicate[i])
+
+        // Keyed rows: new unless the key exists (anywhere in the budget) or repeats in this batch.
+        const keys = [...new Set(rows.flatMap((x) => (x.importKey ? [x.importKey] : [])))]
+        const knownKeys = new Set<string>()
+        for (let i = 0; i < keys.length; i += 500) {
+          const found = await tx
+            .select({ key: t.importKey })
+            .from(t)
+            .where(inArray(t.importKey, keys.slice(i, i + 500)))
+          for (const row of found) knownKeys.add(row.key!)
+        }
+        const keyed: typeof rows = []
+        for (const row of rows) {
+          if (!row.importKey || knownKeys.has(row.importKey)) continue
+          knownKeys.add(row.importKey)
+          keyed.push(row)
+        }
+
+        // Unkeyed rows: new unless the same date, amount and note is already there.
+        const plain = rows.filter((x) => !x.importKey)
+        let freshPlain: typeof plain = []
+        if (plain.length) {
+          const dates = plain.map((x) => x.occurredOn).sort()
+          const existing = await tx
+            .select({ occurredOn: t.occurredOn, amountMinor: t.amountMinor, note: t.note })
+            .from(t)
+            .where(and(eq(t.accountId, accountId), gte(t.occurredOn, dates[0]!), lte(t.occurredOn, dates.at(-1)!)))
+          const duplicate = markDuplicates(plain, existing.map(dedupeKey))
+          freshPlain = plain.filter((_, i) => !duplicate[i])
+        }
+
+        const fresh = [...keyed, ...freshPlain]
         if (fresh.length === 0) return { ids: [], skipped: rows.length }
 
         const categories = await tx.select({ id: c.id, name: c.name, kind: c.kind }).from(c)
-        const byName = new Map(categories.map((x) => [x.name.toLowerCase(), x]))
+        const categoryFor = (name: string | null, amountMinor: number) => {
+          if (!name) return null
+          const wanted = name.trim().toLowerCase()
+          const kind = amountMinor < 0 ? "expense" : "income"
+          const named = categories.filter((x) => x.name.toLowerCase() === wanted)
+          return (named.find((x) => x.kind === kind) ?? named[0])?.id ?? null
+        }
         const ids: string[] = []
         for (let i = 0; i < fresh.length; i += 500) {
           const inserted = await tx
@@ -922,26 +912,20 @@ export const actions = {
             .values(
               fresh.slice(i, i + 500).map((row) => ({
                 accountId,
-                categoryId: row.categoryName ? (byName.get(row.categoryName.trim().toLowerCase())?.id ?? null) : null,
+                categoryId: categoryFor(row.categoryName, row.amountMinor),
                 amountMinor: row.amountMinor,
                 occurredOn: row.occurredOn,
                 note: row.note.trim(),
+                importKey: row.importKey ?? null,
+                ...(row.recordedAt ? { createdAt: new Date(row.recordedAt) } : {}),
               })),
             )
+            // A concurrent import of the same keys: the other one wins, nothing doubles.
+            .onConflictDoNothing({ target: [t.ownerId, t.importKey] })
             .returning({ id: t.id })
           ids.push(...inserted.map((x) => x.id))
         }
-        return { ids, skipped: rows.length - fresh.length }
+        return { ids, skipped: rows.length - ids.length }
       }),
-  }),
-
-  // Bot ---------------------------------------------------------------------
-
-  botTotals: defineAction({
-    description:
-      "Read-only totals from the Telegram expense bot for a month (number of expenses and sums per currency, from bot_expenses.stats_daily). Null when the bot's schema isn't installed or readable.",
-    kind: "read",
-    input: monthInput,
-    handler: async ({ month }): Promise<BotTotals | null> => loadBotTotals(month ?? monthOf(await viewerToday())),
   }),
 }

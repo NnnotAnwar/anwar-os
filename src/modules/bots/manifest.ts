@@ -2,7 +2,7 @@ import { Pulse, Robot, TelegramLogo } from "@/components/icons"
 import { defineModule } from "@/core/module"
 
 // Registry of the owner's Telegram bots with stats read from each bot's own
-// schema (or osbot's heartbeat). Owner only.
+// schema (or the heartbeat osbot / the expense bot send through web's internal API). Owner only.
 export const bots = defineModule({
   id: "bots",
   name: "Bots",

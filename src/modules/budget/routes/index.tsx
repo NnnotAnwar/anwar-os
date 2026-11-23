@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import Link from "next/link"
-import { ArrowUpRight, Bank, Coins, PiggyBank, TrendingUp, Wallet } from "@/components/icons"
+import { ArrowUpRight, Bank, PiggyBank, TrendingUp, Wallet } from "@/components/icons"
 import { NAV_FORWARD, Reveal, SkeletonExit } from "@/components/motion"
 import { Skeleton } from "@/components/ui/skeleton"
 import { requireViewer } from "@/core/auth"
@@ -37,11 +37,7 @@ async function Body({ searchParams }: Pick<Props, "searchParams">) {
   const today = todayIn(viewer.timezone)
   const current = monthOf(today)
   const month = monthParam(params.month, current)
-  const [overview, due, bot] = await Promise.all([
-    actions.overview.handler({ month }),
-    actions.dueCount.handler({}),
-    actions.botTotals.handler({ month }),
-  ])
+  const [overview, due] = await Promise.all([actions.overview.handler({ month }), actions.dueCount.handler({})])
   const locale = viewer.locale
   const money = (minor: number, opts?: { signed?: boolean }) => formatMoney(minor, overview.baseCurrency, locale, opts)
 
@@ -101,24 +97,6 @@ async function Body({ searchParams }: Pick<Props, "searchParams">) {
         <SpendingCard overview={overview} locale={locale} month={month} />
         <div className="grid content-start gap-4">
           <AccountsCard overview={overview} locale={locale} />
-          {bot && (
-            <section aria-labelledby="bot-title" className="glass grid gap-2 rounded-xl p-4">
-              <h2 id="bot-title" className="text-card-title flex items-center gap-2">
-                <Coins className="size-4 text-muted-foreground" />
-                From the expense bot
-              </h2>
-              {bot.expenses === 0 ? (
-                <p className="text-meta text-muted-foreground">Nothing logged in Telegram this month.</p>
-              ) : (
-                <>
-                  <p className="text-metric">{bot.amounts.map((a) => formatMoney(a.minor, a.currency, locale)).join(" · ")}</p>
-                  <p className="text-caption text-muted-foreground">
-                    {bot.expenses} {bot.expenses === 1 ? "expense" : "expenses"} in {formatMonth(month, locale)} · read-only, not in the totals above
-                  </p>
-                </>
-              )}
-            </section>
-          )}
         </div>
       </div>
     </div>

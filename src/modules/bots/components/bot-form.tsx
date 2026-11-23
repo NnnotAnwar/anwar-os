@@ -17,7 +17,7 @@ export function BotFormSheet({ bot, onOpenChange }: { bot: Bot | "new" | null; o
       open={bot !== null}
       onOpenChange={onOpenChange}
       title={bot === "new" ? "Add a bot" : "Edit bot"}
-      description="Stats come from the bot's own schema (its stats views) or, for osbot, from its heartbeat."
+      description="Stats come from a bot's own schema (its stats views) or, for osbot and the expense bot, from their heartbeat."
     >
       {bot !== null && <BotForm key={bot === "new" ? "new" : bot.id} bot={bot === "new" ? null : bot} onDone={() => onOpenChange(false)} />}
     </Sheet>
@@ -74,12 +74,12 @@ function BotForm({ bot, onDone }: { bot: Bot | null; onDone: () => void }) {
           spellCheck={false}
         />
       </Field>
-      <Field label="Stats from" htmlFor="bot-stats" hint="The bot's schema (bot_expenses), osbot, or empty for none.">
+      <Field label="Stats from" htmlFor="bot-stats" hint="osbot, budget-bot (the expense bot), a bot's own schema (bot_…), or empty for none.">
         <Input
           id="bot-stats"
           name="statsSource"
           defaultValue={bot?.statsSource ?? ""}
-          placeholder="bot_expenses"
+          placeholder="budget-bot"
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}

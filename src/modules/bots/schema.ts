@@ -20,7 +20,9 @@ export const botFields = {
         .nullable(),
     ),
   serviceName: optional(z.string().regex(/^[a-z0-9][a-z0-9_.-]{0,62}$/, "Use the compose service name, e.g. bot-expenses.")),
-  statsSource: optional(z.string().regex(/^(osbot|bot_[a-z0-9_]{1,40})$/, "Use the bot's schema (bot_…) or osbot.")),
+  statsSource: optional(
+    z.string().regex(/^(osbot|budget-bot|bot_[a-z0-9_]{1,40})$/, "Use osbot, budget-bot or the bot's schema (bot_…)."),
+  ),
   description: z.string().trim().max(300, "Keep the description under 300 characters."),
 }
 
@@ -57,6 +59,8 @@ export type BotStats =
       daily: DailyPoint[]
     }
   | { kind: "osbot"; configured: boolean; lastBeatAt: string | null; startedAt: string | null; version: string | null }
+  /** The expense bot: heartbeats through /api/internal/budget-bot; its expenses live in Budget. */
+  | { kind: "budget-bot"; configured: boolean; lastBeatAt: string | null; startedAt: string | null; version: string | null }
 
 export type BotWithStats = Bot & { stats: BotStats }
 
@@ -67,8 +71,8 @@ export const knownBots: (z.input<typeof botInput> & { key: string })[] = [
     name: "Expenses",
     telegramUsername: "",
     serviceName: "bot-expenses",
-    statsSource: "bot_expenses",
-    description: "Tracks personal expenses: /add, /history, /stats.",
+    statsSource: "budget-bot",
+    description: "Logs spending into Budget from Telegram: 250 coffee, /today, /month, /history.",
   },
   {
     key: "osbot",

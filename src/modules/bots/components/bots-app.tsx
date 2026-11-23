@@ -137,7 +137,7 @@ function BotCard({
   onRemove: () => void
 }) {
   const s = bot.stats
-  const beat = s.kind === "schema" || s.kind === "osbot" ? liveness(s.lastBeatAt, now) : null
+  const beat = s.kind === "schema" || s.kind === "osbot" || s.kind === "budget-bot" ? liveness(s.lastBeatAt, now) : null
   const actions: RowAction[] = [
     { id: "edit", label: "Edit", icon: Pencil, onSelect: onEdit, shortcut: "E" },
     { id: "remove", label: "Remove from registry", icon: Trash2, tone: "destructive", onSelect: onRemove },
@@ -223,7 +223,7 @@ function Stats({ stats: s, locale }: { stats: BotStats; locale: string }) {
   const n = (v: number | null) => (v == null ? "–" : new Intl.NumberFormat(locale).format(v))
   if (s.kind === "none") return <p className="text-meta text-muted-foreground">No stats source set. Edit the bot to add one.</p>
   if (s.kind === "unavailable") return <p className="text-meta rounded-lg bg-track px-3 py-2 text-muted-foreground">{s.reason}</p>
-  if (s.kind === "osbot") {
+  if (s.kind === "osbot" || s.kind === "budget-bot") {
     return (
       <dl className="grid grid-cols-2 gap-3">
         <Metric label="Version" value={s.version ? s.version.slice(0, 12) : "–"} />

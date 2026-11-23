@@ -4,6 +4,7 @@ import { z } from "zod"
 import { asViewer, requireViewer } from "@/core/auth"
 import { defineAction } from "@/core/module"
 import { botsBots } from "@/db/schema"
+import { budgetBotStatus } from "@/modules/budget/bot-api/service"
 import { osbotStatus } from "@/modules/osbot/service"
 import { fillDays, liveness, readOverview } from "./lib/stats"
 import {
@@ -88,11 +89,24 @@ async function statsFor(bot: Bot): Promise<BotStats> {
       return { kind: "unavailable", reason: "Couldn't read osbot's heartbeat." }
     }
   }
+  if (bot.statsSource === "budget-bot") {
+    try {
+      const s = await budgetBotStatus()
+      return { kind: "budget-bot", configured: s.configured, lastBeatAt: s.lastBeatAt, startedAt: s.startedAt, version: s.version }
+    } catch {
+      return { kind: "unavailable", reason: "Couldn't read the expense bot's heartbeat." }
+    }
+  }
   return schemaStats(bot.statsSource)
 }
 
+/** Kinds with a heartbeat the panel watches. */
+export function hasHeartbeat(stats: BotStats): stats is Extract<BotStats, { lastBeatAt: string | null }> {
+  return stats.kind === "schema" || stats.kind === "osbot" || stats.kind === "budget-bot"
+}
+
 export function lastBeat(stats: BotStats) {
-  return stats.kind === "schema" || stats.kind === "osbot" ? stats.lastBeatAt : null
+  return hasHeartbeat(stats) ? stats.lastBeatAt : null
 }
 
 export const actions = {
@@ -124,7 +138,7 @@ export const actions = {
       const list = await actions.overview.handler({})
       return list.filter((b) => {
         const beat = lastBeat(b.stats)
-        return (b.stats.kind === "schema" || b.stats.kind === "osbot") && liveness(beat, now).state === "silent"
+        return hasHeartbeat(b.stats) && liveness(beat, now).state === "silent"
       }).length
     },
   }),
