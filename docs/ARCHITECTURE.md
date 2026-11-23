@@ -255,8 +255,14 @@ Only labelled services can be touched; `db`, the edge `caddy`, `ops-agent` itsel
 - Each bot gets its own repo or `bots/<name>/` folder with a Dockerfile, its own
   Postgres schema and login role, and a `heartbeat` row it updates every minute
   (the panel's "alive" signal for polling bots).
-- `py-telegram` (expense bot) is migrated from SQLite to its `bot_expenses` schema
-  and containerized in phase 5.
+- `py-telegram` (expense bot) was migrated from SQLite to its `bot_expenses` schema
+  and containerized in phase 5. It is now a front-end for **Budget**: like osbot it
+  has no database access while running and calls `/api/internal/budget-bot/*`
+  (`src/modules/budget/bot-api/`, its own secret `BOT_EXPENSES_API_SECRET` and
+  `x-budget-bot-*` headers, the shared factory in `src/core/internal-api.ts`), so
+  every expense is a Budget transaction. Its old rows are copied once with
+  `python -m expenses_bot import-to-budget` (idempotent: `budget_transactions.import_key`
+  = `bot-expenses:<id>`); the `bot_expenses` schema stays as an archive.
 - **osbot** (`bots/osbot/`): Anwar's own bot for the platform. Quick capture
   (forward a message → Inbox by default, or task / note / link / idea), `/today`,
   calendar reminders and feedback alerts (ops alerts later). Unlike the other
@@ -269,7 +275,9 @@ Only labelled services can be touched; `db`, the edge `caddy`, `ops-agent` itsel
   `OSBOT_OWNER_CHAT_ID` is served. Its heartbeat goes through the same API
   (`osbot_heartbeats`, shown in Settings → Telegram); while it is fresh, web
   leaves feedback alerts to the bot, otherwise web notifies directly.
-- Stats views (`bot_expenses.stats_daily`, …) are granted to `os_app` read-only.
+- Stats views of a bot's own schema (`<schema>.stats_daily`, …) are granted to
+  `os_app` read-only; osbot and the expense bot report a heartbeat through their
+  API instead (Bots stats sources `osbot`, `budget-bot`).
 
 ### Planuj Směny
 

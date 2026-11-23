@@ -15,7 +15,7 @@
 #             web joins it, under the alias `anwar-os-web`, which is what the
 #             edge Caddy proxies to. Not internal: web needs outbound APIs
 #             (object storage, Telegram, mail).
-#   internal  web/migrate/bots <-> db, and osbot -> web over HTTP. `internal:
+#   internal  web/migrate <-> db, and the bots -> web over HTTP. `internal:
 #             true` = no route to the internet; Postgres is never published.
 #   egress    outbound-only network for bots (Telegram API). Nothing listens on it.
 #
@@ -78,6 +78,9 @@ services:
       OSBOT_API_SECRET: ${OSBOT_API_SECRET:-}
       OSBOT_TOKEN: ${OSBOT_TOKEN:-}
       OSBOT_OWNER_CHAT_ID: ${OSBOT_OWNER_CHAT_ID:-}
+      # Expense bot (bots/expenses). Turns on the signed internal Budget API
+      # (/api/internal/budget-bot/*) the bot calls; empty = that API answers 404.
+      BOT_EXPENSES_API_SECRET: ${BOT_EXPENSES_API_SECRET:-}
       # Control panel (/app/ops). Empty URL = "Control panel not connected".
       OPS_AGENT_URL: ${OPS_AGENT_URL:-}
       OPS_AGENT_SECRET: ${OPS_AGENT_SECRET:-}
@@ -171,10 +174,14 @@ services:
     labels:
       os.managed: "false"
 
-  # Expense bot (bots/expenses/README.md). Long polling, nothing exposed: it
-  # reaches Postgres on `internal` and Telegram on `egress`. Its role + schema
-  # come from bots/expenses/db/bootstrap.sql, which deploy.sh re-applies
-  # (idempotent) before starting it; the bot migrates its own tables.
+  # Expense bot (bots/expenses/README.md): a Telegram front-end for Budget.
+  # Long polling, nothing exposed. Every expense is a Budget transaction: it
+  # calls web's signed internal API over `internal` (http://web:3000, never
+  # through Caddy) and Telegram over `egress`. deploy.sh only starts it once
+  # BOT_EXPENSES_TOKEN, BOT_EXPENSES_API_SECRET and an owner id are set.
+  # DATABASE_URL is only for the one-time `python -m expenses_bot
+  # import-to-budget` (docs/DEPLOY.md §13), which reads the bot's old schema
+  # bot_expenses; the running bot never connects to Postgres.
   bot-expenses:
     image: ghcr.io/nnnotanwar/anwar-os-bot-expenses:${BOT_EXPENSES_TAG:-latest}
     profiles: [bots]
@@ -193,12 +200,18 @@ services:
       # Not `:?` on purpose: compose interpolates every service even when its
       # profile is off, and the stack must start before the bot is configured.
       BOT_TOKEN: ${BOT_EXPENSES_TOKEN:-}
+      BOT_EXPENSES_API_URL: http://web:3000
+      BOT_EXPENSES_API_SECRET: ${BOT_EXPENSES_API_SECRET:-}
+      # Your Telegram user id: the only person the bot serves. For a private
+      # chat it is the same number as OSBOT_OWNER_CHAT_ID, used when unset.
+      BOT_EXPENSES_OWNER_ID: ${BOT_EXPENSES_OWNER_ID:-${OSBOT_OWNER_CHAT_ID:-}}
+      # One-time import only (see above).
       DATABASE_URL: postgresql://bot_expenses:${BOT_EXPENSES_DB_PASSWORD:-}@db:5432/anwar_os
     networks:
       - internal
       - egress
     depends_on:
-      db:
+      web:
         condition: service_healthy
     logging: *logging
     labels:

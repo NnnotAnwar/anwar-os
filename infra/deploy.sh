@@ -68,7 +68,12 @@ ops_enabled() {
 
 # Each bot is deployed only once it is configured, so the profile can be on
 # with just one of them set up.
-expenses_configured() { [[ -n "$(env_get BOT_EXPENSES_TOKEN)" ]]; }
+# The expense bot writes into Budget through web's signed API, so it needs the
+# shared secret and the owner's Telegram id (OSBOT_OWNER_CHAT_ID as fallback).
+expenses_configured() {
+  [[ -n "$(env_get BOT_EXPENSES_TOKEN)" && -n "$(env_get BOT_EXPENSES_API_SECRET)" ]] &&
+    [[ -n "$(env_get BOT_EXPENSES_OWNER_ID)" || -n "$(env_get OSBOT_OWNER_CHAT_ID)" ]]
+}
 osbot_configured() {
   [[ -n "$(env_get OSBOT_TOKEN)" && -n "$(env_get OSBOT_API_SECRET)" && -n "$(env_get OSBOT_OWNER_CHAT_ID)" ]]
 }
@@ -124,7 +129,8 @@ start_web() { compose up -d --no-deps --wait --wait-timeout "$WAIT_TIMEOUT" web;
 start_ops_agent() { compose up -d --no-deps --wait --wait-timeout 60 ops-agent; }
 
 start_bot() {
-  # Image HEALTHCHECK: healthy once the bot has written its heartbeat.
+  # Healthy once web accepted its first signed heartbeat (secret, internal
+  # network and owner account all work).
   compose up -d --no-deps --wait --wait-timeout 240 bot-expenses
 }
 
@@ -135,10 +141,16 @@ start_osbot() {
 }
 
 bootstrap_bot_db() {
-  # Role + schema for the bot (idempotent; also syncs the password from .env).
+  # The bot's old role + schema (bot_expenses). The running bot no longer uses
+  # them; only the one-time `python -m expenses_bot import-to-budget` reads the
+  # old rows. Idempotent, also syncs the password from .env; skipped when no
+  # password is set (a fresh install never had that database).
   local pw
   pw="$(env_get BOT_EXPENSES_DB_PASSWORD)"
-  [[ -n "$pw" ]] || die "BOT_EXPENSES_DB_PASSWORD is empty but the bots profile is on"
+  if [[ -z "$pw" ]]; then
+    log "BOT_EXPENSES_DB_PASSWORD empty: skipping the old bot_expenses bootstrap"
+    return 0
+  fi
   compose exec -T db psql -U postgres -d anwar_os -X -q -v ON_ERROR_STOP=1 \
     -v bot_password="$pw" -f - <"$REPO_DIR/bots/expenses/db/bootstrap.sql" >/dev/null
 }
@@ -162,7 +174,7 @@ deploy() {
       env_set BOT_EXPENSES_TAG "$sha"
       images+=(bot-expenses)
     else
-      log "bots profile on, BOT_EXPENSES_TOKEN empty: skipping bot-expenses"
+      log "bots profile on, BOT_EXPENSES_TOKEN/BOT_EXPENSES_API_SECRET/owner id incomplete: skipping bot-expenses"
     fi
     if osbot_configured; then
       osbot=1
@@ -226,7 +238,7 @@ deploy() {
   fi
 
   if ((bots)); then
-    log "bot-expenses: bootstrap role/schema, start, wait for heartbeat"
+    log "bot-expenses: old role/schema bootstrap, start, wait for its first heartbeat"
     if ! { bootstrap_bot_db && start_bot; }; then
       compose logs --tail 80 bot-expenses >&2 || true
       env_set BOT_EXPENSES_TAG "${prev_bot_tag:-latest}"

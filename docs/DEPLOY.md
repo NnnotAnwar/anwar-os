@@ -414,23 +414,66 @@ deploy the previous sha.
 
 ## 13. Expense bot
 
-1. Stop the old `py-telegram` bot (only one process may poll a token).
-2. In `.env`: `BOT_EXPENSES_TOKEN`, `BOT_EXPENSES_DB_PASSWORD` (`openssl rand -hex 24`),
-   `COMPOSE_PROFILES=bots`.
-3. `deploy.sh <current sha>`. With the profile on, deploy.sh applies
-   `bots/expenses/db/bootstrap.sql` (role `bot_expenses`, schema, grants;
-   idempotent, also syncs the password), starts `bot-expenses` and waits for its
-   heartbeat healthcheck. The bot migrates its own tables at startup.
-4. Optional import of the old SQLite data (see `bots/expenses/README.md`):
+The expense bot (@anwarexpensesbot, `bots/expenses/README.md`) is a Telegram front-end
+for **Budget**: every expense it saves is an ordinary Budget transaction in the default
+account, and its summaries, history and CSV read Budget. It has no database access while
+running: it calls web's internal API (`/api/internal/budget-bot/*`, HMAC-signed with its
+own secret, never reachable through Caddy) over the stack's internal network, as the site
+owner. It only serves the owner's Telegram account.
+
+### Set up (or upgrade from the bot with its own database)
+
+1. In `infra/.env` on the server:
+   ```sh
+   BOT_EXPENSES_TOKEN=<token from @BotFather>        # unchanged if the bot already runs
+   BOT_EXPENSES_API_SECRET=$(openssl rand -hex 32)    # paste the value, not the command
+   BOT_EXPENSES_OWNER_ID=<your Telegram user id>      # optional when OSBOT_OWNER_CHAT_ID is set
+   COMPOSE_PROFILES=bots                              # (,ops if the control panel runs)
+   ```
+   Keep `BOT_EXPENSES_DB_PASSWORD` for now: the import below reads the old rows with it.
+   A fresh install leaves it empty. Only one process may poll a token: stop any older
+   copy of the bot first.
+2. `./deploy.sh <current sha>`. web comes first (migration 0027/0028: the
+   `budget_transactions.import_key` column, `budget_bot_heartbeats`, and the Bots
+   registry entry switching to the `budget-bot` heartbeat) and restarts with
+   `BOT_EXPENSES_API_SECRET` (the Budget API is off without it). Then deploy.sh applies
+   `bots/expenses/db/bootstrap.sql` if `BOT_EXPENSES_DB_PASSWORD` is set (harmless),
+   starts `bot-expenses` and waits for its healthcheck, which turns healthy only after web
+   accepted its first signed heartbeat. With the token set but the secret or owner id
+   missing, deploy.sh skips the bot and the previous container keeps running unchanged.
+3. **Copy the old rows into Budget, once** (only if the bot ran with its own database):
    ```sh
    cd /opt/anwar-os/repo/infra
-   docker compose -f compose.prod.yml run --rm -v /path/to/expenses.db:/data/expenses.db:ro \
-     bot-expenses python scripts/import_sqlite.py /data/expenses.db --dry-run
+   docker compose -f compose.prod.yml run --rm --no-deps bot-expenses \
+     python -m expenses_bot import-to-budget --dry-run
+   docker compose -f compose.prod.yml run --rm --no-deps bot-expenses \
+     python -m expenses_bot import-to-budget
    ```
+   The dry run lists the rows, the category mapping ("Entertainment" → "Fun", unknown →
+   "Other") and how many are new. Each row of `bot_expenses.expenses` becomes an expense
+   in the default account with its note, its day (Prague time) and its original time, and
+   carries the key `bot-expenses:<id>` (unique per owner in Budget), so **re-running
+   imports nothing twice**: run it again any time, e.g. after a bot rollback let the old
+   image write a few more rows. Only the owner's rows are copied (`BOT_EXPENSES_OWNER_ID`
+   or `--telegram-user <id>`; with several users and neither, it refuses and lists them).
+   `bot_expenses` itself is left untouched.
+4. Check: send `250 food test` to the bot, see it in **Budget**, delete it with Undo.
+   **Bots** shows the expense bot alive with its version.
 
-A bot that fails its healthcheck is rolled back to its previous tag; web stays on
-the new release. With the profile on, deploy.sh skips a bot whose settings are
-empty, so either bot can run alone.
+A bot that fails its healthcheck is rolled back to its previous tag; web stays on the new
+release. Rolling the bot back to an image from before this change works too (it still has
+`DATABASE_URL` and writes to `bot_expenses` again); re-run the import afterwards.
+
+Rotating the secret: change `BOT_EXPENSES_API_SECRET`, `deploy.sh <current sha>` (web and
+bot restart together). It is separate from `OSBOT_API_SECRET`: neither bot can call the
+other's API.
+
+**Later (separate change, after the import):** the old schema is then only an archive.
+`BOT_EXPENSES_DB_PASSWORD`, the bot's `DATABASE_URL` in `compose.prod.yml`, deploy.sh's
+`bootstrap_bot_db` step, the `bot_expenses` handling in `infra/backup/restore.sh` and
+`bots/expenses/db/` can all go, and `drop schema bot_expenses cascade; drop role
+bot_expenses;` frees it, once you no longer want the archive. Nothing in this release
+needs them except the import.
 
 ## 14. Connect osbot
 
