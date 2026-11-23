@@ -46,7 +46,8 @@ export function FilesSearch({ initialQuery }: { initialQuery: string }) {
         onKeyDown={(e) => e.key === "Escape" && update("")}
         placeholder="Search names, tags and document text"
         aria-label="Search files and documents"
-        className="text-meta h-9 w-full rounded-lg border border-field-border bg-field pr-9 pl-8.5 outline-none placeholder:text-muted-foreground focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-ring/20 [&::-webkit-search-cancel-button]:hidden"
+        // 16px on phones (max-md:text-base): iOS zooms the page into any field set smaller.
+        className="text-meta h-9 max-md:h-10 max-md:text-base w-full rounded-lg border border-field-border bg-field pr-9 pl-8.5 outline-none placeholder:text-muted-foreground focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-ring/20 [&::-webkit-search-cancel-button]:hidden"
       />
       {value && (
         <button
