@@ -171,3 +171,18 @@ export async function capture(input: z.infer<typeof captureInput>, all = capture
   if (!target) throw new CaptureError(`Unknown destination "${kind ?? ""}".`)
   return target.save({ text: input.text.trim(), url: input.url || undefined })
 }
+
+export const captureUndoInput = z.object({ kind: z.string().trim().min(1).max(32), id: z.uuid() })
+
+/**
+ * The bot's Undo right after a save: deletes what `capture` just created,
+ * through the owning module's own `delete` action (every target's module has
+ * one taking `{ id }`). The bot only offers it for a short while after the save
+ * and never for a link that was already saved before (duplicate).
+ */
+export async function undoCapture(input: z.infer<typeof captureUndoInput>, all = captureTargets): Promise<{ undone: true }> {
+  const target = (await available(all)).find((t) => t.kind === input.kind)
+  if (!target) throw new CaptureError(`Unknown destination "${input.kind}".`)
+  await run(target.module, "delete", { id: input.id })
+  return { undone: true }
+}

@@ -1,4 +1,5 @@
 import "server-only"
+import { TaskInputError } from "@/modules/tasks/actions"
 import { OsbotApiError, osbotRoute, parseInput } from "./api"
 import {
   ackFeedback,
@@ -8,13 +9,19 @@ import {
   capture,
   CaptureError,
   captureInput,
+  captureUndoInput,
   dueInput,
+  feedbackStatus,
+  feedbackStatusInput,
   heartbeat,
   heartbeatInput,
   listCaptureTargets,
   newFeedback,
   remindersDue,
+  taskAction,
+  taskActionInput,
   today,
+  undoCapture,
 } from "./service"
 
 // Handlers for /api/internal/osbot/*; the files under src/app/api/internal/osbot/
@@ -32,6 +39,29 @@ export const capturePOST = osbotRoute(async ({ body }) => {
     throw error
   }
 })
+
+/** POST capture/undo { kind, id }: deletes what a capture just created (the bot's Undo button). */
+export const captureUndoPOST = osbotRoute(async ({ body }) => {
+  try {
+    return await undoCapture(parseInput(captureUndoInput, body))
+  } catch (error) {
+    if (error instanceof CaptureError) throw new OsbotApiError(422, "not_undone", error.message)
+    throw error
+  }
+})
+
+/** POST tasks/action { id, action: "complete" | "reopen" | "postpone" | "schedule", dueDate? } */
+export const taskActionPOST = osbotRoute(async ({ body, owner }) => {
+  try {
+    return await taskAction(parseInput(taskActionInput, body), owner.timezone)
+  } catch (error) {
+    if (error instanceof TaskInputError) throw new OsbotApiError(422, "not_changed", error.message)
+    throw error
+  }
+})
+
+/** POST feedback/status { id, status: "new" | "read" | "in_progress" | "done" | "spam" } */
+export const feedbackStatusPOST = osbotRoute(async ({ body }) => feedbackStatus(parseInput(feedbackStatusInput, body)))
 
 /** GET reminders/due?until=<epoch ms>&lookback=<minutes> */
 export const remindersDueGET = osbotRoute(async ({ url, owner }) => {

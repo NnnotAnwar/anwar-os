@@ -325,6 +325,95 @@ describe("osbot API: today, heartbeat, feedback", () => {
   })
 })
 
+describe("osbot API: buttons (capture undo, task actions, feedback status)", () => {
+  it("undoes a capture through the module's own delete", async () => {
+    const saved = await call(routes.capturePOST, "POST", "/api/internal/osbot/capture", { kind: "idea", text: `Undo me ${marker}` })
+    const undo = "/api/internal/osbot/capture/undo"
+    const { status, json } = await call(routes.captureUndoPOST, "POST", undo, { kind: "idea", id: saved.json.id })
+    expect(status).toBe(200)
+    expect(json).toEqual({ undone: true })
+    expect(await admin`select 1 from ideas_ideas where id = ${saved.json.id}`).toHaveLength(0)
+    expect((await call(routes.captureUndoPOST, "POST", undo, { kind: "poem", id: saved.json.id })).status).toBe(422)
+    expect((await call(routes.captureUndoPOST, "POST", undo, { kind: "idea", id: "nope" })).status).toBe(400)
+  })
+
+  it("can't undo someone else's item: RLS scopes the delete to the owner", async () => {
+    const [bobs] = await admin`insert into notes_notes (owner_id, title) values (${bob}, ${`Bob's ${marker}`}) returning id`
+    await call(routes.captureUndoPOST, "POST", "/api/internal/osbot/capture/undo", { kind: "note", id: bobs!.id })
+    expect(await admin`select 1 from notes_notes where id = ${bobs!.id}`).toHaveLength(1)
+  })
+
+  it("completes, reopens, postpones and reschedules a task", async () => {
+    const path = "/api/internal/osbot/tasks/action"
+    const [task] = await admin`
+      insert into tasks_tasks (owner_id, title, due_date) values (${owner}, ${`Button task ${marker}`}, current_date - 2) returning id, due_date::text as due`
+    const id = task!.id as string
+
+    const today = await call(routes.todayGET, "GET", "/api/internal/osbot/today")
+    expect(today.json.tasks.find((t: { title: string }) => t.title === `Button task ${marker}`)?.id).toBe(id)
+
+    const done = await call(routes.taskActionPOST, "POST", path, { id, action: "complete" })
+    expect(done.status).toBe(200)
+    expect(done.json).toMatchObject({ id, done: true, title: `Button task ${marker}`, nextDue: null })
+    expect(done.json.url).toMatch(new RegExp(`/app/tasks\\?task=${id}$`))
+
+    const reopened = await call(routes.taskActionPOST, "POST", path, { id, action: "reopen" })
+    expect(reopened.json).toMatchObject({ done: false, overdue: true })
+
+    const postponed = await call(routes.taskActionPOST, "POST", path, { id, action: "postpone" })
+    expect(postponed.json).toMatchObject({ done: false, overdue: false, previousDueDate: task!.due })
+    expect(postponed.json.dueDate > task!.due).toBe(true)
+
+    const back = await call(routes.taskActionPOST, "POST", path, { id, action: "schedule", dueDate: task!.due })
+    expect(back.json).toMatchObject({ dueDate: task!.due, overdue: true })
+
+    expect((await call(routes.taskActionPOST, "POST", path, { id, action: "schedule" })).status).toBe(400)
+    expect((await call(routes.taskActionPOST, "POST", path, { id, action: "explode" })).status).toBe(400)
+  })
+
+  it("refuses tasks the owner can't see as gone", async () => {
+    const [bobs] = await admin`insert into tasks_tasks (owner_id, title) values (${bob}, ${`Bob task ${marker}`}) returning id`
+    const { status, json } = await call(routes.taskActionPOST, "POST", "/api/internal/osbot/tasks/action", {
+      id: bobs!.id,
+      action: "complete",
+    })
+    expect(status).toBe(404)
+    expect(json).toMatchObject({ error: "gone" })
+    const [row] = await admin`select done_at from tasks_tasks where id = ${bobs!.id}`
+    expect(row!.done_at).toBeNull()
+  })
+
+  it("sets a feedback item's status and returns the previous one", async () => {
+    const path = "/api/internal/osbot/feedback/status"
+    const [item] = await admin`
+      insert into feedback_items (owner_id, kind, message) values (${owner}, 'question', ${`Status ${marker}`}) returning id`
+    const read = await call(routes.feedbackStatusPOST, "POST", path, { id: item!.id, status: "read" })
+    expect(read.json).toEqual({ id: item!.id, status: "read", previous: "new" })
+    const undo = await call(routes.feedbackStatusPOST, "POST", path, { id: item!.id, status: "new" })
+    expect(undo.json).toEqual({ id: item!.id, status: "new", previous: "read" })
+    expect((await call(routes.feedbackStatusPOST, "POST", path, { id: item!.id, status: "archived" })).status).toBe(400)
+
+    const [bobs] = await admin`
+      insert into feedback_items (owner_id, kind, message) values (${bob}, 'question', ${`Bob's ${marker}`}) returning id`
+    expect((await call(routes.feedbackStatusPOST, "POST", path, { id: bobs!.id, status: "spam" })).status).toBe(404)
+  })
+
+  it("links each due reminder to its event in the calendar", async () => {
+    const start = new Date(startOfMinute(Date.now()) + 40 * minute)
+    const [event] = await admin`
+      insert into calendar_events (owner_id, title, start_at, end_at)
+      values (${owner}, ${`Link ${marker}`}, ${start}, ${new Date(start.getTime() + 30 * minute)}) returning id`
+    await admin`insert into calendar_reminders (owner_id, event_id, minutes_before) values (${owner}, ${event!.id}, 40)`
+    try {
+      const { json } = await call(routes.remindersDueGET, "GET", `/api/internal/osbot/reminders/due?until=${Date.now()}`)
+      const mine = json.reminders.find((r: { eventId: string }) => r.eventId === event!.id)
+      expect(mine.url).toMatch(new RegExp(`/app/calendar\\?view=week&date=\\d{4}-\\d{2}-\\d{2}&event=${event!.id}$`))
+    } finally {
+      await admin`delete from calendar_events where id = ${event!.id}`
+    }
+  })
+})
+
 describe("feedback alerts: osbot first, direct notify as fallback", () => {
   async function newItem() {
     const [item] = await admin`

@@ -12,10 +12,12 @@ import {
   osbotHeartbeats,
 } from "@/db/schema"
 import { formatDayMonth, formatTimeRange, formatWeekdayLong } from "@/modules/calendar/lib/format"
-import { addDays, startOfLocalDay, wallClock } from "@/modules/calendar/lib/zoned"
+import { calendarHref } from "@/modules/calendar/lib/links"
+import { addDays, formatIsoDate, startOfLocalDay, wallClock } from "@/modules/calendar/lib/zoned"
 import type { Occurrence } from "@/modules/calendar/schema"
-import { kindLabels, preview, type FeedbackItem } from "@/modules/feedback/schema"
+import { feedbackStatuses, kindLabels, preview, type FeedbackItem, type FeedbackStatus } from "@/modules/feedback/schema"
 import type { Task } from "@/modules/tasks/schema"
+import { OsbotApiError } from "./api"
 import { deliveryKey, dueReminders, MAX_LOOKBACK_MINUTES, parseDeliveryKey, type DueReminder } from "./reminders"
 
 // What the internal osbot API does. Every function here runs inside actAs(owner)
@@ -36,7 +38,7 @@ function baseUrl() {
 // Capture
 // ---------------------------------------------------------------------------
 
-export { capture, CaptureError, captureInput, listCaptureTargets } from "./capture"
+export { capture, CaptureError, captureInput, captureUndoInput, listCaptureTargets, undoCapture } from "./capture"
 
 // ---------------------------------------------------------------------------
 // Reminders
@@ -60,10 +62,26 @@ export const dueInput = z.object({
   lookback: z.coerce.number().int().min(1).max(MAX_LOOKBACK_MINUTES).optional(),
 })
 
+/** A due reminder plus a link to its occurrence in the calendar (the bot's "Open" button). */
+export type DueReminderWithUrl = DueReminder & { url: string }
+
 export async function remindersDue(
-  { until, lookback }: z.infer<typeof dueInput>,
+  input: z.infer<typeof dueInput>,
   ownerTimezone: string,
   now = new Date(),
+): Promise<DueReminderWithUrl[]> {
+  const base = baseUrl()
+  const due = await dueRemindersFor(input, ownerTimezone, now)
+  return due.map((r) => ({
+    ...r,
+    url: `${base}${calendarHref({ view: "week", date: wallClock(new Date(r.start), ownerTimezone), event: r.eventId })}`,
+  }))
+}
+
+async function dueRemindersFor(
+  { until, lookback }: z.infer<typeof dueInput>,
+  ownerTimezone: string,
+  now: Date,
 ): Promise<DueReminder[]> {
   // The bot may look a little ahead (to send on the minute), never far.
   const limit = until ? Math.min(until.getTime(), now.getTime() + 5 * 60_000) : now.getTime()
@@ -153,7 +171,7 @@ export async function ackReminders({ keys }: z.infer<typeof ackRemindersInput>):
 // ---------------------------------------------------------------------------
 
 export type TodayItem = { title: string; location: string; allDay: boolean; start: string; end: string; time: string }
-export type TodayTask = { title: string; overdue: boolean; dueDate: string; time: string | null; url: string }
+export type TodayTask = { id: string; title: string; overdue: boolean; dueDate: string; time: string | null; url: string }
 export type Today = {
   date: string
   timezone: string
@@ -189,6 +207,7 @@ export async function today(ownerTimezone: string, now = new Date()): Promise<To
       time: o.allDay ? "All day" : formatTimeRange(new Date(o.start), new Date(o.end), ownerTimezone),
     })),
     tasks: (due?.tasks ?? []).map((t) => ({
+      id: t.id,
       title: t.title,
       overdue: t.dueDate !== null && t.dueDate < due!.today,
       dueDate: t.dueDate ?? due!.today,
@@ -199,6 +218,88 @@ export async function today(ownerTimezone: string, now = new Date()): Promise<To
     newFeedback: counts.new ?? 0,
     url: `${base}/app/calendar`,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Task buttons (Done, Tomorrow and their Undo in the bot's /today)
+// ---------------------------------------------------------------------------
+
+export const taskActionInput = z
+  .object({
+    id: z.uuid(),
+    action: z.enum(["complete", "reopen", "postpone", "schedule"]),
+    /** schedule only (the Undo of postpone): YYYY-MM-DD, or null for no date. */
+    dueDate: z.iso.date().nullable().optional(),
+  })
+  .refine((v) => v.action !== "schedule" || v.dueDate !== undefined, {
+    message: "schedule needs a dueDate",
+    path: ["dueDate"],
+  })
+
+export type TaskSnapshot = {
+  id: string
+  title: string
+  done: boolean
+  dueDate: string | null
+  dueTime: string | null
+  overdue: boolean
+  url: string
+  /** The due date before this action (what Undo puts back). */
+  previousDueDate: string | null
+  /** complete on a repeating task: the next occurrence's date. */
+  nextDue: string | null
+}
+
+/**
+ * complete / reopen: the tasks module's own actions. postpone: due tomorrow
+ * (the owner's tomorrow). schedule: an explicit date, for Undo.
+ */
+export async function taskAction(
+  { id, action, dueDate }: z.infer<typeof taskActionInput>,
+  ownerTimezone: string,
+  now = new Date(),
+): Promise<TaskSnapshot> {
+  if (!(await hasModule("tasks"))) throw new OsbotApiError(404, "gone", "Tasks are switched off.")
+  const before = await runModuleAction<Task | null>("tasks", "get", { id })
+  if (!before) throw new OsbotApiError(404, "gone", "That task no longer exists.")
+  const local = wallClock(now, ownerTimezone)
+  let nextDue: string | null = null
+  if (action === "complete") {
+    nextDue = (await runModuleAction<{ nextDue: string | null }>("tasks", "complete", { id })).nextDue
+  } else if (action === "reopen") {
+    await runModuleAction("tasks", "reopen", { id })
+  } else {
+    const date = action === "postpone" ? formatIsoDate(addDays(local, 1)) : (dueDate ?? null)
+    await runModuleAction("tasks", "schedule", { id, dueDate: date })
+  }
+  const after = (await runModuleAction<Task | null>("tasks", "get", { id })) ?? before
+  const today = formatIsoDate(local)
+  return {
+    id,
+    title: after.title,
+    done: after.doneAt !== null,
+    dueDate: after.dueDate,
+    dueTime: after.dueTime,
+    overdue: after.doneAt === null && after.dueDate !== null && after.dueDate < today,
+    url: `${baseUrl()}/app/tasks?task=${id}`,
+    previousDueDate: before.dueDate,
+    nextDue,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Feedback status (Mark read / Spam and their Undo on the bot's alerts)
+// ---------------------------------------------------------------------------
+
+export const feedbackStatusInput = z.object({ id: z.uuid(), status: z.enum(feedbackStatuses) })
+
+export async function feedbackStatus({
+  id,
+  status,
+}: z.infer<typeof feedbackStatusInput>): Promise<{ id: string; status: FeedbackStatus; previous: FeedbackStatus }> {
+  const previous = await runModuleAction<FeedbackStatus | null>("feedback", "setStatus", { id, status })
+  if (previous === null) throw new OsbotApiError(404, "gone", "That feedback no longer exists.")
+  return { id, status, previous }
 }
 
 // ---------------------------------------------------------------------------
