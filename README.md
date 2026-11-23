@@ -19,6 +19,7 @@ panel for the server it all runs on.
 ![Next.js 16](https://img.shields.io/badge/Next.js-16-000?logo=nextdotjs)
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-336791?logo=postgresql&logoColor=white)
 ![Self-hosted](https://img.shields.io/badge/self--hosted-Hetzner-d50c2d?logo=hetzner&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/license-MIT-4f46e5)](LICENSE)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/site-home-dark.png">
@@ -147,3 +148,8 @@ pnpm dev                           # http://localhost:3000
 | `pnpm owner:create <email>` | Create or promote the owner account |
 
 Deploying to a fresh server, step by step: [docs/DEPLOY.md](docs/DEPLOY.md).
+
+## License
+
+[MIT](LICENSE) © 2026 Anuar Kairulla. Content on anwar-os.com (CV, texts, case
+studies) is not part of the code license.
