@@ -8,7 +8,7 @@ import { siteLinks } from "./site-links"
 /** Footer: contacts come from the published CV profile, so there is one place to edit them. */
 export function SiteFooter() {
   return (
-    <footer className="glass mx-3 mb-3 grid gap-4 rounded-xl p-4 md:mx-6 md:mb-6 md:grid-cols-[minmax(0,1fr)_auto] md:p-5 print:hidden">
+    <footer className="glass mx-3 mb-[calc(0.75rem+env(safe-area-inset-bottom))] grid gap-4 rounded-xl p-4 md:mx-6 md:mb-6 md:grid-cols-[minmax(0,1fr)_auto] md:p-5 print:hidden">
       <div className="grid gap-2">
         <p className="text-heading">Get in touch</p>
         <Suspense fallback={<p className="text-meta text-muted-foreground">Loading contacts…</p>}>

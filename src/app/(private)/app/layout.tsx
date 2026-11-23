@@ -52,7 +52,8 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
       </aside>
 
       <div className="flex min-h-svh min-w-0 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 bg-background/70 px-3 backdrop-blur-xl md:static md:bg-transparent md:px-6 md:pt-3 md:backdrop-blur-none">
+        {/* Phones: the bar starts under the status bar when iOS lets the page draw there. */}
+        <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-2 bg-background/70 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:static md:h-14 md:bg-transparent md:px-6 md:pt-3 md:backdrop-blur-none">
           <div className="md:hidden">
             <Wordmark />
           </div>
@@ -71,7 +72,7 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
             </div>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-3 pt-4 pb-28 md:px-6 md:pt-6 md:pb-12">{children}</main>
+        <main className="mx-auto w-full max-w-6xl flex-1 px-3 pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:px-6 md:pt-6 md:pb-12">{children}</main>
       </div>
 
       <Suspense fallback={null}>
@@ -134,7 +135,9 @@ async function MobileTabs() {
   return (
     <nav
       aria-label="Main"
-      className="glass glass-menu fixed inset-x-0 bottom-0 z-30 flex rounded-none pb-[env(safe-area-inset-bottom)] md:hidden"
+      // `tab-bar` lifts toasts above it (globals.css). The insets keep the tabs clear
+      // of the home indicator, and of the notch in landscape.
+      className="tab-bar glass glass-menu fixed inset-x-0 bottom-0 z-30 flex rounded-none pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] md:hidden"
     >
       <TabLink href="/app" exact icon={<SunHorizon />}>
         Today

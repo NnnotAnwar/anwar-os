@@ -24,6 +24,13 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Draw edge to edge on notched iPhones. Without it iOS reports every
+  // env(safe-area-inset-*) as 0, so in the home-screen app the phone tab bar sat
+  // under the home indicator. Fixed bars, sheets and toasts pad themselves with
+  // the insets; the body keeps content clear of the notch in landscape.
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f5f4f9" },
     { media: "(prefers-color-scheme: dark)", color: "#121022" },
@@ -52,7 +59,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <ThemeProvider nonce={nonce} attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <TooltipProvider>
             {children}
-            <Toaster position="bottom-center" />
+            {/* Above the home indicator, and above the phone tab bar in the app (--toast-bottom, globals.css). */}
+            <Toaster
+              position="bottom-center"
+              offset={{ bottom: "var(--toast-bottom)" }}
+              mobileOffset={{ bottom: "var(--toast-bottom)" }}
+            />
           </TooltipProvider>
         </ThemeProvider>
       </body>

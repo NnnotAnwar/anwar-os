@@ -98,6 +98,9 @@
 }
 
 :root {
+  /* Toasts clear the home indicator, and the phone tab bar where there is one. */
+  --toast-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+
   --canvas-from: #f8f7fc;
   --canvas-via: #f5f4f9;
   --canvas-to: #eeecf7;
@@ -319,6 +322,9 @@
     background: linear-gradient(to bottom right, var(--canvas-from), var(--canvas-via), var(--canvas-to)) fixed;
     background-color: var(--canvas-via);
     font-feature-settings: "cv11", "ss01";
+    /* The page draws edge to edge (viewport-fit=cover): keep content clear of
+       the notch in landscape. Fixed bars add their own insets. */
+    padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
   }
   .font-mono,
   .tabular {
@@ -373,6 +379,12 @@
   --duration-exit: 140ms;
   --duration-enter: 200ms;
   --duration-move: 320ms;
+}
+
+@media (width < 48rem) {
+  :root:has(.tab-bar) {
+    --toast-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 @keyframes vt-fade {

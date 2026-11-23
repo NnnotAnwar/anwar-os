@@ -67,7 +67,7 @@ export function KeyboardShortcuts({ targets }: { targets: GoTarget[] }) {
       {pendingG && (
         <div
           role="status"
-          className="glass glass-menu text-meta fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full px-3 py-1.5 md:bottom-6"
+          className="glass glass-menu text-meta fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-1/2 z-50 -translate-x-1/2 rounded-full px-3 py-1.5 md:bottom-6"
         >
           Go to… <span className="text-muted-foreground">{targets.map((t) => t.key.toUpperCase()).join(" · ")}</span>
         </div>
