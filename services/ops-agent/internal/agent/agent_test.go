@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nnnotanwar/anwarnnnot/services/ops-agent/internal/docker"
-	"github.com/nnnotanwar/anwarnnnot/services/ops-agent/internal/sign"
+	"github.com/nnnotanwar/anwar-os/services/ops-agent/internal/docker"
+	"github.com/nnnotanwar/anwar-os/services/ops-agent/internal/sign"
 )
 
 var secret = []byte("unit-test-secret-0123456789abcdef0123")

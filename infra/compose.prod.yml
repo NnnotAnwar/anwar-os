@@ -84,7 +84,7 @@ services:
       # Deploy dialog: image tags from GHCR + commit messages from GitHub.
       # Optional token (read:packages) for private packages / higher rate limits.
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      GITHUB_REPO: ${GITHUB_REPO:-NnnotAnwar/anwarnnnot}
+      GITHUB_REPO: ${GITHUB_REPO:-NnnotAnwar/anwar-os}
     expose:
       - "3000"
     networks:

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nnnotanwar/anwarnnnot/services/ops-agent/internal/docker"
+	"github.com/nnnotanwar/anwar-os/services/ops-agent/internal/docker"
 )
 
 type DeployResult struct {

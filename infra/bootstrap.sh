@@ -22,7 +22,7 @@
 #   SWAP_SIZE_GB=2             swap file size when RAM < SWAP_IF_RAM_BELOW_MB
 #   SWAP_IF_RAM_BELOW_MB=4096
 #   REBOOT_TIME=04:30          when unattended-upgrades may reboot (empty = never)
-#   REPO_URL=https://github.com/NnnotAnwar/anwarnnnot.git   cloned to /opt/anwar-os/repo
+#   REPO_URL=https://github.com/NnnotAnwar/anwar-os.git   cloned to /opt/anwar-os/repo
 set -euo pipefail
 
 DEPLOY_USER="${DEPLOY_USER:-deploy}"
@@ -30,7 +30,7 @@ TIMEZONE="${TIMEZONE:-Europe/Prague}"
 SWAP_SIZE_GB="${SWAP_SIZE_GB:-2}"
 SWAP_IF_RAM_BELOW_MB="${SWAP_IF_RAM_BELOW_MB:-4096}"
 REBOOT_TIME="${REBOOT_TIME-04:30}"
-REPO_URL="${REPO_URL:-https://github.com/NnnotAnwar/anwarnnnot.git}"
+REPO_URL="${REPO_URL:-https://github.com/NnnotAnwar/anwar-os.git}"
 APP_DIR=/opt/anwar-os
 export DEBIAN_FRONTEND=noninteractive
 

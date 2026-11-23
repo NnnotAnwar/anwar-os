@@ -41,7 +41,7 @@ async function listTags(path: string): Promise<string[]> {
 }
 
 async function recentCommits(): Promise<Commit[]> {
-  const repo = process.env.GITHUB_REPO || "NnnotAnwar/anwarnnnot"
+  const repo = process.env.GITHUB_REPO || "NnnotAnwar/anwar-os"
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return []
   const headers: Record<string, string> = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }
   const token = githubToken()
