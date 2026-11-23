@@ -301,6 +301,20 @@
   padding: 3px;
   border-radius: 0.75rem;
   background-color: var(--track);
+
+  /* Touch: the options are 28px chips, under the 44px a finger needs. An
+     invisible hit area reaches 8px above and below each one, so the control
+     looks the same but is easy to tap. */
+  @media (pointer: coarse) {
+    & > * {
+      position: relative;
+    }
+    & > *::after {
+      content: "";
+      position: absolute;
+      inset: -8px -1px;
+    }
+  }
 }
 
 @utility segment-active {

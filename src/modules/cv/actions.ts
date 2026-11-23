@@ -1,5 +1,5 @@
 import "server-only"
-import { asc, eq, max } from "drizzle-orm"
+import { asc, eq, max, sql, type AnyColumn } from "drizzle-orm"
 import { z } from "zod"
 import { asViewer } from "@/core/auth"
 import { defineAction } from "@/core/module"
@@ -15,6 +15,10 @@ import {
   type Cv,
   type EntryKind,
 } from "./schema"
+
+// The "read published" policies let everyone see the site owner's public CV,
+// so private queries must also say "only mine" (same as links).
+const mine = (t: { ownerId: AnyColumn }) => eq(t.ownerId, sql`app.current_user_id()`)
 
 const tables = {
   experience: cvExperience,
@@ -46,6 +50,7 @@ export async function readCv(tx: Tx): Promise<Cv> {
         updatedAt: cvProfile.updatedAt,
       })
       .from(cvProfile)
+      .where(mine(cvProfile))
       .limit(1),
     tx
       .select({
@@ -60,6 +65,7 @@ export async function readCv(tx: Tx): Promise<Cv> {
         updatedAt: cvExperience.updatedAt,
       })
       .from(cvExperience)
+      .where(mine(cvExperience))
       .orderBy(asc(cvExperience.sortOrder), asc(cvExperience.createdAt)),
     tx
       .select({
@@ -74,6 +80,7 @@ export async function readCv(tx: Tx): Promise<Cv> {
         updatedAt: cvEducation.updatedAt,
       })
       .from(cvEducation)
+      .where(mine(cvEducation))
       .orderBy(asc(cvEducation.sortOrder), asc(cvEducation.createdAt)),
     tx
       .select({
@@ -84,6 +91,7 @@ export async function readCv(tx: Tx): Promise<Cv> {
         updatedAt: cvSkills.updatedAt,
       })
       .from(cvSkills)
+      .where(mine(cvSkills))
       .orderBy(asc(cvSkills.sortOrder), asc(cvSkills.createdAt)),
     tx
       .select({
@@ -94,6 +102,7 @@ export async function readCv(tx: Tx): Promise<Cv> {
         updatedAt: cvLanguages.updatedAt,
       })
       .from(cvLanguages)
+      .where(mine(cvLanguages))
       .orderBy(asc(cvLanguages.sortOrder), asc(cvLanguages.createdAt)),
   ])
   return {
@@ -157,7 +166,7 @@ export const actions = {
           if (!row) throw new Error("Entry not found")
           return { id: row.id, updatedAt: row.updatedAt.toISOString() }
         }
-        const [last] = await tx.select({ value: max(table.sortOrder) }).from(table)
+        const [last] = await tx.select({ value: max(table.sortOrder) }).from(table).where(mine(table))
         const [row] = await tx
           .insert(table)
           .values({ ...(fields as object), sortOrder: (last?.value ?? -1) + 1 } as never)
@@ -172,7 +181,7 @@ export const actions = {
     handler: ({ kind, id, direction }): Promise<void> =>
       asViewer(async (tx) => {
         const table = entryTable(kind)
-        const rows = await tx.select({ id: table.id }).from(table).orderBy(asc(table.sortOrder), asc(table.createdAt))
+        const rows = await tx.select({ id: table.id }).from(table).where(mine(table)).orderBy(asc(table.sortOrder), asc(table.createdAt))
         const from = rows.findIndex((r) => r.id === id)
         const to = direction === "up" ? from - 1 : from + 1
         if (from < 0 || to < 0 || to >= rows.length) return
@@ -190,7 +199,7 @@ export const actions = {
     handler: ({ kind, ids }): Promise<void> =>
       asViewer(async (tx) => {
         const table = entryTable(kind)
-        const rows = await tx.select({ id: table.id }).from(table).orderBy(asc(table.sortOrder), asc(table.createdAt))
+        const rows = await tx.select({ id: table.id }).from(table).where(mine(table)).orderBy(asc(table.sortOrder), asc(table.createdAt))
         const listed = new Set(ids)
         const order = [...ids.filter((id) => rows.some((r) => r.id === id)), ...rows.map((r) => r.id).filter((id) => !listed.has(id))]
         for (const [index, id] of order.entries()) {

@@ -35,6 +35,10 @@ export function toIdea(row: Row): Idea {
 /** Pipeline order: active work first, then the raw pile, then what's finished. */
 export const statusOrder = sql`array_position(array['building', 'exploring', 'raw', 'shipped', 'dropped'], ${i.status})`
 
+// The "read published" policy lets everyone see the site owner's public ideas,
+// so private queries must also say "only mine" (same as links).
+const mine = eq(i.ownerId, sql`app.current_user_id()`)
+
 export const actions = {
   list: defineAction({
     description:
@@ -49,6 +53,7 @@ export const actions = {
           .from(i)
           .where(
             and(
+              mine,
               status?.length ? inArray(i.status, status) : undefined,
               pattern
                 ? or(
@@ -73,6 +78,7 @@ export const actions = {
         const rows = await tx
           .select({ status: i.status, n: sql<number>`count(*)::int` })
           .from(i)
+          .where(mine)
           .groupBy(i.status)
         return Object.fromEntries(rows.map((r) => [r.status, r.n]))
       }),
@@ -83,7 +89,7 @@ export const actions = {
     input: ideaIdInput,
     handler: ({ id }): Promise<Idea | null> =>
       asViewer(async (tx) => {
-        const [row] = await tx.select(ideaColumns).from(i).where(eq(i.id, id))
+        const [row] = await tx.select(ideaColumns).from(i).where(and(mine, eq(i.id, id)))
         return row ? toIdea(row) : null
       }),
   }),

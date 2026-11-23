@@ -23,7 +23,8 @@ export default function FeedbackPage({ searchParams }: PageProps<"/app/feedback"
           <NextLink
             href="/feedback"
             target="_blank"
-            className="text-meta inline-flex items-center gap-1 rounded text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+            // -my/py: a finger-sized hit area without moving the header.
+            className="text-meta -my-3 inline-flex items-center gap-1 rounded py-3 text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             Public form
             <ExternalLink className="size-3.5" />

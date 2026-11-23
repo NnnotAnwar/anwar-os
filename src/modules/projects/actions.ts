@@ -1,5 +1,5 @@
 import "server-only"
-import { and, asc, desc, eq, ilike, like, min, ne, or } from "drizzle-orm"
+import { and, asc, desc, eq, ilike, like, min, ne, or, sql } from "drizzle-orm"
 import { asViewer } from "@/core/auth"
 import { defineAction } from "@/core/module"
 import type { Tx } from "@/db"
@@ -15,6 +15,10 @@ import {
   updateProjectInput,
   type Project,
 } from "./schema"
+
+// The "read published" policy lets everyone see the site owner's public projects,
+// so private queries must also say "only mine" (same as links).
+const mine = eq(p.ownerId, sql`app.current_user_id()`)
 
 export const projectColumns = {
   id: p.id,
@@ -53,7 +57,7 @@ async function freeSlug(tx: Tx, base: string, exceptId?: string) {
   const rows = await tx
     .select({ slug: p.slug })
     .from(p)
-    .where(and(like(p.slug, `${base}%`), exceptId ? ne(p.id, exceptId) : undefined))
+    .where(and(mine, like(p.slug, `${base}%`), exceptId ? ne(p.id, exceptId) : undefined))
   const taken = new Set(rows.map((r) => r.slug))
   if (!taken.has(base)) return base
   for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`
@@ -77,7 +81,7 @@ export const actions = {
         const rows = await tx
           .select(projectColumns)
           .from(p)
-          .where(pattern ? or(ilike(p.title, pattern), ilike(p.summary, pattern), ilike(p.body, pattern)) : undefined)
+          .where(and(mine, pattern ? or(ilike(p.title, pattern), ilike(p.summary, pattern), ilike(p.body, pattern)) : undefined))
           .orderBy(asc(p.sortOrder), desc(p.createdAt))
           .limit(limit)
         return rows.map(toProject)
@@ -89,7 +93,7 @@ export const actions = {
     input: projectIdInput,
     handler: ({ id }): Promise<Project | null> =>
       asViewer(async (tx) => {
-        const [row] = await tx.select(projectColumns).from(p).where(eq(p.id, id))
+        const [row] = await tx.select(projectColumns).from(p).where(and(mine, eq(p.id, id)))
         return row ? toProject(row) : null
       }),
   }),
@@ -101,7 +105,7 @@ export const actions = {
     handler: (input): Promise<{ id: string; slug: string; updatedAt: string }> =>
       asViewer(async (tx) => {
         const slug = await freeSlug(tx, input.slug || slugify(input.title) || "project")
-        const [top] = await tx.select({ value: min(p.sortOrder) }).from(p)
+        const [top] = await tx.select({ value: min(p.sortOrder) }).from(p).where(mine)
         const [row] = await tx
           .insert(p)
           .values({ ...input, slug, sortOrder: (top?.value ?? 1) - 1 })
@@ -149,7 +153,7 @@ export const actions = {
     input: moveProjectInput,
     handler: ({ id, direction }): Promise<void> =>
       asViewer(async (tx) => {
-        const rows = await tx.select({ id: p.id }).from(p).orderBy(asc(p.sortOrder), desc(p.createdAt))
+        const rows = await tx.select({ id: p.id }).from(p).where(mine).orderBy(asc(p.sortOrder), desc(p.createdAt))
         const from = rows.findIndex((r) => r.id === id)
         const to = direction === "up" ? from - 1 : from + 1
         if (from < 0 || to < 0 || to >= rows.length) return
