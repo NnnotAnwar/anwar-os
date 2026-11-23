@@ -28,7 +28,7 @@ DESCRIPTION = (
     "Track your spending in seconds.\n\n"
     "Send an amount like “250 coffee” and pick a category. "
     "See today, this week and this month at a glance, fix or delete entries, "
-    "and export a month to CSV."
+    "and export a month to CSV. Everything lands in your anwar.os Budget."
 )
 # Shown on the bot's profile and in shared links (max 120 chars).
 SHORT_DESCRIPTION = "Personal expense tracker: send “250 coffee”, see where your money goes."

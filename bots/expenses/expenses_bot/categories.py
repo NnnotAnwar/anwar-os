@@ -1,29 +1,44 @@
-"""Categories: the built-in set, their emoji, and short stable tokens for buttons.
+"""Categories: Budget's expense categories, their emoji, and short tokens for buttons.
 
-Categories are stored as plain text in expenses.category (unchanged from the old bot),
-so imported or older rows may carry names outside the built-in set; those still work
-everywhere. Buttons refer to a category by a short hash of its name, because callback
-data is limited to 64 bytes and names may contain any character.
+The categories themselves live in Budget (anwar.os); the bot gets them from the API,
+most used in the last 90 days first. Buttons refer to a category by a short hash of
+its id, because callback data is limited to 64 bytes.
 """
 
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Iterable
+from collections.abc import Sequence
+from typing import Protocol
 
-DEFAULT_CATEGORIES = ["Food", "Transport", "Utilities", "Entertainment", "Health", "Other"]
-
+# By name (case-insensitive): Budget's default categories plus the old bot's.
 _EMOJI = {
     "food": "🍔",
-    "transport": "🚌",
+    "groceries": "🛒",
+    "eating out": "🍽",
+    "housing": "🏠",
+    "rent": "🏠",
     "utilities": "💡",
-    "entertainment": "🎬",
+    "transport": "🚌",
     "health": "💊",
+    "shopping": "🛍",
+    "fun": "🎉",
+    "entertainment": "🎬",
+    "subscriptions": "🔁",
+    "travel": "✈️",
+    "gifts": "🎁",
+    "education": "📚",
     "other": "📦",
+    "uncategorised": "❔",
 }
 _FALLBACK_EMOJI = "🏷"
 
-MAX_CATEGORY_LENGTH = 64
+PICKER_SIZE = 9
+
+
+class Named(Protocol):
+    id: str
+    name: str
 
 
 def emoji(category: str) -> str:
@@ -35,51 +50,31 @@ def label(category: str) -> str:
     return f"{emoji(category)} {category}"
 
 
-def token(category: str) -> str:
-    """8 hex chars identifying a category name inside callback data."""
-    return hashlib.blake2s(category.encode(), digest_size=4).hexdigest()
+def token(category_id: str) -> str:
+    """8 hex chars identifying a category inside callback data."""
+    return hashlib.blake2s(category_id.encode(), digest_size=4).hexdigest()
 
 
-def resolve(tok: str, candidates: Iterable[str]) -> str | None:
-    for name in candidates:
-        if token(name) == tok:
-            return name
+def resolve[C: Named](tok: str, candidates: Sequence[C]) -> C | None:
+    for category in candidates:
+        if token(category.id) == tok:
+            return category
     return None
 
 
-def merge(*groups: Iterable[str]) -> list[str]:
-    """Concatenate name lists, keeping the first spelling of each (case-insensitive)."""
-    seen: set[str] = set()
-    out: list[str] = []
-    for group in groups:
-        for name in group:
-            key = name.casefold()
-            if name and key not in seen:
-                seen.add(key)
-                out.append(name)
-    return out
-
-
-def match(text: str, candidates: Iterable[str]) -> tuple[str, str | None] | None:
-    """Find a category in free text: the whole text, or its first word + a note.
-
-    "food" -> ("Food", None); "food lunch with Eva" -> ("Food", "lunch with Eva").
-    """
-    by_key = {name.casefold(): name for name in candidates}
-    text = text.strip()
-    if text.casefold() in by_key:
-        return by_key[text.casefold()], None
-    first, _, rest = text.partition(" ")
-    if first.casefold() in by_key and rest.strip():
-        return by_key[first.casefold()], rest.strip()
-    return None
-
-
-def picker_order(frequent: Iterable[str], limit: int = 9) -> list[str]:
-    """Most used first, then the remaining built-in categories, at most `limit` entries."""
-    ordered = merge(frequent, DEFAULT_CATEGORIES)
-    head = ordered[:limit]
-    if any(name.casefold() == "other" for name in head):
+def picker_order[C: Named](ranked: Sequence[C], limit: int = PICKER_SIZE) -> list[C]:
+    """The first `limit` of Budget's order (most used first), keeping "Other" reachable."""
+    head = list(ranked[:limit])
+    if any(c.name.casefold() == "other" for c in head):
         return head
-    # Keep "Other" reachable even when the user's history fills the grid.
-    return [*ordered[: limit - 1], "Other"]
+    other = next((c for c in ranked if c.name.casefold() == "other"), None)
+    if other is None:
+        return head
+    return [*ranked[: limit - 1], other]
+
+
+def with_current[C: Named](names: Sequence[C], current: C | None) -> list[C]:
+    """The picker plus the expense's own category when it isn't among them."""
+    if current is None or any(c.id == current.id for c in names):
+        return list(names)
+    return [*names, current]

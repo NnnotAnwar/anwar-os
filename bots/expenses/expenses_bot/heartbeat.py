@@ -1,4 +1,9 @@
-"""Heartbeat loop: updates bot_expenses.heartbeat every minute and touches a local file."""
+"""Heartbeat loop: tells the web app the bot is alive every minute and touches a local file.
+
+The beat goes to /api/internal/budget-bot/heartbeat (shown in the Bots panel); the file
+is touched only when the web app accepted it, so the Docker HEALTHCHECK is healthy only
+while token, secret, internal network and owner account all work.
+"""
 
 from __future__ import annotations
 
@@ -7,21 +12,17 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-import asyncpg
-
-from . import repo
+from .api import BudgetApi
 from .config import HEARTBEAT_FILE, HEARTBEAT_INTERVAL_SECONDS
 
 log = logging.getLogger(__name__)
 
 
-async def beat_once(
-    pool: asyncpg.Pool, bot_name: str, version: str, started_at: datetime, health_file: Path | None
-) -> bool:
+async def beat_once(api: BudgetApi, version: str, started_at: datetime, health_file: Path | None) -> bool:
     try:
-        await repo.beat(pool, bot_name, version, started_at)
-    except Exception:
-        log.warning("heartbeat write failed", exc_info=True)
+        await api.heartbeat(version, started_at)
+    except Exception as exc:
+        log.warning("heartbeat failed", extra={"error": f"{type(exc).__name__}: {exc}"})
         return False
     if health_file is not None:
         try:
@@ -32,8 +33,7 @@ async def beat_once(
 
 
 async def heartbeat_loop(
-    pool: asyncpg.Pool,
-    bot_name: str,
+    api: BudgetApi,
     version: str,
     started_at: datetime,
     *,
@@ -41,5 +41,5 @@ async def heartbeat_loop(
     health_file: Path | None = HEARTBEAT_FILE,
 ) -> None:
     while True:
-        await beat_once(pool, bot_name, version, started_at, health_file)
+        await beat_once(api, version, started_at, health_file)
         await asyncio.sleep(interval)

@@ -1,17 +1,19 @@
 # Expense bot (`bots/expenses`)
 
-Telegram bot that tracks personal expenses. It was `py-telegram` (aiogram 3 + SQLite);
-here it runs on the shared anwar.os Postgres in its own schema and as its own container
-(roadmap phase 5, ARCHITECTURE §8).
+Telegram front-end for **Budget** in anwar.os (@anwarexpensesbot). Every expense you send
+is an ordinary Budget transaction: it shows up in `/app/budget` at once, and what you
+change there shows up here. The bot keeps no expense data of its own.
 
 ## Using the bot
 
 Send an amount, optionally with a note: `250 coffee`, `89`, `15,50`, `coffee 250`,
-`250 kč tram`.
+`250 kč tram`, `90 food yesterday`.
 
-- `250 food` / `250 food lunch` names a category directly and saves at once.
-- A note used before (`250 coffee`) is filed under the category it got most often.
-- Otherwise an inline category picker appears (most used in the last 90 days first).
+- `250 food` / `250 food lunch` names a Budget category directly and saves at once (Budget's
+  quick-add parser: exact name, then a name or word that starts with what you typed).
+- A note used before (`250 coffee`) is filed under the category Budget has it under most often.
+- Otherwise an inline category picker appears: Budget's expense categories, most used in
+  the last 90 days first, "Other" always reachable.
 - The saved card shows amount, category, note, Prague time and the running day/month
   totals, with **Undo · Amount · Category · Note** buttons. Amount and note are edited by
   replying with text; the card is then replaced by an updated one.
@@ -22,202 +24,155 @@ Persistent menu (reply keyboard): **📅 Today · 🗓 Week · 📊 Month · �
 |---|---|
 | `/start` | welcome, example, shows the menu |
 | `/help` | how to use the bot |
-| `/add` | asks for an amount (old flow, still works) |
+| `/add` | asks for an amount |
 | `/today`, `/week`, `/month` | overview card: total, count, comparison with the previous period (up to the same point in time for the current period), daily average, top categories with bars; the day card lists its entries. ◀ ▶ move between periods, tabs switch day/week/month, the month card has **Export CSV** |
-| `/stats` | same as `/month` (old command) |
-| `/history` | recent entries, 8 per page; tap a number to edit or delete (delete asks to confirm) |
+| `/stats` | same as `/month` |
+| `/history` | recent expenses, 8 per page; tap a number to edit or delete (delete asks to confirm) |
 | `/export [YYYY-MM]` | a month as CSV (UTF-8 with BOM; date, time, amount, currency, category, note) |
 | `/cancel` | leaves an edit in progress |
+
+Summaries, history and CSV cover **all** spending in Budget (transfers between own
+accounts excluded), including what you typed on the web. Days are Budget's
+`occurred_on`; the time of day is shown when the expense was recorded on that day
+(`--:--` / no time for one entered later for an earlier day).
+
+Only the owner is served (`BOT_EXPENSES_OWNER_ID`); anyone else gets "This is a private
+bot." and nothing reaches the web app. New expenses go to Budget's default account (the
+first CZK account, i.e. the only one today) in that account's currency.
 
 At startup the bot syncs its command list (menu button), description and short description
 via the Bot API, writing only what differs (`expenses_bot/profile.py`); a failure there is
 logged and does not stop the bot.
 
 Messages are Telegram HTML (escaped user text), edited in place where possible, every button
-tap is answered, and buttons from old messages or a previous bot version get a short
-"expired" answer instead of spinning.
-
-All amounts are stored and shown in **CZK** (see "Currency" below).
+tap is answered, and buttons from old messages (including the numeric-id buttons from the
+bot's own-database days) get a short "expired" answer instead of spinning.
 
 ## How it works
 
-- **aiogram 3, long polling.** No public endpoint needed. Conversation state is in memory, as
-  before: pending category pickers (amount + note) and an amount/note edit in progress.
-  Buttons carry expense ids and period dates, so they keep working after a restart; only a
-  picker for an entry with a note expires (it says so), one without a note still saves.
-- **Postgres via asyncpg**, pool of 1–4 connections, as role `bot_expenses`, which owns
-  only schema `bot_expenses`.
-- **Migrations**: at startup the bot applies `db/migrations/*.sql` that are not yet in
-  `bot_expenses.schema_migrations` (each file in one transaction, under an advisory lock),
-  then re-grants the stats views to `os_app`.
-- **Heartbeat**: every 60 s it upserts the single row in `bot_expenses.heartbeat`
-  (bot name, version, started_at, last_beat_at) and touches `/tmp/expenses-bot.heartbeat`.
-  The Docker `HEALTHCHECK` (`python -m expenses_bot.healthcheck`) is healthy while that
-  file is younger than 180 s. A fresh file means the process and its event loop are
-  alive and Postgres accepted the write. Checking a file means the healthcheck does not
-  open a new DB connection every 30 s.
-- **Logs**: JSON lines on stdout (`ts`, `level`, `logger`, `msg`, extra fields). Message
-  texts and amounts are not logged.
+- **aiogram 3, long polling.** No public endpoint. Conversation state is in memory: pending
+  category pickers (amount, note, day) and an amount/note edit in progress. Buttons carry
+  the Budget transaction id (32 hex digits) and period dates, so they keep working after a
+  restart; only a picker for an entry with a note expires (it says so).
+- **Budget API, no database.** Every read and write is an HMAC-signed HTTP call to
+  `http://web:3000/api/internal/budget-bot/*` (`expenses_bot/api.py`, signing in
+  `expenses_bot/signing.py`, headers `x-budget-bot-*`). web checks the signature with
+  `BOT_EXPENSES_API_SECRET`, acts as the site owner and goes through the Budget module's
+  own actions with row-level security on. The API is off (404) until that secret is set,
+  and Caddy answers `/api/internal/*` with 404 from the internet.
+
+  | Endpoint | Used for |
+  |---|---|
+  | `GET setup` | timezone, default account + currency, expense categories (frequent first) |
+  | `POST expenses/quick` | `250 food lunch` → saved, or a draft when no category is clear |
+  | `POST expenses` | save after a picker tap |
+  | `GET expense?id=` · `POST expense/update` · `POST expense/delete` | cards, edits, undo, delete |
+  | `GET expenses/recent?limit&offset` | history pages |
+  | `GET expenses/range?from&to` | day/week/month overviews, comparisons, CSV |
+  | `POST heartbeat` | Bots panel + Docker health |
+  | `POST import` | the one-time import below |
+
+- **Errors** are specific (`expenses_bot/errors.py`): anwar.os not answering, signature
+  refused (secret mismatch), API switched off, endpoint missing (deploy web), expense
+  gone, input refused (Budget's own message), server error.
+- **Heartbeat**: every 60 s `POST heartbeat` (shown in the Bots panel, stats source
+  `budget-bot`), then it touches `/tmp/expenses-bot.heartbeat`. The Docker `HEALTHCHECK`
+  is healthy while that file is younger than 180 s, i.e. while web accepts the signed
+  heartbeat (token, secret, network and owner account all work).
+- **Logs**: JSON lines on stdout. Message texts and amounts are not logged.
 - **Shutdown**: on SIGTERM/SIGINT it stops polling, lets running handlers finish (up to
-  7 s), stops the heartbeat and closes the pool. Python runs as PID 1 with its own signal
-  handler, so no init process is needed.
-
-### Data model (`bot_expenses` schema)
-
-| Object | Contents |
-|---|---|
-| `users` | `telegram_id` (PK), `username` (nullable), `first_seen`, `last_seen` |
-| `expenses` | `id`, `telegram_user_id` → users, `amount_minor` bigint (> 0), `currency` (ISO, default `CZK`), `category`, `note` (nullable, 1–200 chars, migration 0002), `created_at` timestamptz, `external_ref` (unique, set by imports) |
-| `activity_daily` | `(day, telegram_user_id)` → `updates` (messages + button taps per Prague day) |
-| `heartbeat` | exactly one row (`id = 1`) |
-| `schema_migrations` | applied migration versions |
-| view `stats_daily` | `day`, `messages`, `active_users`, `expenses`, `amounts_minor` jsonb (`{"CZK": 15050}`) |
-| view `stats_overview` | `total_users`, `active_users_7d`, `active_users_30d`, `total_expenses`, `total_amounts_minor` jsonb, `last_heartbeat_at`, `bot_version` |
-
-`os_app` (the web app) gets `USAGE` on the schema and `SELECT` on the two views only. The
-views run with the owner's rights, so the web app sees aggregates but cannot read
-the tables.
+  7 s), stops the heartbeat and closes the HTTP session.
 
 ## Environment
 
 | Variable | Required | Meaning |
 |---|---|---|
-| `BOT_TOKEN` | yes (not for `migrate`) | token from @BotFather |
-| `DATABASE_URL` | yes | `postgresql://bot_expenses:<password>@<host>:5432/<db>`. URL-encode the password, or generate a hex one (`openssl rand -hex 24`) |
-| `BOT_VERSION` | no | shown in the heartbeat/stats. The image bakes the build arg `BOT_VERSION` (CI passes the commit SHA) |
-| `HEARTBEAT_FILE` | no | heartbeat file path, default `/tmp/expenses-bot.heartbeat` |
+| `BOT_TOKEN` | yes | token from @BotFather |
+| `BOT_EXPENSES_API_URL` | yes | web's internal address, `http://web:3000` in the prod compose |
+| `BOT_EXPENSES_API_SECRET` | yes | shared with web, ≥ 32 chars (`openssl rand -hex 32`) |
+| `BOT_EXPENSES_OWNER_ID` | yes | your Telegram user id (the compose falls back to `OSBOT_OWNER_CHAT_ID`, the same number for a private chat) |
+| `BOT_VERSION` | no | shown in the heartbeat; the image bakes the build arg (CI passes the commit SHA) |
+| `HEARTBEAT_FILE` | no | default `/tmp/expenses-bot.heartbeat` |
+| `DATABASE_URL` | only for `import-to-budget` | the bot's old database role, `postgresql://bot_expenses:<pw>@db:5432/anwar_os` |
 
-Configuration is read from the environment only. There is no `.env` loading in the code;
-Compose or the shell provides it.
+Configuration is read from the environment only.
 
-## One-time database setup
+## One-time import of the old data
 
-As the Postgres superuser (or `os_migrator` with CREATEROLE), once per database:
+Before this version the bot wrote to its own schema `bot_expenses`. Copy those rows into
+Budget once, from the server (the bot container has both the old database URL and the
+API settings):
 
 ```sh
-psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 \
-     -v bot_password="$BOT_EXPENSES_DB_PASSWORD" -f bots/expenses/db/bootstrap.sql
+cd /opt/anwar-os/repo/infra
+docker compose -f compose.prod.yml run --rm --no-deps bot-expenses \
+  python -m expenses_bot import-to-budget --dry-run
+docker compose -f compose.prod.yml run --rm --no-deps bot-expenses \
+  python -m expenses_bot import-to-budget
 ```
 
-This creates the login role `bot_expenses` (no superuser/createdb/createrole/bypassrls),
-schema `bot_expenses` owned by it, revokes `PUBLIC`, and grants `os_app` usage on the
-schema. You can run it again; a re-run also rotates the password. If `os_app` does not
-exist yet, the script skips its grants, and the bot grants the views at its next start
-once `os_app` exists.
-
-In the prod compose this can run from the `postgres` container:
-`docker compose exec -T postgres psql -U postgres -d <db> -v bot_password=... -f - < bots/expenses/db/bootstrap.sql`.
+- Every row of `bot_expenses.expenses` of `BOT_EXPENSES_OWNER_ID` (or `--telegram-user ID`;
+  with neither it refuses if the table has more than one user; `--all-users` takes all)
+  becomes a Budget expense in the default account: same amount (as money out), the note,
+  the day in Prague time, the original timestamp as the time of day, the category by name
+  among Budget's expense categories ("Entertainment" → "Fun", anything unknown → "Other",
+  uncategorised if there is no "Other").
+- Each row carries the key `bot-expenses:<id>`, stored in `budget_transactions.import_key`
+  (unique per owner). Running the command again imports only rows it hasn't seen, so it is
+  safe to repeat, e.g. after a rollback let the old bot write a few more rows. Editing an
+  imported transaction in Budget doesn't make it import again.
+- Rows in a currency other than the account's are refused (the whole batch, with the key).
+- Nothing in `bot_expenses` is changed or deleted.
 
 ## Run locally
-
-With [uv](https://docs.astral.sh/uv/) (Python 3.13 is pinned in `.python-version`):
 
 ```sh
 cd bots/expenses
 uv sync
-export DATABASE_URL=postgresql://bot_expenses:<pw>@localhost:5432/<db>
-uv run python -m expenses_bot migrate      # apply migrations only, no token needed
-BOT_TOKEN=<test bot token> uv run python -m expenses_bot
+BOT_TOKEN=<test bot token> BOT_EXPENSES_API_URL=http://localhost:3000 \
+BOT_EXPENSES_API_SECRET=<same as web's> BOT_EXPENSES_OWNER_ID=<your id> \
+uv run python -m expenses_bot
 ```
 
-With Docker (use a **separate test bot** from @BotFather, not the production token: two
-pollers on one token fight over updates):
-
-```sh
-docker build -t anwar-os-bot-expenses:dev bots/expenses
-docker run --rm --name bot-expenses \
-  -e BOT_TOKEN=<test bot token> \
-  -e DATABASE_URL=postgresql://bot_expenses:<pw>@host.docker.internal:5432/<db> \
-  anwar-os-bot-expenses:dev
-docker inspect --format '{{.State.Health.Status}}' bot-expenses
-```
+Use a **separate test bot** from @BotFather, never the production token: two pollers on
+one token fight over updates. web needs `BOT_EXPENSES_API_SECRET` in `.env.local`.
 
 ## Tests
 
-DB tests need a throwaway Postgres. They create and drop the roles `bot_expenses` and
-`os_app`, so never point them at a real database:
+```sh
+cd bots/expenses
+uv run pytest
+```
+
+The handlers, the API client and the import run against an in-memory fake of the Budget
+API served over HTTP on localhost (`tests/fake_budget.py`, signatures checked the way web
+checks them). One test reads the real old `bot_expenses` schema and needs a throwaway
+Postgres (it creates and drops the role `bot_expenses`):
 
 ```sh
 docker run --rm -d --name expenses-pg-test -p 55499:5432 -e POSTGRES_PASSWORD=test postgres:17-alpine
-cd bots/expenses
 TEST_DATABASE_URL=postgresql://postgres:test@localhost:55499/postgres \
-TEST_PSQL="docker exec -i expenses-pg-test psql -U postgres" \
-uv run pytest
+TEST_PSQL="docker exec -i expenses-pg-test psql -U postgres" uv run pytest
 docker stop expenses-pg-test
 ```
 
-`TEST_PSQL` runs the real `db/bootstrap.sql` through psql. Without `TEST_DATABASE_URL`
-the DB tests are skipped and only the unit tests run (money parsing, handlers with
-mocks, the shutdown path, the importer's conversion helpers).
+The web side is covered by `src/modules/budget/bot-api/lib.test.ts` (shared signature
+vector) and `db/tests/budget-bot-api.test.ts` (every endpoint, RLS, import idempotency).
 
-## Import the old SQLite data
+## The old database
 
-`scripts/import_sqlite.py` copies the old `expenses.db` into Postgres in one transaction.
-
-- `amount` REAL becomes `amount_minor` integer. Conversion goes through the float's
-  shortest decimal form (`15.5` → 1550, `0.1` → 10) and rounds half-up to 2 decimals.
-- Every old row gets currency `CZK` (change with `--currency EUR`). The old bot had no
-  currency and printed `$`.
-- Old dates are naive local times; they are read as `Europe/Prague` (`--timezone`).
-- Each row gets `external_ref = 'sqlite:<old id>'`, so running the import twice inserts
-  nothing new.
-- `users` rows are created from the data (first/last expense time, no username).
-- Rows without a user, with an amount ≤ 0 or with an unreadable date are skipped and
-  listed in the report.
-- The SQLite file is opened read-only.
-
-```sh
-# 1. schema must exist: start the bot once, or
-docker compose run --rm bot-expenses python -m expenses_bot migrate
-# 2. check first
-docker compose run --rm -v /path/to/expenses.db:/data/expenses.db:ro \
-  bot-expenses python scripts/import_sqlite.py /data/expenses.db --dry-run
-# 3. import
-docker compose run --rm -v /path/to/expenses.db:/data/expenses.db:ro \
-  bot-expenses python scripts/import_sqlite.py /data/expenses.db
-```
-
-(or locally: `DATABASE_URL=... uv run python scripts/import_sqlite.py ~/WebDev/2026/py-telegram/expenses.db --dry-run`)
-
-Stop the old bot before importing, so no expense is added to SQLite afterwards.
+`db/bootstrap.sql` and `db/migrations/` describe the bot's former schema. The bot no longer
+connects to it while running; only `import-to-budget` reads it. deploy.sh still applies
+`bootstrap.sql` when `BOT_EXPENSES_DB_PASSWORD` is set (harmless, keeps the role's password
+in sync for the import). After the import, the schema can stay as an archive; dropping it
+and the bootstrap step is a separate, later change.
 
 ## Deploy
 
 CI builds `ghcr.io/nnnotanwar/anwar-os-bot-expenses:<sha>` for `linux/amd64,linux/arm64`
 with `--build-arg BOT_VERSION=<sha>`. The image carries the labels `os.managed=true`,
 `os.kind=bot`, `os.name=expenses`, so the ops-agent can list, restart and redeploy it.
-
-Service for `infra/compose.prod.yml` (adjust the network and variable names to that file):
-
-```yaml
-  bot-expenses:
-    image: ghcr.io/nnnotanwar/anwar-os-bot-expenses:${BOT_EXPENSES_TAG:-latest}
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      BOT_TOKEN: ${BOT_EXPENSES_TOKEN:?}
-      DATABASE_URL: postgresql://bot_expenses:${BOT_EXPENSES_DB_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
-    labels:
-      os.managed: "true"
-      os.kind: bot
-      os.name: expenses
-    networks: [internal]          # same network as postgres; no ports published
-    read_only: true
-    tmpfs: [/tmp]                 # heartbeat file
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    mem_limit: 128m
-    stop_grace_period: 15s
-    logging:
-      driver: json-file
-      options: { max-size: "10m", max-file: "3" }
-```
-
-`.env` on the server needs `BOT_EXPENSES_TOKEN`, `BOT_EXPENSES_DB_PASSWORD` (the same
-value passed to `bootstrap.sql`) and `BOT_EXPENSES_TAG`.
-
-Order on first deploy: Postgres up → web migrations (creates `os_app`) → `bootstrap.sql`
-→ `docker compose up -d bot-expenses` → optional SQLite import. Stop the old bot first.
-Only one process may poll a token at a time.
+The service is in `infra/compose.prod.yml` (profile `bots`), on the `internal` network
+(web) and `egress` (Telegram), starting after web is healthy. `.env` on the server needs
+`BOT_EXPENSES_TOKEN`, `BOT_EXPENSES_API_SECRET` and `BOT_EXPENSES_OWNER_ID` (or
+`OSBOT_OWNER_CHAT_ID`); see docs/DEPLOY.md §13.

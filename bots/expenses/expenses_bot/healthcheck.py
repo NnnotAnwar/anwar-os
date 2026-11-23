@@ -1,9 +1,9 @@
 """Docker HEALTHCHECK: healthy while the heartbeat file is fresh.
 
-The bot touches the file right after each successful write of the heartbeat row,
-so a fresh file means the process is alive, its event loop is running and Postgres
-accepts its writes. Checking the file instead of querying Postgres avoids opening a
-new database connection every healthcheck interval.
+The bot touches the file right after the web app accepted a heartbeat,
+so a fresh file means the process is alive, its event loop is running and the
+Budget API answers. Checking the file instead of calling the API avoids a request
+every healthcheck interval.
 
 Usage: python -m expenses_bot.healthcheck [max_age_seconds]   (default 180)
 """

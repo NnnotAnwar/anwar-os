@@ -6,16 +6,17 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Owner's timezone: "today" / "this month" and the stats views use it.
+# Owner's timezone: "today" / "this week" / "this month" and every time shown. The
+# web app counts "today" in the owner's own timezone (Europe/Prague as well).
 TIMEZONE = "Europe/Prague"
-# The bot has no currency picker; every new expense is stored in this currency.
+# Shown until Budget has told the bot the default account's currency.
 DEFAULT_CURRENCY = "CZK"
 
 HEARTBEAT_INTERVAL_SECONDS = 60
-# Touched after every successful heartbeat write; read by the Docker HEALTHCHECK.
+# Touched after every heartbeat the web app accepted; read by the Docker HEALTHCHECK.
 HEARTBEAT_FILE = Path(os.environ.get("HEARTBEAT_FILE", "/tmp/expenses-bot.heartbeat"))
-
-MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "db" / "migrations"
+# Must match MIN_SECRET_LENGTH in src/lib/signed-request.ts.
+MIN_SECRET_LENGTH = 32
 
 
 class ConfigError(Exception):
@@ -24,21 +25,34 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class Config:
-    database_url: str
-    bot_token: str = field(repr=False)
+    api_url: str
+    api_secret: str = field(repr=False)
+    # Telegram user id of the site owner: the only person the bot serves, since
+    # everything it saves lands in the owner's Budget.
+    owner_id: int
+    bot_token: str = field(default="", repr=False)
     version: str = "dev"
 
 
-def load_config(*, require_token: bool = True) -> Config:
-    missing = [
-        name
-        for name in ("DATABASE_URL", "BOT_TOKEN")
-        if not os.environ.get(name) and (name != "BOT_TOKEN" or require_token)
-    ]
+def load_config(env: dict[str, str] | None = None, *, require_token: bool = True) -> Config:
+    env = dict(os.environ) if env is None else env
+    names = ["BOT_EXPENSES_API_URL", "BOT_EXPENSES_API_SECRET", "BOT_EXPENSES_OWNER_ID"]
+    if require_token:
+        names.insert(0, "BOT_TOKEN")
+    missing = [name for name in names if not env.get(name, "").strip()]
     if missing:
         raise ConfigError(f"missing required environment variables: {', '.join(missing)}")
+    secret = env["BOT_EXPENSES_API_SECRET"].strip()
+    if len(secret) < MIN_SECRET_LENGTH:
+        raise ConfigError(f"BOT_EXPENSES_API_SECRET must be at least {MIN_SECRET_LENGTH} characters")
+    try:
+        owner = int(env["BOT_EXPENSES_OWNER_ID"].strip())
+    except ValueError:
+        raise ConfigError("BOT_EXPENSES_OWNER_ID must be a number (your Telegram user id)") from None
     return Config(
-        database_url=os.environ["DATABASE_URL"],
-        bot_token=os.environ.get("BOT_TOKEN", ""),
-        version=os.environ.get("BOT_VERSION") or "dev",
+        api_url=env["BOT_EXPENSES_API_URL"].strip().rstrip("/"),
+        api_secret=secret,
+        owner_id=owner,
+        bot_token=env.get("BOT_TOKEN", "").strip(),
+        version=env.get("BOT_VERSION", "").strip() or "dev",
     )

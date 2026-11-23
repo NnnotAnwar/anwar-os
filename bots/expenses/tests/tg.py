@@ -14,13 +14,13 @@ USER_ID = 42
 _message_ids = itertools.count(1000)
 
 
-def fresh_dispatcher(pool):
+def fresh_dispatcher(api, owner_id: int = USER_ID):
     """build_dispatcher() for tests: module-level routers can be attached only once."""
     from expenses_bot import app, handlers
 
     for router in handlers.routers:
         router._parent_router = None
-    return app.build_dispatcher(pool)
+    return app.build_dispatcher(api, owner_id)
 
 
 def new_state(user_id: int = USER_ID) -> FSMContext:

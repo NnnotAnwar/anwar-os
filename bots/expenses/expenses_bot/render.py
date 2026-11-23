@@ -45,7 +45,7 @@ def welcome(first_name: str | None) -> str:
     )
 
 
-def help_text() -> str:
+def help_text(currency: str = DEFAULT_CURRENCY) -> str:
     return (
         "<b>How to use the bot</b>\n\n"
         "<b>Log an expense</b> — send a message:\n"
@@ -59,7 +59,8 @@ def help_text() -> str:
         "use ◀ ▶ to move between periods\n"
         "/history — recent entries; tap one to edit or delete it\n"
         "/export — this month as a CSV file\n\n"
-        f"All amounts are in {DEFAULT_CURRENCY}, dates in Prague time."
+        f"Everything lands in Budget on anwar.os ({currency}, your default account); "
+        "categories are Budget's, dates are Prague time. Edits made there show up here too."
     )
 
 
@@ -88,10 +89,12 @@ def amount_line(row: Row) -> str:
     )
 
 
-def picker(amount_minor: int, note: str | None, currency: str = DEFAULT_CURRENCY) -> str:
+def picker(amount_minor: int, note: str | None, currency: str = DEFAULT_CURRENCY, day: Any = None, today: Any = None) -> str:
     head = f"💸 <b>{format_amount(amount_minor, currency)}</b>"
     if note:
         head += f" · {escape(note)}"
+    if day is not None and human_day(day, today) != "Today":
+        head += f" · {human_day(day, today)}"
     return f"{head}\nPick a category:"
 
 
@@ -107,7 +110,7 @@ def expense_card(row: Row, ctx: CardContext | None = None, today: Any = None) ->
     lines = [ctx.title, "", amount_line(row)]
     if row.get("note"):
         lines.append(f"📝 {escape(row['note'])}")
-    lines.append(f"🕘 {human_datetime(row['created_at'], today)}")
+    lines.append(f"🕘 {when_text(row, today)}")
     if ctx.footer:
         lines += ["", ctx.footer]
     if ctx.prompt:
@@ -115,9 +118,18 @@ def expense_card(row: Row, ctx: CardContext | None = None, today: Any = None) ->
     return "\n".join(lines)
 
 
-def running_totals(day_total: Mapping[str, int], month_total: Mapping[str, int], period_month: Period) -> str:
-    day = _currency_list(day_total) or format_amount(0, DEFAULT_CURRENCY)
-    month = _currency_list(month_total) or format_amount(0, DEFAULT_CURRENCY)
+def when_text(row: Row, today: Any = None) -> str:
+    """"Today, 09:15" when Budget knows the time (it was recorded that day), else just the day."""
+    if row.get("timed", True):
+        return human_datetime(row.get("when") or row["created_at"], today)
+    return human_day(row["occurred_on"], today)
+
+
+def running_totals(
+    day_total: Mapping[str, int], month_total: Mapping[str, int], period_month: Period, currency: str = DEFAULT_CURRENCY
+) -> str:
+    day = _currency_list(day_total) or format_amount(0, currency)
+    month = _currency_list(month_total) or format_amount(0, currency)
     return f"<i>Today {day} · {period_month.start:%B} {month}</i>"
 
 
@@ -231,7 +243,8 @@ def day_entries_table(entries: Sequence[Row], currency: str) -> str:
     lines = []
     for entry, amount_text in zip(shown, amounts, strict=True):
         what = entry["category"] + (f" · {entry['note']}" if entry.get("note") else "")
-        lines.append(f"{to_local(entry['created_at']):%H:%M} {amount_text:>{width}}  {_fit(what, 22)}")
+        clock = f"{to_local(entry['when']):%H:%M}" if entry.get("timed", True) else "--:--"
+        lines.append(f"{clock} {amount_text:>{width}}  {_fit(what, 22)}")
     more = len([e for e in entries if e["currency"] == currency]) - len(shown)
     if more > 0:
         lines.append(f"… and {more} more")
@@ -299,14 +312,15 @@ def history_page(rows: Sequence[Row], page: int, pages: int, total: int, offset:
     lines = [f"🧾 <b>Recent expenses</b> · {first}–{last} of {total}"]
     current_day = None
     for number, row in enumerate(rows, start=1):
-        local = to_local(row["created_at"])
-        if local.date() != current_day:
-            current_day = local.date()
+        day = row["occurred_on"]
+        if day != current_day:
+            current_day = day
             lines += ["", f"<b>{human_day(current_day, today)}</b>"]
         note = f" — {escape(row['note'])}" if row.get("note") else ""
+        clock = f" <i>{to_local(row['when']):%H:%M}</i>" if row.get("timed", True) else ""
         lines.append(
             f"{number}. <b>{format_amount(row['amount_minor'], row['currency'])}</b> "
-            f"{escape(categories.label(row['category']))}{note} <i>{local:%H:%M}</i>"
+            f"{escape(categories.label(row['category']))}{note}{clock}"
         )
     lines += ["", "Tap a number to edit or delete."]
     return "\n".join(lines)

@@ -37,13 +37,11 @@ RUN useradd --system --uid 10001 --user-group --no-create-home --shell /usr/sbin
 COPY --from=build /opt/venv /opt/venv
 WORKDIR /app
 COPY expenses_bot ./expenses_bot
-COPY db ./db
-COPY scripts ./scripts
 
 USER 10001:10001
 
-# Healthy while the heartbeat (written to Postgres every 60 s) succeeded in the last
-# 180 s; see expenses_bot/healthcheck.py.
+# Healthy while a heartbeat to the web app's Budget API (every 60 s) succeeded in the
+# last 180 s; see expenses_bot/healthcheck.py.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
     CMD ["python", "-m", "expenses_bot.healthcheck", "180"]
 

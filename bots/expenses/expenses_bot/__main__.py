@@ -1,7 +1,9 @@
 """Entry point.
 
-python -m expenses_bot            run the bot (applies pending migrations first)
-python -m expenses_bot migrate    apply pending migrations and exit (no BOT_TOKEN needed)
+python -m expenses_bot                     run the bot
+python -m expenses_bot import-to-budget    copy the rows of the bot's old database
+    [--dry-run] [--telegram-user ID]       (schema bot_expenses) into Budget, once;
+    [--all-users]                          safe to re-run (see import_to_budget.py)
 """
 
 from __future__ import annotations
@@ -19,23 +21,23 @@ log = logging.getLogger("expenses_bot")
 def main(argv: list[str]) -> int:
     setup_logging()
     command = argv[1] if len(argv) > 1 else "run"
-    if command not in ("run", "migrate"):
+    if command == "import-to-budget":
+        from .import_to_budget import main as import_main
+
+        return import_main(argv[2:])
+    if command != "run":
         print(__doc__, file=sys.stderr)
         return 2
     try:
-        config = load_config(require_token=command == "run")
+        config = load_config()
     except ConfigError as exc:
         log.error(str(exc))
         return 2
 
-    from .app import run_bot, run_migrations  # imported late: aiogram is heavy
+    from .app import run_bot  # imported late: aiogram is heavy
 
     try:
-        if command == "migrate":
-            applied = asyncio.run(run_migrations(config))
-            log.info("migrations up to date", extra={"applied": applied})
-        else:
-            asyncio.run(run_bot(config))
+        asyncio.run(run_bot(config))
     except KeyboardInterrupt:
         pass
     except Exception:

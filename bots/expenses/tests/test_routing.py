@@ -1,6 +1,7 @@
-"""Updates fed through the real dispatcher (filters, router order, middleware, errors).
+"""Updates fed through the real dispatcher (filters, router order, owner middleware, errors).
 
-The Bot uses a recording session instead of the network: no Telegram traffic.
+The Bot uses a recording session instead of the network: no Telegram traffic. Budget is
+the fake API from tests/fake_budget.py.
 """
 
 from __future__ import annotations
@@ -16,13 +17,12 @@ from aiogram.types import CallbackQuery, Chat, InlineKeyboardMarkup, Message, Up
 
 from expenses_bot import app, categories
 
-from .conftest import needs_db
 from .tg import fresh_dispatcher
-
-pytestmark = needs_db
 
 USER = User(id=4242, is_bot=False, first_name="Anwar", username="anwar")
 CHAT = Chat(id=4242, type="private")
+STRANGER = User(id=999, is_bot=False, first_name="Eve")
+STRANGER_CHAT = Chat(id=999, type="private")
 _ids = itertools.count(1)
 
 
@@ -52,23 +52,23 @@ class RecordingSession(BaseSession):
         pass
 
 
-def _message(text: str | None) -> Update:
-    message = Message(message_id=next(_ids), date=datetime.now(UTC), chat=CHAT, from_user=USER, text=text)
+def _message(text: str | None, user: User = USER, chat: Chat = CHAT) -> Update:
+    message = Message(message_id=next(_ids), date=datetime.now(UTC), chat=chat, from_user=user, text=text)
     return Update(update_id=next(_ids), message=message)
 
 
-def _tap(data: str, message_id: int) -> Update:
-    message = Message(message_id=message_id, date=datetime.now(UTC), chat=CHAT, from_user=USER, text="x")
-    query = CallbackQuery(id=str(next(_ids)), from_user=USER, chat_instance="c", message=message, data=data)
+def _tap(data: str, message_id: int, user: User = USER, chat: Chat = CHAT) -> Update:
+    message = Message(message_id=message_id, date=datetime.now(UTC), chat=chat, from_user=user, text="x")
+    query = CallbackQuery(id=str(next(_ids)), from_user=user, chat_instance="c", message=message, data=data)
     return Update(update_id=next(_ids), callback_query=query)
 
 
-async def test_dispatcher_routes_a_full_session(clean):
-    pool = clean
+async def test_dispatcher_routes_a_full_session(budget):
+    fake = budget.fake
     session = RecordingSession()
     bot = app.create_bot("42:TEST")
     bot.session = session
-    dp = fresh_dispatcher(pool)
+    dp = fresh_dispatcher(budget.api, owner_id=USER.id)
 
     async def feed(update: Update) -> list[TelegramMethod[Any]]:
         start = len(session.calls)
@@ -91,7 +91,7 @@ async def test_dispatcher_routes_a_full_session(clean):
         b.callback_data
         for row in picker.reply_markup.inline_keyboard
         for b in row
-        if b.callback_data.startswith("pk:" + categories.token("Food"))
+        if b.callback_data.startswith("pk:" + categories.token(fake.category_id("Food")))
     )
     # Drafts are keyed by the picker's message id (assigned by the recording session).
     state = dp.fsm.get_context(bot, CHAT.id, USER.id)
@@ -100,7 +100,7 @@ async def test_dispatcher_routes_a_full_session(clean):
     edit = next(c for c in calls if isinstance(c, EditMessageText))
     answer = next(c for c in calls if isinstance(c, AnswerCallbackQuery))
     assert "✅ <b>Saved</b>" in edit.text and answer.text == "Saved"
-    assert await pool.fetchval("select note from bot_expenses.expenses") == "coffee"
+    assert [t.note for t in fake.expenses()] == ["coffee"]
 
     # Unknown / stale button and non-text message are answered politely
     (answer,) = await feed(_tap("pk:zzzz", 1))
@@ -110,5 +110,17 @@ async def test_dispatcher_routes_a_full_session(clean):
     (sent,) = await feed(_message("/nope"))
     assert "/help" in sent.text
 
-    # Middleware still records activity for the stats views
-    assert await pool.fetchval("select updates from bot_expenses.activity_daily where telegram_user_id = $1", USER.id) >= 7
+    # Budget down: the owner hears what failed, not a generic oops
+    fake.fail["/expenses/range"] = (500, {"error": "internal"})
+    (sent,) = await feed(_message("/month"))
+    assert "Something broke on anwar.os" in sent.text
+    del fake.fail["/expenses/range"]
+
+    # Someone else: one refusal, nothing reaches Budget
+    calls_before = len(fake.calls)
+    (sent,) = await feed(_message("250 food", user=STRANGER, chat=STRANGER_CHAT))
+    assert sent.text == "🔒 This is a private bot."
+    (answer,) = await feed(_tap(food, 5, user=STRANGER, chat=STRANGER_CHAT))
+    assert isinstance(answer, AnswerCallbackQuery) and "private" in answer.text
+    assert len(fake.calls) == calls_before
+    assert len(fake.expenses()) == 1

@@ -1,4 +1,8 @@
-"""Bot lifecycle: pool, migrations, polling, heartbeat and graceful shutdown."""
+"""Bot lifecycle: Budget API client, polling, heartbeat and graceful shutdown.
+
+The bot has no database of its own any more: expenses are Budget transactions in
+anwar.os, reached through api.BudgetApi (signed calls to /api/internal/budget-bot/*).
+"""
 
 from __future__ import annotations
 
@@ -8,17 +12,16 @@ import logging
 import signal
 from datetime import UTC, datetime
 
-import asyncpg
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
 from . import BOT_NAME
+from .api import BudgetApi
 from .config import Config
-from .db import create_pool, migrate
 from .handlers import on_error, routers
 from .heartbeat import heartbeat_loop
-from .middleware import SeenUsersMiddleware
+from .middleware import OwnerOnlyMiddleware
 from .profile import setup_bot_profile
 
 log = logging.getLogger(__name__)
@@ -28,11 +31,11 @@ SHUTDOWN_TIMEOUT_SECONDS = 7
 PROFILE_TIMEOUT_SECONDS = 20
 
 
-def build_dispatcher(pool: asyncpg.Pool) -> Dispatcher:
+def build_dispatcher(api: BudgetApi, owner_id: int) -> Dispatcher:
     # FSM state lives in memory (as before): an /add flow in progress is lost on restart.
     dp = Dispatcher()
-    dp["pool"] = pool  # injected into handlers as the `pool` argument
-    dp.update.outer_middleware(SeenUsersMiddleware())
+    dp["api"] = api  # injected into handlers as the `api` argument
+    dp.update.outer_middleware(OwnerOnlyMiddleware(owner_id))
     for router in routers:
         dp.include_router(router)
     dp.errors.register(on_error)
@@ -54,44 +57,33 @@ def _install_signal_handlers(stop: asyncio.Event) -> None:
             loop.add_signal_handler(sig, stop.set)
 
 
-async def run_migrations(config: Config) -> list[str]:
-    pool = await create_pool(config.database_url)
-    try:
-        return await migrate(pool)
-    finally:
-        await pool.close()
-
-
 async def run_bot(config: Config) -> None:
     # Installed first, so SIGTERM during startup is not ignored (we run as PID 1).
     stop = asyncio.Event()
     _install_signal_handlers(stop)
     started_at = datetime.now(UTC)
-    log.info("starting", extra={"bot": BOT_NAME, "version": config.version})
+    log.info("starting", extra={"bot": BOT_NAME, "version": config.version, "api": config.api_url})
 
-    pool = await create_pool(config.database_url)
+    api = BudgetApi(config.api_url, config.api_secret)
     try:
-        applied = await migrate(pool)
-        log.info("migrations up to date", extra={"applied": applied})
-
         bot = create_bot(config.bot_token)
         try:
             # Never raises (failures are logged); bounded so a slow API can't delay polling long.
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(setup_bot_profile(bot), PROFILE_TIMEOUT_SECONDS)
-            await _poll_until_stopped(bot, build_dispatcher(pool), pool, config, started_at, stop)
+            await _poll_until_stopped(bot, build_dispatcher(api, config.owner_id), api, config, started_at, stop)
         finally:
             # Idempotent; needed when polling never started or was cancelled.
             await bot.session.close()
     finally:
-        await pool.close()
+        await api.close()
         log.info("stopped")
 
 
 async def _poll_until_stopped(
     bot: Bot,
     dp: Dispatcher,
-    pool: asyncpg.Pool,
+    api: BudgetApi,
     config: Config,
     started_at: datetime,
     stop: asyncio.Event,
@@ -105,7 +97,7 @@ async def _poll_until_stopped(
         name="polling",
     )
     heartbeat = asyncio.create_task(
-        heartbeat_loop(pool, BOT_NAME, config.version, started_at), name="heartbeat"
+        heartbeat_loop(api, config.version, started_at), name="heartbeat"
     )
     stopper = asyncio.create_task(stop.wait(), name="stop-signal")
     try:

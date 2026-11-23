@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
 from expenses_bot import categories, keyboards, periods, render
+from expenses_bot.api import Category
 from expenses_bot.keyboards import EntryCb, PeriodCb, PickCb
 from expenses_bot.periods import Period
 
@@ -23,35 +25,43 @@ def fixed_today(monkeypatch):
 # --- categories ------------------------------------------------------------------
 
 
+def _cats(*names: str) -> list[Category]:
+    return [Category(id=str(uuid.uuid4()), name=name) for name in names]
+
+
 def test_category_tokens_are_short_and_resolvable():
-    names = [*categories.DEFAULT_CATEGORIES, "Groceries: weekly 🛒", "x" * 64]
-    for name in names:
-        tok = categories.token(name)
+    cats = _cats("Food", "Groceries: weekly 🛒", "x" * 60)
+    for c in cats:
+        tok = categories.token(c.id)
         assert len(tok) == 8 and ":" not in tok
-        assert categories.resolve(tok, names) == name
-    assert categories.resolve("deadbeef", names) is None
+        assert categories.resolve(tok, cats) is c
+    assert categories.resolve("deadbeef", cats) is None
 
 
-def test_category_match():
-    names = ["Food", "Transport", "Car wash"]
-    assert categories.match("food", names) == ("Food", None)
-    assert categories.match("FOOD  lunch with Eva", names) == ("Food", "lunch with Eva")
-    assert categories.match("car wash", names) == ("Car wash", None)
-    assert categories.match("coffee", names) is None
-    assert categories.match("foodie", names) is None
-
-
-def test_picker_order_puts_frequent_first_and_keeps_other():
-    assert categories.picker_order(["Health", "Food"])[:2] == ["Health", "Food"]
-    assert len(categories.picker_order([])) == 6
-    many = [f"C{i}" for i in range(12)]
+def test_picker_order_follows_budget_and_keeps_other():
+    ranked = _cats("Health", "Food", "Other")
+    assert [c.name for c in categories.picker_order(ranked)] == ["Health", "Food", "Other"]
+    many = _cats(*[f"C{i}" for i in range(12)], "Other")
     order = categories.picker_order(many, limit=9)
-    assert len(order) == 9 and order[-1] == "Other" and order[:8] == many[:8]
+    assert len(order) == 9 and order[-1].name == "Other" and order[:8] == many[:8]
+    no_other = _cats(*[f"C{i}" for i in range(12)])
+    assert categories.picker_order(no_other, limit=9) == no_other[:9]
+    assert categories.picker_order([]) == []
+
+
+def test_editing_keeps_the_current_category_on_the_picker():
+    shown, rare = _cats("Food", "Fun"), _cats("Rare")[0]
+    assert categories.with_current(shown, rare) == [*shown, rare]
+    assert categories.with_current(shown, shown[0]) == shown
+    assert categories.with_current(shown, None) == shown
 
 
 def test_category_labels():
     assert categories.label("Food") == "🍔 Food"
-    assert categories.label("Groceries") == "🏷 Groceries"
+    assert categories.label("eating out") == "🍽 eating out"
+    assert categories.label("Groceries") == "🛒 Groceries"
+    assert categories.label("Car wash") == "🏷 Car wash"
+    assert categories.label("Uncategorised") == "❔ Uncategorised"
 
 
 # --- periods ---------------------------------------------------------------------
@@ -149,10 +159,12 @@ def test_overview_groups_tail_and_other_currencies():
 
 def test_day_overview_lists_entries_aligned_and_escaped():
     entries = [
-        {"category": "Food", "currency": "CZK", "amount_minor": 25000, "note": "<b>coffee</b>",
-         "created_at": datetime(2026, 11, 22, 8, 15, tzinfo=UTC)},
-        {"category": "Transport", "currency": "CZK", "amount_minor": 112050, "note": None,
-         "created_at": datetime(2026, 11, 22, 11, 40, tzinfo=UTC)},
+        {"category": "Food", "currency": "CZK", "amount_minor": 25000, "note": "<b>coffee</b>", "timed": True,
+         "when": datetime(2026, 11, 22, 8, 15, tzinfo=UTC)},
+        {"category": "Transport", "currency": "CZK", "amount_minor": 112050, "note": None, "timed": True,
+         "when": datetime(2026, 11, 22, 11, 40, tzinfo=UTC)},
+        {"category": "Gifts", "currency": "CZK", "amount_minor": 100, "note": None, "timed": False,
+         "when": datetime(2026, 11, 21, 23, 0, tzinfo=UTC)},
     ]
     text = render.overview(
         render.Overview(
@@ -166,6 +178,7 @@ def test_day_overview_lists_entries_aligned_and_escaped():
     assert "vs yesterday by this time" in text
     assert "09:15   250     Food · &lt;b&gt;coffee&lt;/b&gt;" in text
     assert "12:40 1 120.50  Transport" in text
+    assert "--:--     1     Gifts" in text
     assert "a day" not in text
 
 
@@ -180,15 +193,17 @@ def test_empty_overviews_say_what_to_do():
 
 def test_history_page_groups_by_day_and_escapes():
     rows = [
-        {"id": 2, "amount_minor": 25000, "currency": "CZK", "category": "Food", "note": "a & b",
-         "created_at": datetime(2026, 11, 22, 8, 15, tzinfo=UTC)},
-        {"id": 1, "amount_minor": 1550, "currency": "CZK", "category": "<x>", "note": None,
-         "created_at": datetime(2026, 11, 20, 18, 0, tzinfo=UTC)},
+        {"id": "b", "amount_minor": 25000, "currency": "CZK", "category": "Food", "note": "a & b", "timed": True,
+         "occurred_on": TODAY, "when": datetime(2026, 11, 22, 8, 15, tzinfo=UTC)},
+        {"id": "a", "amount_minor": 1550, "currency": "CZK", "category": "<x>", "note": None, "timed": True,
+         "occurred_on": date(2026, 11, 20), "when": datetime(2026, 11, 20, 18, 0, tzinfo=UTC)},
+        {"id": "c", "amount_minor": 900, "currency": "CZK", "category": "Gifts", "note": None, "timed": False,
+         "occurred_on": date(2026, 11, 20), "when": datetime(2026, 11, 19, 23, 0, tzinfo=UTC)},
     ]
     text = render.history_page(rows, 0, 3, 19, 0, TODAY)
-    assert "· 1–2 of 19" in text
+    assert "· 1–3 of 19" in text
     assert "<b>Today</b>\n1. <b>250\u00a0CZK</b> 🍔 Food — a &amp; b <i>09:15</i>" in text
-    assert "<b>Fri 20 Nov</b>\n2. <b>15.50\u00a0CZK</b> 🏷 &lt;x&gt; <i>19:00</i>" in text
+    assert "<b>Fri 20 Nov</b>\n2. <b>15.50\u00a0CZK</b> 🏷 &lt;x&gt; <i>19:00</i>\n3. <b>9\u00a0CZK</b> 🎁 Gifts\n" in text
     assert "Nothing here yet" in render.history_page([], 0, 1, 0, 0, TODAY)
 
 
@@ -201,8 +216,8 @@ def test_welcome_escapes_name():
 
 def test_callback_data_fits_telegram_limit():
     worst = [
-        PickCb(cat=categories.token("x" * 64), amount=99999999999, note=True).pack(),
-        EntryCb(action="cs", id=2**62, origin="99999", cat=categories.token("y")).pack(),
+        PickCb(cat=categories.token(str(uuid.uuid4())), amount=99999999999, note=True).pack(),
+        EntryCb(action="cs", id=uuid.uuid4().hex, origin="99999", cat=categories.token(str(uuid.uuid4()))).pack(),
         PeriodCb(p=Period("w", TODAY).encode()).pack(),
     ]
     assert all(len(d.encode()) <= 64 for d in worst)
@@ -217,18 +232,29 @@ def test_overview_nav_hides_future_and_offers_way_back():
     assert all("⬇️ Export CSV" not in row for row in button_texts(day))
 
 
+def test_expense_ids_round_trip_through_callback_data():
+    expense_id = str(uuid.uuid4())
+    assert keyboards.full_id(keyboards.short_id(expense_id)) == expense_id
+    assert keyboards.full_id("17") is None
+    assert keyboards.full_id("z" * 32) is None
+
+
+ID = "0b9f7c5e-2a4d-4e8f-9c1a-3d5e7f9a1b2c"
+
+
 def test_expense_action_keyboards():
-    fresh = keyboards.expense_actions(7)
+    fresh = keyboards.expense_actions(ID)
     assert button_texts(fresh) == [["↩️ Undo", "✏️ Amount"], ["🏷 Category", "📝 Note"]]
-    from_list = keyboards.expense_actions(7, "2")
+    from_list = keyboards.expense_actions(ID, "2")
     assert button_texts(from_list)[-1] == ["‹ Back to list"]
     assert "🗑 Delete" in button_texts(from_list)[1]
 
 
 def test_history_keyboard_numbers_and_pages():
-    kb = keyboards.history([11, 10, 9, 8, 7], page=1, pages=3)
+    ids = [str(uuid.uuid4()) for _ in range(5)]
+    kb = keyboards.history(ids, page=1, pages=3)
     assert button_texts(kb) == [["1", "2", "3", "4"], ["5"], ["◀ Newer", "2/3", "Older ▶"]]
-    assert button_data(kb)[0] == "ex:v:11:1:"
+    assert button_data(kb)[0] == f"ex:v:{uuid.UUID(ids[0]).hex}:1:"
 
 
 def test_main_menu_is_persistent():

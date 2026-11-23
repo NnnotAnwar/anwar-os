@@ -8,6 +8,7 @@ from aiogram import F, Router, types
 from aiogram.types import ErrorEvent
 
 from .. import render
+from ..errors import describe, is_api_failure
 from ..keyboards import LEGACY_CATEGORY_PREFIX
 
 log = logging.getLogger(__name__)
@@ -42,14 +43,21 @@ async def anything_else(message: types.Message) -> None:
 
 
 async def on_error(event: ErrorEvent) -> bool:
-    """Registered on the dispatcher: log, then tell the user instead of staying silent."""
-    log.error("handler failed", exc_info=event.exception)
+    """Registered on the dispatcher: log, then tell the owner instead of staying silent.
+
+    A failed call to Budget says what failed (app down, signature, gone, ...)."""
     update = event.update
+    if is_api_failure(event.exception):
+        problem = describe(event.exception, action="handler")
+        toast, html = problem.toast(), problem.html()
+    else:
+        log.error("handler failed", exc_info=event.exception)
+        toast, html = OOPS, OOPS
     try:
         if update.callback_query is not None:
-            await update.callback_query.answer(OOPS, show_alert=True)
+            await update.callback_query.answer(toast, show_alert=True)
         elif update.message is not None:
-            await update.message.answer(OOPS)
+            await update.message.answer(html)
     except Exception:
         log.warning("could not report the error to the user", exc_info=True)
     return True
