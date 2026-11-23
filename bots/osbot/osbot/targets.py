@@ -11,11 +11,8 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
 log = logging.getLogger(__name__)
 
-CALLBACK_PREFIX = "cap:"
 REFRESH_SECONDS = 600
 
 
@@ -68,12 +65,3 @@ class CaptureTargets:
 
     def find(self, kind: str) -> Target | None:
         return next((t for t in self._targets if t.kind == kind), None)
-
-
-def capture_keyboard(targets: tuple[Target, ...], *, has_url: bool) -> InlineKeyboardMarkup:
-    offered = [t for t in targets if has_url or not t.needs_url]
-    if has_url:
-        # A message with a link most likely is a link: offer that first.
-        offered.sort(key=lambda t: not t.needs_url)
-    buttons = [InlineKeyboardButton(text=t.button, callback_data=f"{CALLBACK_PREFIX}{t.kind}") for t in offered]
-    return InlineKeyboardMarkup(inline_keyboard=[buttons[i : i + 2] for i in range(0, len(buttons), 2)])

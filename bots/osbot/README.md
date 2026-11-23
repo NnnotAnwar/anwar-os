@@ -6,12 +6,23 @@ private bot."
 
 | | |
 |---|---|
-| `/today` | today's calendar, due tasks and new feedback count |
-| `/note`, `/link`, `/idea`, `/task` `<text>` | save straight into that module |
+| `/start` | short welcome and the main menu keyboard: 📅 Today · ➕ Task · ❓ Help |
+| `/help` | every command, with Today and Open anwar.os buttons |
+| `/today` | calendar, due tasks (5 per page, numbered) and new feedback; a number opens the task: ✓ Done, ⏭ Tomorrow, ↗ Open, each with ↩ Undo |
+| `/note`, `/link`, `/idea`, `/task` `<text>` | save straight into that module; without text, asks for it (ForceReply) |
 | `/save <text>` | save to the default destination (Inbox) |
-| any message, forward or URL | "Save to Inbox / Save as note / link / idea / task" buttons |
-| reminders | calendar reminders, e.g. `⏰ Dentist in 30 min · 14:00` |
-| feedback alerts | new feedback from /feedback, with a link to it |
+| any message, forward or URL | "Save this to…" 📥 Inbox · ✅ Task · 📝 Note · 🔗 Link · 💡 Idea · ✕ Cancel |
+| after saving | ↗ Open and ↩ Undo (for 2 hours; Undo offers the other destinations) |
+| reminders | `⏰ Dentist in 30 min · 14:00` with 💤 10 min / 1 h, ✓ Got it, ↗ Open in calendar |
+| feedback alerts | the message quoted, ↗ Open, ✓ Mark read, 🚫 Spam, ↩ Undo |
+
+Messages are HTML (`texts.py`), edited in place where a button changes them,
+and every button press gets an answer (a toast) even when it has expired.
+Failures say what kind they are (app down, signature/config problem, bad input,
+item gone) with a 🔄 Try again where retrying can help; the details go to the
+log. Snoozes are kept in memory (`snooze.py`), so a restart forgets them; the
+button then says so. The command menu and the bot's descriptions are set at
+startup when they differ from `app.py`/`texts.py`.
 
 ## How it talks to the app
 
@@ -32,10 +43,13 @@ any mismatch, then acts as the site owner with row-level security on.
 |---|---|
 | `GET capture/targets` | destinations for the buttons, default first |
 | `POST capture` | `{ kind?, text, url? }` (no kind = default) |
-| `GET today` | agenda summary |
-| `GET reminders/due?until=<epoch ms>` | due reminders (recurrences expanded) |
+| `POST capture/undo` | `{ kind, id }`: deletes what a capture just created |
+| `GET today` | agenda summary (tasks with their `id`) |
+| `POST tasks/action` | `{ id, action: complete \| reopen \| postpone \| schedule, dueDate? }` |
+| `GET reminders/due?until=<epoch ms>` | due reminders (recurrences expanded, each with a calendar `url`) |
 | `POST reminders/ack` | `{ keys }` once sent: idempotent |
 | `GET feedback/new`, `POST feedback/ack` | feedback alerts, same pattern |
+| `POST feedback/status` | `{ id, status }`, returns the previous status (for Undo) |
 | `POST heartbeat` | every minute; Settings → Telegram shows it |
 
 Loops run once a minute, just after the minute turns: heartbeat, reminders,
@@ -52,6 +66,8 @@ sending its own direct feedback alerts and leaves them to osbot.
 | `OSBOT_API_SECRET` | shared with web, `openssl rand -hex 32` |
 | `OSBOT_OWNER_CHAT_ID` | your chat id (see docs/DEPLOY.md, "Connect osbot") |
 | `BOT_VERSION` | set by the image build |
+| `OSBOT_APP_URL` | optional, default `https://anwar-os.com` (Open anwar.os buttons) |
+| `OSBOT_TIMEZONE` | optional, default `Europe/Prague` (times the bot formats itself) |
 
 ## Development
 

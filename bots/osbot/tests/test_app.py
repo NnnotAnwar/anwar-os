@@ -7,11 +7,12 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from aiogram.types import CallbackQuery, Message, Update
+from aiogram.types import BotDescription, BotShortDescription, CallbackQuery, Message, Update
 
-from osbot import app
+from osbot import app, texts
 from osbot.config import Config
 from osbot.middleware import OwnerOnlyMiddleware
+from osbot.snooze import ReminderMemory
 from osbot.texts import NOT_OWNER
 
 OWNER = 42
@@ -78,10 +79,33 @@ async def test_updates_without_a_chat_are_dropped():
 
 def test_build_dispatcher_wires_api_targets_and_routers():
     api = SimpleNamespace()
-    dp = app.build_dispatcher(api, OWNER)
+    dp = app.build_dispatcher(api, OWNER, app_url="https://os.example")
     assert dp["api"] is api
     assert dp["targets"].default == "inbox"
-    assert len(dp.sub_routers) == 2
+    assert dp["app_url"] == "https://os.example"
+    assert isinstance(dp["reminders"], ReminderMemory)
+    assert [r.name for r in dp.sub_routers] == ["menu", "today", "alerts", "capture", "fallback"]
+    # Routers are built per dispatcher, so a second one works too.
+    assert len(app.build_dispatcher(api, OWNER).sub_routers) == 5
+
+
+async def test_profile_is_only_written_when_it_differs():
+    bot = AsyncMock()
+    bot.get_my_commands.return_value = app.COMMANDS
+    bot.get_my_short_description.return_value = BotShortDescription(short_description=texts.SHORT_DESCRIPTION)
+    bot.get_my_description.return_value = BotDescription(description="old")
+    await app.set_up_profile(bot)
+    bot.set_my_commands.assert_not_awaited()
+    bot.set_my_short_description.assert_not_awaited()
+    bot.set_my_description.assert_awaited_once_with(description=texts.DESCRIPTION)
+
+    # One failing call doesn't stop the others (or the bot).
+    bot = AsyncMock()
+    bot.get_my_commands.side_effect = RuntimeError("telegram down")
+    bot.get_my_short_description.return_value = BotShortDescription(short_description="old")
+    await app.set_up_profile(bot)
+    bot.set_my_short_description.assert_awaited_once()
+    assert all(len(c.description) <= 256 and c.command.islower() for c in app.COMMANDS)
 
 
 class FakeDispatcher:
@@ -101,7 +125,7 @@ class FakeDispatcher:
 async def test_stop_event_stops_polling_and_loops(monkeypatch):
     started = []
 
-    def fake_tasks(bot, api, chat_id, version, started_at):
+    def fake_tasks(bot, api, chat_id, version, started_at, reminders=None):
         async def forever():
             started.append((chat_id, version))
             await asyncio.Event().wait()

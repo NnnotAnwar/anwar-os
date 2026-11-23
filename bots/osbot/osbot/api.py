@@ -33,6 +33,10 @@ class ApiError(Exception):
         self.message = message
 
 
+class ApiUnreachable(Exception):
+    """No answer at all: connection refused, DNS, timeout. The app is down or restarting."""
+
+
 class OsbotApi:
     def __init__(self, base_url: str, secret: str, session: aiohttp.ClientSession | None = None):
         self.base_url = base_url.rstrip("/")
@@ -66,17 +70,21 @@ class OsbotApi:
             headers["content-type"] = "application/json"
         # encoded=True: send the path exactly as signed (no re-quoting).
         url = URL(self.base_url + path_and_query, encoded=True)
-        async with self._client().request(method, url, data=body.encode("utf-8") if body else None, headers=headers) as resp:
-            text = await resp.text()
-            try:
-                data = json.loads(text) if text else None
-            except ValueError:
-                data = None
-            if resp.status >= 400:
-                code = data.get("error", "error") if isinstance(data, dict) else "error"
-                message = data.get("message") if isinstance(data, dict) else None
-                raise ApiError(resp.status, code, message)
-            return data
+        try:
+            async with self._client().request(method, url, data=body.encode("utf-8") if body else None, headers=headers) as resp:
+                status = resp.status
+                text = await resp.text()
+        except (aiohttp.ClientError, TimeoutError, OSError) as exc:
+            raise ApiUnreachable(f"{method} {path}: {type(exc).__name__}: {exc}") from exc
+        try:
+            data = json.loads(text) if text else None
+        except ValueError:
+            data = None
+        if status >= 400:
+            code = data.get("error", "error") if isinstance(data, dict) else "error"
+            message = data.get("message") if isinstance(data, dict) else None
+            raise ApiError(status, code, message)
+        return data
 
     # --- capture -----------------------------------------------------------
 
@@ -92,10 +100,21 @@ class OsbotApi:
             payload["url"] = url
         return await self._request("POST", "/capture", payload=payload)
 
-    # --- agenda and reminders -----------------------------------------------
+    async def undo_capture(self, kind: str, item_id: str) -> None:
+        """Deletes what `capture` just created (the Undo button)."""
+        await self._request("POST", "/capture/undo", payload={"kind": kind, "id": item_id})
+
+    # --- agenda, tasks and reminders --------------------------------------------
 
     async def today(self) -> dict[str, Any]:
         return await self._request("GET", "/today")
+
+    async def task_action(self, task_id: str, action: str, due_date: str | None = None) -> dict[str, Any]:
+        """action: complete | reopen | postpone | schedule (with due_date, None = no date)."""
+        payload: dict[str, Any] = {"id": task_id, "action": action}
+        if action == "schedule":
+            payload["dueDate"] = due_date
+        return await self._request("POST", "/tasks/action", payload=payload)
 
     async def reminders_due(self, until: datetime) -> list[dict[str, Any]]:
         data = await self._request("GET", "/reminders/due", params={"until": int(until.timestamp() * 1000)})
@@ -114,6 +133,10 @@ class OsbotApi:
     async def ack_feedback(self, ids: list[str]) -> int:
         data = await self._request("POST", "/feedback/ack", payload={"ids": ids})
         return int(data["acked"])
+
+    async def feedback_status(self, feedback_id: str, status: str) -> dict[str, Any]:
+        """{"id", "status", "previous"}"""
+        return await self._request("POST", "/feedback/status", payload={"id": feedback_id, "status": status})
 
     # --- heartbeat ------------------------------------------------------------
 

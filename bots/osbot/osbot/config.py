@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 # Every loop (heartbeat, reminders, feedback alerts) runs once a minute.
 POLL_INTERVAL_SECONDS = 60
@@ -18,6 +19,10 @@ class ConfigError(Exception):
     pass
 
 
+DEFAULT_APP_URL = "https://anwar-os.com"
+DEFAULT_TIMEZONE = "Europe/Prague"
+
+
 @dataclass(frozen=True)
 class Config:
     bot_token: str = field(repr=False)
@@ -25,6 +30,11 @@ class Config:
     api_secret: str = field(repr=False)
     owner_chat_id: int
     version: str = "dev"
+    # Public address of the web app, for "Open anwar.os" buttons. Links to
+    # single items come from the API, which knows its own address.
+    app_url: str = DEFAULT_APP_URL
+    # How times the bot formats itself (feedback timestamps, snoozes) are shown.
+    timezone: str = DEFAULT_TIMEZONE
 
 
 def load_config(env: dict[str, str] | None = None) -> Config:
@@ -40,10 +50,17 @@ def load_config(env: dict[str, str] | None = None) -> Config:
         owner = int(env["OSBOT_OWNER_CHAT_ID"].strip())
     except ValueError:
         raise ConfigError("OSBOT_OWNER_CHAT_ID must be a number (your Telegram chat id)") from None
+    timezone = env.get("OSBOT_TIMEZONE", "").strip() or DEFAULT_TIMEZONE
+    try:
+        ZoneInfo(timezone)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise ConfigError(f"OSBOT_TIMEZONE: unknown time zone {timezone!r}") from None
     return Config(
         bot_token=env["BOT_TOKEN"].strip(),
         api_url=env["OSBOT_API_URL"].strip().rstrip("/"),
         api_secret=secret,
         owner_chat_id=owner,
         version=env.get("BOT_VERSION", "").strip() or "dev",
+        app_url=(env.get("OSBOT_APP_URL", "").strip() or DEFAULT_APP_URL).rstrip("/"),
+        timezone=timezone,
     )

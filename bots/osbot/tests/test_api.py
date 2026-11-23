@@ -10,7 +10,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestServer
 
 from osbot import signing
-from osbot.api import ApiError, OsbotApi
+from osbot.api import ApiError, ApiUnreachable, OsbotApi
 
 SECRET = "fake-api-secret-0123456789abcdef0123"
 
@@ -88,6 +88,33 @@ async def test_every_endpoint(fake_web):
         await api.heartbeat("v1", datetime(2026, 11, 16, tzinfo=UTC))
     assert all(c["signed"] for c in calls)
     assert calls[-1]["body"] == {"version": "v1", "startedAt": "2026-11-16T00:00:00+00:00"}
+
+
+async def test_button_endpoints(fake_web):
+    server, calls, replies = fake_web
+    replies["/api/internal/osbot/tasks/action"] = (200, {"id": "t1", "done": True})
+    replies["/api/internal/osbot/feedback/status"] = (200, {"id": "f1", "status": "read", "previous": "new"})
+    async with OsbotApi(str(server.make_url("")), SECRET) as api:
+        await api.undo_capture("note", "n1")
+        assert (await api.task_action("t1", "complete"))["done"] is True
+        await api.task_action("t1", "schedule", "2026-11-14")
+        await api.task_action("t1", "schedule", None)
+        assert (await api.feedback_status("f1", "read"))["previous"] == "new"
+    assert all(c["signed"] for c in calls)
+    assert [(c["path"], c["body"]) for c in calls] == [
+        ("/api/internal/osbot/capture/undo", {"kind": "note", "id": "n1"}),
+        ("/api/internal/osbot/tasks/action", {"id": "t1", "action": "complete"}),
+        ("/api/internal/osbot/tasks/action", {"id": "t1", "action": "schedule", "dueDate": "2026-11-14"}),
+        ("/api/internal/osbot/tasks/action", {"id": "t1", "action": "schedule", "dueDate": None}),
+        ("/api/internal/osbot/feedback/status", {"id": "f1", "status": "read"}),
+    ]
+
+
+async def test_no_answer_at_all_is_unreachable():
+    # Nothing listens on port 9 (discard) locally: connection refused.
+    async with OsbotApi("http://127.0.0.1:9", SECRET) as api:
+        with pytest.raises(ApiUnreachable):
+            await api.today()
 
 
 async def test_errors_carry_the_api_message(fake_web):

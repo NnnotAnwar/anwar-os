@@ -2,21 +2,14 @@
 
 from __future__ import annotations
 
-import logging
 import re
+from typing import Any
 
-from aiogram.types import LinkPreviewOptions, Message
-
-from ..api import ApiError
-
-log = logging.getLogger(__name__)
-
-NO_PREVIEW = LinkPreviewOptions(is_disabled=True)
 URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
-UNREACHABLE = "Couldn't reach anwar.os. Try again in a minute."
+COMMAND_RE = re.compile(r"^/[A-Za-z0-9_]+(?:@\w+)?\s*")
 
 
-def message_content(message: Message) -> tuple[str, str | None]:
+def message_content(message: Any) -> tuple[str, str | None]:
     """The text (or caption) of a message and the first link in it, if any.
 
     Hidden links (text_link entities: "click here" pointing somewhere) count too,
@@ -33,9 +26,6 @@ def message_content(message: Message) -> tuple[str, str | None]:
     return text, match.group(0) if match else None
 
 
-def error_text(error: Exception) -> str:
-    """What to tell the owner when an API call failed."""
-    if isinstance(error, ApiError) and 400 <= error.status < 500 and error.message:
-        return f"❌ {error.message}"
-    log.warning("api call failed", exc_info=error)
-    return f"❌ {UNREACHABLE}"
+def without_command(text: str) -> str:
+    """"/note Milk" → "Milk" (for retrying a command from its message)."""
+    return COMMAND_RE.sub("", text, count=1) if text.startswith("/") else text

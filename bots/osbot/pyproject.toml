@@ -7,6 +7,8 @@ dependencies = [
     "aiogram==3.32.0",
     # Also aiogram's HTTP client; used directly for the internal web API.
     "aiohttp==3.14.5",
+    # Time zones for zoneinfo; the slim image may ship without system tzdata.
+    "tzdata==2025.2",
 ]
 
 [dependency-groups]
