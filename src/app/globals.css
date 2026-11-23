@@ -3,6 +3,11 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
+@custom-variant reduce-transparency {
+  @media (prefers-reduced-transparency: reduce) {
+    @slot;
+  }
+}
 
 /*
  * Planuj Glass — the design language shared with Planuj Směny.
@@ -98,6 +103,11 @@
 }
 
 :root {
+  /* Frosted glass (see .glass). The tint stands in for saturate() where a phone
+     card skips the blur; over the light canvas the difference is invisible. */
+  --glass-blur: blur(22px) saturate(1.6);
+  --glass-tint: transparent;
+
   /* Toasts clear the home indicator, and the phone tab bar where there is one. */
   --toast-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 
@@ -151,6 +161,10 @@
 }
 
 .dark {
+  /* saturate(1.6) over the dark canvas reads as a faint violet cast; this
+     matches it within a few levels where a phone card skips the blur. */
+  --glass-tint: rgb(54 19 159 / 0.1);
+
   --canvas-from: #0d0c17;
   --canvas-via: #121022;
   --canvas-to: #1a1730;
@@ -204,15 +218,38 @@
  * Frosted-glass surface with a lit 1px edge: a gradient border (mask on
  * ::before), bright where light catches the top-left, fading to an accent tint.
  * Give the element a rounded-* so the edge follows its corners.
+ *
+ * Phones (below md) blur only what floats over content: fixed and sticky bars.
+ * A card lying on the canvas blurs nothing but the canvas's own smooth
+ * gradient, so its blur is invisible, yet each one is a backdrop layer the GPU
+ * re-filters on every scrolled or animated frame; a screen of cards made
+ * scrolling and sheets stutter on iPhone. Dialogs sit on an overlay that
+ * already blurs the page and are nearly opaque, so they skip it too.
  */
 @utility glass {
   :where(&) {
     position: relative;
   }
   background-color: var(--glass-bg, var(--glass));
-  -webkit-backdrop-filter: blur(22px) saturate(1.6);
-  backdrop-filter: blur(22px) saturate(1.6);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-shadow, var(--shadow-glass));
+
+  @media (width < 48rem) {
+    &:not(:where(.fixed, .sticky)),
+    &:where([data-slot="dialog-content"]) {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background-image: linear-gradient(var(--glass-tint), var(--glass-tint));
+    }
+  }
+
+  /* Reduced transparency: solid surfaces, no blur. */
+  @media (prefers-reduced-transparency: reduce) {
+    --glass-bg: var(--glass-menu);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 
   &::before {
     content: "";
@@ -248,6 +285,13 @@
 @utility glass-menu {
   --glass-bg: var(--glass-menu);
   --glass-shadow: var(--shadow-glass-lg);
+  /* Nearly opaque: what shows through is too faint to need the saturate() stand-in. */
+  --glass-tint: transparent;
+
+  /* At 94% opacity a smaller blur looks the same and costs less (the phone tab bar). */
+  @media (width < 48rem) {
+    --glass-blur: blur(12px);
+  }
 }
 
 /* Segmented control: a recessed track; the chosen option lifts out as a chip. */
@@ -379,9 +423,16 @@
   --duration-exit: 140ms;
   --duration-enter: 200ms;
   --duration-move: 320ms;
+  /* A soft focus pull in crossfades; none on phones (below). */
+  --vt-filter: blur(2px);
 }
 
 @media (width < 48rem) {
+  :root {
+    /* Filtering full-screen snapshots on every frame made tab switches stutter
+       on iPhone; the crossfade and slide alone read the same at this size. */
+    --vt-filter: none;
+  }
   :root:has(.tab-bar) {
     --toast-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
   }
@@ -390,7 +441,7 @@
 @keyframes vt-fade {
   from {
     opacity: 0;
-    filter: blur(2px);
+    filter: var(--vt-filter);
   }
 }
 @keyframes vt-slide-x {

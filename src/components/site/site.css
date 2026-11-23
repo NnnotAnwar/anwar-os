@@ -18,12 +18,21 @@
   animation: none;
 }
 
-/* Hero entrance: each line rises out of a soft blur, one after another (--i). */
+/* Hero entrance: each line rises out of a soft blur, one after another (--i).
+   Phones skip the blur: animating filter re-rasterises every line each frame. */
+:root {
+  --rise-filter: blur(4px);
+}
+@media (width < 48rem) {
+  :root {
+    --rise-filter: none;
+  }
+}
 @keyframes site-rise {
   from {
     opacity: 0;
     translate: 0 14px;
-    filter: blur(4px);
+    filter: var(--rise-filter);
   }
 }
 .enter-rise {

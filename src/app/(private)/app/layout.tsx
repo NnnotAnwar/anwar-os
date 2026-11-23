@@ -53,7 +53,7 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
 
       <div className="flex min-h-svh min-w-0 flex-col">
         {/* Phones: the bar starts under the status bar when iOS lets the page draw there. */}
-        <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-2 bg-background/70 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:static md:h-14 md:bg-transparent md:px-6 md:pt-3 md:backdrop-blur-none">
+        <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-2 bg-background/70 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl reduce-transparency:bg-background reduce-transparency:backdrop-blur-none md:static md:h-14 md:bg-transparent md:px-6 md:pt-3 md:backdrop-blur-none">
           <div className="md:hidden">
             <Wordmark />
           </div>
