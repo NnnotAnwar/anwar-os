@@ -18,6 +18,15 @@ Send an amount, optionally with a note: `250 coffee`, `89`, `15,50`, `coffee 250
   totals, with **Undo · Amount · Category · Note** buttons. Amount and note are edited by
   replying with text; the card is then replaced by an updated one.
 
+**Receipt photos.** Send a photo of a receipt (or an image file): the bot sends it to
+anwar.os, which has Claude read the total, shop, date and a fitting category, and answers
+with a card: `💸 312 CZK · Albert · today · 🍔 Food?` with **✅ Save · 🏷 Category ·
+✏️ Amount · ✖ Cancel**. Nothing is saved until Save (with no category it asks for one
+first). Save goes into the Budget account in the receipt's currency when there is one
+(otherwise the default account, with a warning to fix the amount). The bot never holds an
+AI key and never stores the photo: it is downloaded into memory, sent once and dropped.
+Without `ANTHROPIC_API_KEY` on web the bot says "Receipt reading is off".
+
 Persistent menu (reply keyboard): **📅 Today · 🗓 Week · 📊 Month · 🧾 History · ❓ Help**.
 
 | Command | Does |
@@ -73,6 +82,7 @@ bot's own-database days) get a short "expired" answer instead of spinning.
   | `POST heartbeat` | Bots panel + Docker health |
   | `POST import` | the one-time import below |
   | `GET subscriptions` | `/subscriptions`: Budget's recurring expenses with next charge and monthly/yearly cost |
+  | `POST receipt` | a receipt photo (base64) → a draft (`src/modules/budget/receipts`; Claude runs on web, 75 s timeout, `expenses_bot/receipt_api.py`) |
 
 - **Errors** are specific (`expenses_bot/errors.py`): anwar.os not answering, signature
   refused (secret mismatch), API switched off, endpoint missing (deploy web), expense
@@ -159,7 +169,9 @@ docker stop expenses-pg-test
 ```
 
 The web side is covered by `src/modules/budget/bot-api/lib.test.ts` (shared signature
-vector) and `db/tests/budget-bot-api.test.ts` (every endpoint, RLS, import idempotency).
+vector), `db/tests/budget-bot-api.test.ts` (every endpoint, RLS, import idempotency) and
+`db/tests/budget-receipt.test.ts` (the receipt endpoint with a scripted Claude).
+`tests/test_receipt.py` drives the photo flow against the fake API plus a canned draft.
 
 ## The old database
 
