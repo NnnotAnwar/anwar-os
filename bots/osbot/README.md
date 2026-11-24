@@ -16,8 +16,10 @@ private bot."
 | reminders | `⏰ Dentist in 30 min · 14:00` with 💤 10 min / 1 h, ✓ Got it, ↗ Open in calendar |
 | feedback alerts | the message quoted, ↗ Open, ✓ Mark read, 🚫 Spam, ↩ Undo |
 | `/week` | the week in review (below), with ↗ Open in app and 🔄 Refresh |
+| `/month` `[last \| YYYY-MM]` | the monthly report (this month so far by default), with ↗ Open in app, 📄 PDF and 🔄 Refresh |
 | payment reminders | from 10:00 the day before a recurring expense charges: `💳 Tomorrow: Netflix · 299 CZK` (several: one list with the total), ↗ Subscriptions |
 | weekly review | Sundays from 19:00, once: tasks done / added / overdue, 🎯 focus (top 3 due or overdue), next week's calendar, spending vs last week with top categories and the Budget plan, payments next week, new ideas / notes / links / feedback; ↗ Open in app, 💤 1 h, ⏭ Skip |
+| monthly report | the 1st from 10:00, once, for last month: spending vs the month before with top categories and the biggest changes, income and net, subscriptions a month, tasks done / added, new notes / ideas / links / feedback, site views with top pages. Its PDF is filed into Files → Reports first; ↗ Open in app, 📄 PDF |
 
 Messages are HTML (`texts.py`), edited in place where a button changes them,
 and every button press gets an answer (a toast) even when it has expired.
@@ -58,10 +60,13 @@ any mismatch, then acts as the site owner with row-level security on.
 | `POST payments/ack` | `{ keys }` (`<recurring id>:<date>`) once sent: idempotent |
 | `GET weekly?date=` | the review of the week (Mon–Sun) containing `date`, default today, with `delivered` |
 | `POST weekly/ack` | `{ week }` (its Monday) once the Sunday review is sent: idempotent |
+| `GET monthly?month=` | the monthly report (`YYYY-MM`, default this month so far), with `delivered` |
+| `POST monthly/pdf` | `{ month }`: saves its PDF into Files → Reports (replacing that month's copy); `{ saved, fileId, name, url }`, `saved: false` without object storage |
+| `POST monthly/ack` | `{ month }` once the report on the 1st is sent: idempotent |
 | `POST ops-alerts/check`, `POST ops-alerts/ack` | server alerts (`osbot/ops_alerts.py`): what started or stopped being wrong since the owner was last told; `{ items: [{ key, event }] }` once sent |
 
 Loops run once a minute, just after the minute turns: heartbeat, reminders,
-feedback, payments, weekly (`digest.py`). Each item is sent first and acknowledged after, so a crash can repeat
+feedback, payments, weekly (`digest.py`), monthly (`monthly.py`). Each item is sent first and acknowledged after, so a crash can repeat
 one message but never lose one. While the heartbeat is fresh, the web app stops
 sending its own direct feedback alerts and leaves them to osbot.
 

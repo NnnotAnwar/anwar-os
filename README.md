@@ -62,6 +62,7 @@ Everything private stays private; what's public is chosen item by item.
 | Feedback | Complaints and suggestions from the public form, with status |
 | Ops | Server control panel: status, logs, restart and deploy of each service |
 | Bots | Telegram bot stats and settings |
+| Monthly report | The month in numbers against the month before: spending by category, subscriptions, tasks, captures, site views; as a page, a PDF in Files → Reports, and on the 1st in Telegram |
 
 **Everywhere:** ⌘K palette (jump, search every module, create), light and dark theme,
 passkeys and two-factor sign-in, an offline page, and the same UI on desktop and phone.
@@ -69,7 +70,8 @@ passkeys and two-factor sign-in, an offline page, and the same UI on desktop and
 **Telegram bots** (`bots/`, Python + aiogram)
 
 - **osbot**: forward anything to save it as a task, note, link or idea; `/today`;
-  calendar reminders with snooze; new-feedback alerts. Talks to the app only through
+  calendar reminders with snooze; new-feedback alerts; `/week` and the Sunday
+  review; `/month` and last month's report (with its PDF) on the 1st. Talks to the app only through
   an HMAC-signed internal API.
 - **Expense bot**: type `250 coffee`, pick a category, done. Every expense is a Budget
   transaction; day / week / month summaries, history and CSV export.

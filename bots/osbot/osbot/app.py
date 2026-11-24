@@ -19,6 +19,7 @@ from .config import DEFAULT_APP_URL, Config
 from .digest import WeeklyMemory, digest_tasks
 from .fmt import set_timezone
 from .handlers import make_routers, on_error
+from .monthly import MonthlyMemory, monthly_task
 from .loops import background_tasks
 from .middleware import OwnerOnlyMiddleware
 from .ops_alerts import ops_alerts_task
@@ -34,6 +35,7 @@ SHUTDOWN_TIMEOUT_SECONDS = 7
 COMMANDS = [
     BotCommand(command="today", description="Today's calendar and due tasks"),
     BotCommand(command="week", description="This week in review"),
+    BotCommand(command="month", description="This month's report (or /month last)"),
     BotCommand(command="task", description="Add a task"),
     BotCommand(command="note", description="Save a note"),
     BotCommand(command="link", description="Save a link"),
@@ -143,6 +145,7 @@ async def _poll_until_stopped(
     loops = background_tasks(bot, api, config.owner_chat_id, config.version, started_at, reminders)
     loops += digest_tasks(bot, api, config.owner_chat_id, dp.get("weekly") or WeeklyMemory())
     loops.append(ops_alerts_task(bot, api, config.owner_chat_id, config.app_url))
+    loops.append(monthly_task(bot, api, config.owner_chat_id, MonthlyMemory()))
     stopper = asyncio.create_task(stop.wait(), name="stop-signal")
     tasks = [polling, *loops, stopper]
     try:

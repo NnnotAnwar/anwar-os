@@ -161,3 +161,17 @@ class OsbotApi:
         """`week` is the reviewed week's Monday (the review's week.key)."""
         data = await self._request("POST", "/weekly/ack", payload={"week": week})
         return int(data["acked"])
+
+    # --- the monthly report (monthly.py) ------------------------------------------------
+
+    async def monthly(self, month: str | None = None) -> dict[str, Any]:
+        """The report of `month` (YYYY-MM, default this month so far), with "delivered"."""
+        return await self._request("GET", "/monthly", params={"month": month} if month else None)
+
+    async def monthly_pdf(self, month: str) -> dict[str, Any]:
+        """Files the month's PDF under Files → Reports: {"saved", "fileId", "name", "url"}."""
+        return await self._request("POST", "/monthly/pdf", payload={"month": month})
+
+    async def ack_monthly(self, month: str) -> int:
+        data = await self._request("POST", "/monthly/ack", payload={"month": month})
+        return int(data["acked"])
