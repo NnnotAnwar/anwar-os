@@ -253,6 +253,20 @@
       "when": 1795481011620,
       "tag": "0035_ops_alerts_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795481026458,
+      "tag": "0036_notes_publishing_analytics",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795481027031,
+      "tag": "0037_notes_publishing_analytics_rls",
+      "breakpoints": true
     }
   ]
 }
