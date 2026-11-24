@@ -84,7 +84,6 @@ bot's own-database days) get a short "expired" answer instead of spinning.
   | `GET expenses/recent?limit&offset` | history pages |
   | `GET expenses/range?from&to` | day/week/month overviews, comparisons, CSV |
   | `POST heartbeat` | Bots panel + Docker health |
-  | `POST import` | the one-time import below |
   | `GET subscriptions` | `/subscriptions`: Budget's recurring expenses with next charge and monthly/yearly cost |
   | `GET limits` | `/limits`: this month's category limits with spent, left and status |
   | `POST receipt` | a receipt photo (base64) → a draft (`src/modules/budget/receipts`; Claude runs on web, 75 s timeout, `expenses_bot/receipt_api.py`) |
@@ -110,36 +109,8 @@ bot's own-database days) get a short "expired" answer instead of spinning.
 | `BOT_EXPENSES_OWNER_ID` | yes | your Telegram user id (the compose falls back to `OSBOT_OWNER_CHAT_ID`, the same number for a private chat) |
 | `BOT_VERSION` | no | shown in the heartbeat; the image bakes the build arg (CI passes the commit SHA) |
 | `HEARTBEAT_FILE` | no | default `/tmp/expenses-bot.heartbeat` |
-| `DATABASE_URL` | only for `import-to-budget` | the bot's old database role, `postgresql://bot_expenses:<pw>@db:5432/anwar_os` |
 
 Configuration is read from the environment only.
-
-## One-time import of the old data
-
-Before this version the bot wrote to its own schema `bot_expenses`. Copy those rows into
-Budget once, from the server (the bot container has both the old database URL and the
-API settings):
-
-```sh
-cd /opt/anwar-os/repo/infra
-docker compose -f compose.prod.yml run --rm --no-deps bot-expenses \
-  python -m expenses_bot import-to-budget --dry-run
-docker compose -f compose.prod.yml run --rm --no-deps bot-expenses \
-  python -m expenses_bot import-to-budget
-```
-
-- Every row of `bot_expenses.expenses` of `BOT_EXPENSES_OWNER_ID` (or `--telegram-user ID`;
-  with neither it refuses if the table has more than one user; `--all-users` takes all)
-  becomes a Budget expense in the default account: same amount (as money out), the note,
-  the day in Prague time, the original timestamp as the time of day, the category by name
-  among Budget's expense categories ("Entertainment" → "Fun", anything unknown → "Other",
-  uncategorised if there is no "Other").
-- Each row carries the key `bot-expenses:<id>`, stored in `budget_transactions.import_key`
-  (unique per owner). Running the command again imports only rows it hasn't seen, so it is
-  safe to repeat, e.g. after a rollback let the old bot write a few more rows. Editing an
-  imported transaction in Budget doesn't make it import again.
-- Rows in a currency other than the account's are refused (the whole batch, with the key).
-- Nothing in `bot_expenses` is changed or deleted.
 
 ## Run locally
 
@@ -161,30 +132,20 @@ cd bots/expenses
 uv run pytest
 ```
 
-The handlers, the API client and the import run against an in-memory fake of the Budget
-API served over HTTP on localhost (`tests/fake_budget.py`, signatures checked the way web
-checks them). One test reads the real old `bot_expenses` schema and needs a throwaway
-Postgres (it creates and drops the role `bot_expenses`):
-
-```sh
-docker run --rm -d --name expenses-pg-test -p 55499:5432 -e POSTGRES_PASSWORD=test postgres:17-alpine
-TEST_DATABASE_URL=postgresql://postgres:test@localhost:55499/postgres \
-TEST_PSQL="docker exec -i expenses-pg-test psql -U postgres" uv run pytest
-docker stop expenses-pg-test
-```
+The handlers and the API client run against an in-memory fake of the Budget API served
+over HTTP on localhost (`tests/fake_budget.py`, signatures checked the way web checks
+them).
 
 The web side is covered by `src/modules/budget/bot-api/lib.test.ts` (shared signature
-vector), `db/tests/budget-bot-api.test.ts` (every endpoint, RLS, import idempotency) and
+vector), `db/tests/budget-bot-api.test.ts` (every endpoint, RLS) and
 `db/tests/budget-receipt.test.ts` (the receipt endpoint with a scripted Claude).
 `tests/test_receipt.py` drives the photo flow against the fake API plus a canned draft.
 
 ## The old database
 
-`db/bootstrap.sql` and `db/migrations/` describe the bot's former schema. The bot no longer
-connects to it while running; only `import-to-budget` reads it. deploy.sh still applies
-`bootstrap.sql` when `BOT_EXPENSES_DB_PASSWORD` is set (harmless, keeps the role's password
-in sync for the import). After the import, the schema can stay as an archive; dropping it
-and the bootstrap step is a separate, later change.
+Before it became a Budget front-end the bot wrote to its own schema `bot_expenses`. Its
+rows were copied into Budget once (`budget_transactions.import_key` = `bot-expenses:<id>`),
+and migration 0053 dropped the schema and its role.
 
 ## Deploy
 

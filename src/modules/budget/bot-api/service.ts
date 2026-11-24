@@ -1,5 +1,5 @@
 import "server-only"
-import { and, desc, eq, gte, inArray, isNull, lt, lte, sql, type SQL } from "drizzle-orm"
+import { and, desc, eq, gte, isNull, lt, lte, sql, type SQL } from "drizzle-orm"
 import { z } from "zod"
 import { asViewer } from "@/core/auth"
 import { InternalApiError } from "@/core/internal-api"
@@ -14,7 +14,7 @@ import { actions } from "../actions"
 import { addDaysIso, monthOf, monthRange, parseIsoDate, todayIn } from "../lib/dates"
 import { defaultAccountId, parseQuickAdd } from "../lib/quick-add"
 import { BudgetInputError, type Account } from "../schema"
-import { BOT_IMPORT_KEY, rankCategories, toBotExpense, type BotCategory, type BotExpense, type CurrencyTotals } from "./lib"
+import { rankCategories, toBotExpense, type BotCategory, type BotExpense, type CurrencyTotals } from "./lib"
 import { limitForExpense, type BotLimit } from "./limits"
 
 // What the expense bot (bots/expenses) can do in Budget, as the site owner.
@@ -425,77 +425,4 @@ export async function budgetBotStatus(now = new Date()): Promise<BudgetBotStatus
     version: row?.version ?? null,
     startedAt: row?.startedAt.toISOString() ?? null,
   }
-}
-
-// ---------------------------------------------------------------------------
-// One-time import of the bot's own database (python -m expenses_bot import-to-budget)
-// ---------------------------------------------------------------------------
-
-export const MAX_IMPORT_BATCH = 500
-
-export const importInput = z.object({
-  accountId: z.uuid().nullable().optional(),
-  /** Only report what would happen. */
-  dryRun: z.boolean().default(false),
-  rows: z
-    .array(
-      z.object({
-        /** "bot-expenses:<id>": the row's id in bot_expenses.expenses. */
-        key: z.string().regex(BOT_IMPORT_KEY, "Keys look like bot-expenses:<id>."),
-        amountMinor: spent,
-        currency: z.string().regex(/^[A-Z]{3}$/),
-        /** The day in the owner's timezone. */
-        occurredOn: isoDate,
-        /** The original instant. */
-        recordedAt: z.iso.datetime({ offset: true }),
-        categoryName: z.string().trim().max(60).nullable().default(null),
-        note: z.string().max(500).default(""),
-      }),
-    )
-    .min(1)
-    .max(MAX_IMPORT_BATCH),
-})
-
-export type ImportResult = {
-  dryRun: boolean
-  accountId: string
-  imported: number
-  /** Already in Budget (imported before), by key. */
-  existing: number
-}
-
-/** Copies the bot's old rows into Budget through importTransactions; each key is imported once, ever. */
-export async function importRows(input: z.infer<typeof importInput>): Promise<ImportResult> {
-  const accountId = await accountFor(input.accountId)
-  const account = (await actions.listAccounts.handler({ includeArchived: false })).find((x) => x.id === accountId)!
-  const foreign = input.rows.find((r) => r.currency !== account.currency)
-  if (foreign) {
-    throw new InternalApiError(
-      422,
-      "currency_mismatch",
-      `${foreign.key} is in ${foreign.currency} but the account “${account.name}” is in ${account.currency}.`,
-    )
-  }
-  if (input.dryRun) {
-    const keys = input.rows.map((r) => r.key)
-    const [row] = await asViewer((tx) =>
-      tx.select({ n: sql<number>`count(*)::int` }).from(t).where(inArray(t.importKey, keys)),
-    )
-    const existing = row?.n ?? 0
-    return { dryRun: true, accountId, imported: new Set(keys).size - existing, existing }
-  }
-  const { ids, skipped } = await budget(() =>
-    actions.importTransactions.handler({
-      accountId,
-      rows: input.rows.map((r) => ({
-        occurredOn: r.occurredOn,
-        amountMinor: -r.amountMinor,
-        note: r.note,
-        categoryName: r.categoryName,
-        importKey: r.key,
-        recordedAt: r.recordedAt,
-      })),
-    }),
-  )
-  return { dryRun: false, accountId, imported: ids.length, existing: skipped }
 }

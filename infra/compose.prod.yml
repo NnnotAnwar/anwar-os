@@ -192,9 +192,7 @@ services:
   # calls web's signed internal API over `internal` (http://web:3000, never
   # through Caddy) and Telegram over `egress`. deploy.sh only starts it once
   # BOT_EXPENSES_TOKEN, BOT_EXPENSES_API_SECRET and an owner id are set.
-  # DATABASE_URL is only for the one-time `python -m expenses_bot
-  # import-to-budget` (docs/DEPLOY.md §13), which reads the bot's old schema
-  # bot_expenses; the running bot never connects to Postgres.
+  # It never connects to Postgres.
   bot-expenses:
     image: ghcr.io/nnnotanwar/anwar-os-bot-expenses:${BOT_EXPENSES_TAG:-latest}
     profiles: [bots]
@@ -218,8 +216,6 @@ services:
       # Your Telegram user id: the only person the bot serves. For a private
       # chat it is the same number as OSBOT_OWNER_CHAT_ID, used when unset.
       BOT_EXPENSES_OWNER_ID: ${BOT_EXPENSES_OWNER_ID:-${OSBOT_OWNER_CHAT_ID:-}}
-      # One-time import only (see above).
-      DATABASE_URL: postgresql://bot_expenses:${BOT_EXPENSES_DB_PASSWORD:-}@db:5432/anwar_os
     networks:
       - internal
       - egress

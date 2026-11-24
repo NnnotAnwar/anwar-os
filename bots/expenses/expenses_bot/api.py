@@ -333,11 +333,7 @@ class BudgetApi:
         "allRecurring", "url"}; amounts are positive minor units (subscriptions.py renders it)."""
         return await self._request("GET", "/subscriptions")
 
-    # --- heartbeat and import ---------------------------------------------------
+    # --- heartbeat ----------------------------------------------------------------
 
     async def heartbeat(self, version: str, started_at: datetime) -> None:
         await self._request("POST", "/heartbeat", payload={"version": version, "startedAt": started_at.isoformat()})
-
-    async def import_rows(self, rows: list[dict[str, Any]], *, dry_run: bool = False) -> dict[str, Any]:
-        """{"imported": n, "existing": n, "accountId": ...}; each row's key is imported once, ever."""
-        return await self._request("POST", "/import", payload={"rows": rows, "dryRun": dry_run})

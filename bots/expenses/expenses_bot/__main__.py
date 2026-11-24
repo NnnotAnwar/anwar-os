@@ -1,9 +1,6 @@
 """Entry point.
 
 python -m expenses_bot                     run the bot
-python -m expenses_bot import-to-budget    copy the rows of the bot's old database
-    [--dry-run] [--telegram-user ID]       (schema bot_expenses) into Budget, once;
-    [--all-users]                          safe to re-run (see import_to_budget.py)
 """
 
 from __future__ import annotations
@@ -21,10 +18,6 @@ log = logging.getLogger("expenses_bot")
 def main(argv: list[str]) -> int:
     setup_logging()
     command = argv[1] if len(argv) > 1 else "run"
-    if command == "import-to-budget":
-        from .import_to_budget import main as import_main
-
-        return import_main(argv[2:])
     if command != "run":
         print(__doc__, file=sys.stderr)
         return 2

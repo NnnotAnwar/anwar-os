@@ -372,6 +372,13 @@
       "when": 1795524420457,
       "tag": "0052_core_preferences_theme_today",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1795532923313,
+      "tag": "0053_drop_bot_expenses",
+      "breakpoints": true
     }
   ]
 }

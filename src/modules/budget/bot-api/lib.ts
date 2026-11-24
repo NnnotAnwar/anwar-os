@@ -10,9 +10,6 @@ import { signatureHeaderNames } from "@/lib/signed-request"
 /** x-budget-bot-timestamp, x-budget-bot-nonce, x-budget-bot-signature (bots/expenses/expenses_bot/signing.py). */
 export const BUDGET_BOT_SIGNATURE_HEADERS = signatureHeaderNames("x-budget-bot")
 
-/** Where the expense bot's rows come from in an import: "bot-expenses:<id in bot_expenses.expenses>". */
-export const BOT_IMPORT_KEY = /^bot-expenses:\d{1,18}$/
-
 export type BotExpense = {
   id: string
   /** Spent, in minor units: always positive. */

@@ -16,9 +16,8 @@
 # encrypted safety dump of the current database to BACKUP_LOCAL_DIR, drops the
 # database, recreates it from the backup (including database-level grants), and
 # starts web again. Roles are cluster-level and not in the dump: os_app comes
-# from db/init/01-roles.sh, missing ones are created NOLOGIN, and bot_expenses
-# gets its password back from bots/expenses/db/bootstrap.sql. The bot (if its
-# profile is on) is stopped and started together with web.
+# from db/init/01-roles.sh, and missing ones are created NOLOGIN. The bot (if
+# its profile is on) is stopped and started together with web.
 set -euo pipefail
 
 # shellcheck source=infra/backup/lib.sh
@@ -66,21 +65,14 @@ decrypt() { age -d -i "$IDENTITY" "$FILE"; }
 ensure_roles() {
   # Roles are cluster-level and not in pg_dump. On a fresh server os_app comes
   # from db/init; create any role the dump references that is still missing
-  # (as NOLOGIN) so ownership and grants restore cleanly.
+  # (as NOLOGIN) so ownership and grants restore cleanly. bot_expenses is only
+  # in dumps made before migration 0053 dropped it (a deploy drops it again).
   psql_db -d postgres -q <<'SQL'
 select format('create role %I nologin', r)
 from unnest(array['os_app', 'bot_expenses']) as r
 where not exists (select 1 from pg_roles where rolname = r)
 \gexec
 SQL
-}
-
-bootstrap_bot() {
-  # Gives bot_expenses its LOGIN + password from .env again (idempotent).
-  local sql="$INFRA_DIR/../bots/expenses/db/bootstrap.sql"
-  [[ -n "${BOT_EXPENSES_DB_PASSWORD:-}" && -f "$sql" ]] || return 0
-  log "re-applying bots/expenses/db/bootstrap.sql"
-  psql_db -d "$DB_NAME" -q -v bot_password="$BOT_EXPENSES_DB_PASSWORD" -f - <"$sql" >/dev/null
 }
 
 restore_drill() {
@@ -132,7 +124,6 @@ restore_live() {
   ensure_roles
   compose exec -T db dropdb -U postgres --if-exists --force "$DB_NAME"
   decrypt | compose exec -T db pg_restore -U postgres -d postgres --create --exit-on-error
-  bootstrap_bot
 
   log "starting ${apps[*]}"
   compose up -d --no-deps --wait --wait-timeout 240 "${apps[@]}"

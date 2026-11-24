@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { sign, signedHeaders, verifyRequest, type SignedParts } from "@/lib/signed-request"
-import { BOT_IMPORT_KEY, BUDGET_BOT_SIGNATURE_HEADERS, rankCategories, toBotExpense } from "./lib"
+import { BUDGET_BOT_SIGNATURE_HEADERS, rankCategories, toBotExpense } from "./lib"
 
 const SECRET = "test-secret-0123456789abcdef0123456789abcdef"
 const NOW = 1_794_830_400_000
@@ -61,13 +61,6 @@ describe("expense shape", () => {
       accountId: "a1",
       accountName: "Main account",
     })
-  })
-
-  it("import keys name a row of bot_expenses.expenses", () => {
-    expect(BOT_IMPORT_KEY.test("bot-expenses:42")).toBe(true)
-    expect(BOT_IMPORT_KEY.test("bot-expenses:")).toBe(false)
-    expect(BOT_IMPORT_KEY.test("sqlite:42")).toBe(false)
-    expect(BOT_IMPORT_KEY.test("bot-expenses:4 2")).toBe(false)
   })
 })
 

@@ -52,7 +52,6 @@ class Txn:
     occurred_on: date
     created_at: datetime
     currency: str = "CZK"
-    import_key: str | None = None
     owner: str = "owner"
 
 
@@ -293,34 +292,6 @@ class FakeBudget:
         if (method, path) == ("POST", "/heartbeat"):
             self.beats.append(body)
             return {"ok": True}
-        if (method, path) == ("POST", "/import"):
-            keys = {t.import_key for t in self.txns}
-            imported = existing = 0
-            for row in body["rows"]:
-                if row["currency"] != self.currency:
-                    raise Refused(422, "currency_mismatch", f"{row['key']} is in {row['currency']}.")
-            for row in body["rows"]:
-                if row["key"] in keys:
-                    existing += 1
-                    continue
-                keys.add(row["key"])
-                imported += 1
-                if body.get("dryRun"):
-                    continue
-                cid = next((c for c, n in self.categories.items() if row["categoryName"] and n.casefold() == row["categoryName"].casefold()), None)
-                self.txns.append(
-                    Txn(
-                        str(uuid.uuid4()),
-                        -row["amountMinor"],
-                        cid,
-                        row["note"],
-                        date.fromisoformat(row["occurredOn"]),
-                        datetime.fromisoformat(row["recordedAt"]),
-                        row["currency"],
-                        import_key=row["key"],
-                    )
-                )
-            return {"dryRun": bool(body.get("dryRun")), "accountId": self.account_id, "imported": imported, "existing": existing}
         if (method, path) == ("GET", "/limits"):
             today = today_local()
             items = [x for cid in self.categories if (x := self.limit_json(cid, (today.year, today.month)))]

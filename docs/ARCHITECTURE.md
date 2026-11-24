@@ -292,9 +292,9 @@ Only labelled services can be touched; `db`, the edge `caddy`, `ops-agent` itsel
   has no database access while running and calls `/api/internal/budget-bot/*`
   (`src/modules/budget/bot-api/`, its own secret `BOT_EXPENSES_API_SECRET` and
   `x-budget-bot-*` headers, the shared factory in `src/core/internal-api.ts`), so
-  every expense is a Budget transaction. Its old rows are copied once with
-  `python -m expenses_bot import-to-budget` (idempotent: `budget_transactions.import_key`
-  = `bot-expenses:<id>`); the `bot_expenses` schema stays as an archive.
+  every expense is a Budget transaction. Its old rows were copied into Budget once
+  (`budget_transactions.import_key` = `bot-expenses:<id>`), and migration 0053 dropped
+  the `bot_expenses` schema and role.
 - **osbot** (`bots/osbot/`): Anwar's own bot for the platform. Quick capture
   (forward a message → Inbox by default, or task / note / link / idea), `/today`,
   calendar reminders, feedback and contact-form alerts and server alerts (every 5 min, state in

@@ -140,21 +140,6 @@ start_osbot() {
   compose up -d --no-deps --wait --wait-timeout 240 bot-osbot
 }
 
-bootstrap_bot_db() {
-  # The bot's old role + schema (bot_expenses). The running bot no longer uses
-  # them; only the one-time `python -m expenses_bot import-to-budget` reads the
-  # old rows. Idempotent, also syncs the password from .env; skipped when no
-  # password is set (a fresh install never had that database).
-  local pw
-  pw="$(env_get BOT_EXPENSES_DB_PASSWORD)"
-  if [[ -z "$pw" ]]; then
-    log "BOT_EXPENSES_DB_PASSWORD empty: skipping the old bot_expenses bootstrap"
-    return 0
-  fi
-  compose exec -T db psql -U postgres -d anwar_os -X -q -v ON_ERROR_STOP=1 \
-    -v bot_password="$pw" -f - <"$REPO_DIR/bots/expenses/db/bootstrap.sql" >/dev/null
-}
-
 deploy() {
   local sha prev_tag prev_bot_tag prev_osbot_tag prev_ops_tag prev_sha bots=0 osbot=0 ops=0
   sha="$(resolve_sha "$1")"
@@ -238,8 +223,8 @@ deploy() {
   fi
 
   if ((bots)); then
-    log "bot-expenses: old role/schema bootstrap, start, wait for its first heartbeat"
-    if ! { bootstrap_bot_db && start_bot; }; then
+    log "bot-expenses: start, wait for its first heartbeat"
+    if ! start_bot; then
       compose logs --tail 80 bot-expenses >&2 || true
       env_set BOT_EXPENSES_TAG "${prev_bot_tag:-latest}"
       start_bot || log "previous bot image is unhealthy too"

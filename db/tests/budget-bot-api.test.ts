@@ -1,7 +1,7 @@
 // The expense bot's internal API (/api/internal/budget-bot/*) end to end:
 // signature checks (its own secret and headers), acting as the site owner, every
 // endpoint against the real Budget tables, RLS (the bot can only ever touch the
-// owner's budget), and the idempotent import of the bot's old rows.
+// owner's budget).
 // `pnpm test:db`. `admin` sets up fixtures, `app` connects as os_app; the route
 // handlers use the app's own pool (DATABASE_URL, os_app).
 import { randomBytes } from "node:crypto"
@@ -34,8 +34,6 @@ const app = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} })
 const run = randomBytes(4).toString("hex")
 const bob = `test-budget-bot-bob-${run}`
 const marker = `bb-${run}`
-// Ids far above anything the real bot_expenses sequence reaches.
-const keyBase = 9_000_000_000 + Math.floor(Math.random() * 1_000_000_000)
 let owner = ""
 let createdOwner = false
 let previousBeat: { version: string; started_at: Date; last_beat_at: Date } | null = null
@@ -94,7 +92,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await admin`delete from budget_transactions where owner_id = ${owner} and (note like ${`%${marker}%`} or import_key like 'bot-expenses:9%')`
+  await admin`delete from budget_transactions where owner_id = ${owner} and note like ${`%${marker}%`}`
   await admin`delete from budget_categories where owner_id = ${owner} and name like ${`%${marker}%`}`
   await admin`delete from budget_transactions where owner_id = ${bob}`
   await admin`delete from auth."user" where id = ${bob}`
@@ -318,55 +316,5 @@ describe("budget-bot API: heartbeat", () => {
     const [row] = await admin`
       insert into bots_bots (owner_id, name, stats_source) values (${bob}, ${`Expenses ${run}`}, 'budget-bot') returning stats_source`
     expect(row!.stats_source).toBe("budget-bot")
-  })
-})
-
-// ---------------------------------------------------------------------------
-
-describe("budget-bot API: import of the bot's old rows", () => {
-  const rows = [
-    { key: `bot-expenses:${keyBase + 1}`, amountMinor: 15050, currency: "CZK", occurredOn: "2026-11-20", recordedAt: "2026-11-20T08:15:00.000+01:00", categoryName: "Food", note: `old coffee ${marker}` },
-    { key: `bot-expenses:${keyBase + 2}`, amountMinor: 15050, currency: "CZK", occurredOn: "2026-11-20", recordedAt: "2026-11-20T08:16:00.000+01:00", categoryName: "Food", note: `old coffee ${marker}` },
-    { key: `bot-expenses:${keyBase + 3}`, amountMinor: 30000, currency: "CZK", occurredOn: "2026-11-21", recordedAt: "2026-11-21T20:00:00.000+01:00", categoryName: "No such category", note: "" },
-  ]
-
-  it("dry run counts without writing", async () => {
-    const { status, json } = await post(routes.importPOST, "/import", { rows, dryRun: true })
-    expect(status).toBe(200)
-    expect(json).toMatchObject({ dryRun: true, imported: 3, existing: 0 })
-    expect(await admin`select 1 from budget_transactions where import_key = ${rows[0]!.key}`).toHaveLength(0)
-  })
-
-  it("imports each row once, keeping its time, even identical twins", async () => {
-    const first = await post(routes.importPOST, "/import", { rows })
-    expect(first.json).toMatchObject({ dryRun: false, imported: 3, existing: 0 })
-    const saved = await admin`
-      select t.owner_id, t.amount_minor::int, t.occurred_on::text as day, t.created_at, t.note, c.name as category
-      from budget_transactions t left join budget_categories c on c.id = t.category_id
-      where t.import_key like ${`bot-expenses:${String(keyBase).slice(0, 4)}%`} and t.owner_id = ${owner}
-      order by t.import_key`
-    expect(saved).toHaveLength(3)
-    expect(saved[0]).toMatchObject({ owner_id: owner, amount_minor: -15050, day: "2026-11-20", category: "Food" })
-    expect((saved[0]!.created_at as Date).toISOString()).toBe("2026-11-20T07:15:00.000Z")
-    expect(saved[2]).toMatchObject({ amount_minor: -30000, category: null })
-
-    const again = await post(routes.importPOST, "/import", { rows })
-    expect(again.json).toMatchObject({ imported: 0, existing: 3 })
-    const dry = await post(routes.importPOST, "/import", { rows, dryRun: true })
-    expect(dry.json).toMatchObject({ imported: 0, existing: 3 })
-  })
-
-  it("re-running after an edit in Budget still doesn't duplicate (the key decides)", async () => {
-    await admin`update budget_transactions set amount_minor = -99, note = 'edited' where import_key = ${rows[0]!.key}`
-    const again = await post(routes.importPOST, "/import", { rows })
-    expect(again.json).toMatchObject({ imported: 0, existing: 3 })
-    expect(await admin`select 1 from budget_transactions where import_key = ${rows[0]!.key}`).toHaveLength(1)
-  })
-
-  it("refuses rows in another currency than the account's, and bad keys", async () => {
-    const eur = await post(routes.importPOST, "/import", { rows: [{ ...rows[0], key: `bot-expenses:${keyBase + 9}`, currency: "EUR" }] })
-    expect(eur).toMatchObject({ status: 422, json: { error: "currency_mismatch" } })
-    const badKey = await post(routes.importPOST, "/import", { rows: [{ ...rows[0], key: "sqlite:1" }] })
-    expect(badKey.status).toBe(400)
   })
 })

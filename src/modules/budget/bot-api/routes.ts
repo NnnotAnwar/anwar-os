@@ -9,8 +9,6 @@ import {
   heartbeat,
   heartbeatInput,
   idQuery,
-  importInput,
-  importRows,
   quickAdd,
   quickInput,
   range,
@@ -57,6 +55,3 @@ export const heartbeatPOST = budgetBotRoute(async ({ body }) => {
   await heartbeat(parseInput(heartbeatInput, body))
   return { ok: true }
 })
-
-/** POST import { rows: [{ key: "bot-expenses:<id>", amountMinor, currency, occurredOn, recordedAt, categoryName, note }], dryRun?, accountId? } */
-export const importPOST = budgetBotRoute(async ({ body }) => importRows(parseInput(importInput, body)))
