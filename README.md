@@ -59,6 +59,7 @@ Everything private stays private; what's public is chosen item by item.
 | Budget | Accounts, categories, plans, goals and recurring payments |
 | Files | Knowledge base: folders, uploads to object storage, markdown documents |
 | Links, Ideas, Projects, CV | Private by default, publish item by item to the public site |
+| Goals | A few goals per year, counted by a number or by linked tasks and projects; progress on Today |
 | Feedback | Complaints and suggestions from the public form, with status |
 | Ops | Server control panel: status, logs, restart and deploy of each service |
 | Bots | Telegram bot stats and settings |
