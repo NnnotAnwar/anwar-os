@@ -25,6 +25,7 @@ Architecture background: [ARCHITECTURE.md §3](ARCHITECTURE.md#3-infrastructure)
 | `infra/backup/` | `backup.sh`, `restore.sh`, systemd service + timer |
 | `.github/workflows/deploy.yml` | build multi-arch images (web, migrate, both bots) → GHCR → `deploy.sh <sha>` over SSH |
 | `.github/workflows/infra.yml` | shellcheck + compose + Caddy config validation (edge + rendered sites) |
+| `.github/workflows/uptime.yml`, `infra/uptime/check.sh` | external uptime checks every 10 min, Telegram on down/back (§19) |
 
 On the server everything lives in a checkout of this repo at `/opt/anwar-os/repo`
 (public repo, cloned over HTTPS, no credentials). `deploy.sh` checks out the exact
@@ -330,9 +331,16 @@ uploaded with rclone to `s3://<BACKUP_S3_BUCKET>/postgres/daily/`. The first bac
 of each ISO week and month is also copied to `weekly/` and `monthly/`. Retention:
 7 daily, 4 weekly, 6 monthly (`BACKUP_KEEP_*`).
 
+Every run also writes its outcome to `/var/backups/anwar-os-status/`
+(`BACKUP_STATUS_DIR`): `last.json` (latest run, `ok` or `failed` with the step
+that failed) and `last-success.json` (time, file, size, whether it reached
+off-site storage). Mode 644, no secrets; ops-agent reads them for **Ops →
+Server** and osbot alerts when the last run failed or the last good one is
+older than 26 h (§19).
+
 Optional but recommended: create a free check at healthchecks.io (daily period,
 2 h grace) and put its URL in `BACKUP_PING_URL`, so you hear about a backup that
-silently stopped.
+silently stopped, even with the server down (§19 has the steps).
 
 **Storage Box instead of Object Storage:** order a Storage Box, create a
 sub-account with SSH key login, put the private key at `/root/.ssh/storagebox`, and
@@ -553,6 +561,27 @@ tag. Use the panel for hotfix rollbacks and bot redeploys; use git for the rest.
 If the agent died mid-deploy (rare), a stopped `<name>-ops-previous` may be left:
 `docker rm -f <name>-ops-previous` and `dc up -d <service>`.
 
+**Server section.** Below the services, `/app/ops` shows the host: disk (root
+filesystem), memory + swap + memory stalls, load, uptime, kernel, a pending
+reboot with the packages that asked for it, Docker's disk usage, the last
+backup, and the TLS certificate expiry of every domain in `/opt/edge/sites`.
+It comes from the agent's `GET /host` (services/ops-agent/README.md); the
+agent reads it through read-only mounts set in `compose.prod.yml`: the host's
+`/run` (non-recursive, for `/run/reboot-required`), `BACKUP_STATUS_DIR` and
+`/opt/edge/sites`. Certificates are checked by web (the agent has no route
+out): it dials each domain on 443 with SNI, cached for an hour. A section that
+can't be read says why ("not mounted") instead of breaking the page.
+
+First deploy with it: `deploy.sh <sha>` recreates ops-agent with the mounts
+(Docker Engine ≥ 25 for the non-recursive mount: `docker version`). The backup
+tile shows "Backup status unknown" until `backup.sh` has run once with the new
+script; run it right away instead of waiting for the night:
+
+```sh
+sudo systemctl start anwar-os-backup.service
+ls -l /var/backups/anwar-os-status/      # last.json, last-success.json (-rw-r--r--)
+```
+
 The deploy dialog lists tags from GHCR (anonymous for public packages) and
 matches sha tags to commits of `GITHUB_REPO` for the message and date. Set
 `GITHUB_TOKEN` (read:packages) if the packages are private; then also set
@@ -562,7 +591,9 @@ matches sha tags to commits of `GITHUB_REPO` for the message and date. Set
 
 - Logs: `dc logs -f web`, `edge logs --tail 200 caddy`. Docker rotates them
   (10 MB × 5 per container).
-- `dc ps` shows health; `/api/health` is public for uptime monitors.
+- `dc ps` shows health; `/api/health` is public for uptime monitors (§19).
+- **Ops → Server** shows disk, memory, a pending reboot, the last backup and
+  certificate expiry; osbot sends Telegram alerts for them (§19).
 - **Locked out of SSH ("Connection refused")?** fail2ban bans an address for
   an hour after 5 failed logins (a few `ssh root@…` tries after bootstrap are
   enough, since root login is off). Wait it out, or unban from the Hetzner web
@@ -659,3 +690,86 @@ service, and its deploy writing `/opt/edge/sites/<project>.caddy` then reloading
 Caddy. Add the project to `OPS_AGENT_PROJECTS` in anwar.os's `.env` (e.g.
 `anwar-os,edge,myproject`) to manage it from `/app/ops`; its services show up
 as `myproject.web` and so on.
+
+## 19. Monitoring and alerts
+
+Three layers, each covering what the one before can't see:
+
+| Layer | Runs | Catches | Tells you |
+|---|---|---|---|
+| **Server alerts** | osbot, every 5 min, on the server | disk, memory, backups, certificates, containers, pending reboot, ops-agent | Telegram (osbot), once on trouble and once on recovery |
+| **Uptime** | GitHub Actions, every 10 min (`.github/workflows/uptime.yml`) | the whole server or a site down (from outside) | Telegram, once down and once back |
+| **Backup dead-man's switch** | healthchecks.io (optional) | the nightly backup silently not running at all | e-mail / its integrations |
+
+### Server alerts (osbot)
+
+osbot calls `POST /api/internal/osbot/ops-alerts/check` every 5 minutes; web
+reads ops-agent's `GET /host`, the service list and the certificates, applies
+the rules below (`src/modules/ops/lib/server.ts`, the same ones that colour
+Ops → Server) and keeps what you were told in `ops_alert_state`. Each problem is
+sent once with its details and an **Open Ops** button, and once more when it
+is resolved; bot restarts and deploys repeat nothing (osbot acks each message
+after sending it).
+
+| Kind | Fires when |
+|---|---|
+| Disk | root filesystem more than 85 % used |
+| Memory | under 10 % of RAM available, or tasks stalled on memory ≥ 10 % of the last minute (PSI), or swap ≥ 90 % full |
+| Backups | the last run failed, the last good one is older than 26 h, no status yet, or the status can't be read |
+| Certificates | a site's certificate expires in under 14 days, has expired or isn't trusted (Caddy renews 30 days ahead, so this means renewal is failing) |
+| Services | a managed container is down (crashed, OOM-killed), unhealthy or restarting; stopped on purpose doesn't count |
+| Reboot | `/run/reboot-required` older than 2 days (unattended-upgrades should have rebooted at 04:30) |
+| Agent | ops-agent configured but not answering (everything else is paused then) |
+
+If web itself doesn't answer two checks in a row (10 min), osbot says
+"anwar.os isn't answering" on its own and "answers again" when it's back.
+
+**Silencing:** Ops → Server → **Telegram alerts**: switch a kind off (it is not
+tracked at all until switched back on, then a problem still there is announced),
+or **Mute all** for 1, 8 or 24 h (held, not dropped: whatever is still wrong
+when the mute ends is sent then). Nothing to configure on the server beyond
+osbot (§14) and ops-agent (§15).
+
+### Uptime from outside (GitHub Actions)
+
+`.github/workflows/uptime.yml` checks, every 10 minutes with 3 tries 20 s
+apart:
+
+| Target | Expect |
+|---|---|
+| `https://anwar-os.com/api/health` | 200 (web up and Postgres answering) |
+| `https://shiftella.app/` | 200 |
+| `https://dev.shiftella.app/` | 401 (up, behind basic auth) |
+
+It messages Telegram only on a change (state in the Actions cache), and runs
+without messages until the secrets exist. **To turn the messages on** (once):
+
+1. GitHub → the repository → **Settings → Secrets and variables → Actions →
+   New repository secret**:
+   - `UPTIME_TELEGRAM_TOKEN` = osbot's token (`OSBOT_TOKEN` from `infra/.env`;
+     sending through the Bot API doesn't disturb the bot's polling), or any
+     other bot's token you've started a chat with;
+   - `UPTIME_TELEGRAM_CHAT_ID` = your chat id (`OSBOT_OWNER_CHAT_ID`).
+2. **Actions → Uptime → Run workflow** once: the run's summary lists every
+   target; with everything up nothing is sent.
+
+Optional: a repository **variable** `UPTIME_TARGETS` replaces the list (one
+`name|url|expected status` per line). GitHub may start scheduled runs a few
+minutes late, and pauses schedules in a public repository after 60 days
+without commits (a push or a manual run re-enables them).
+
+### Backup dead-man's switch (healthchecks.io, optional)
+
+The server alerts notice a stale backup only while the server and osbot run.
+healthchecks.io notices a backup that stopped even when everything is down:
+
+1. Sign up at healthchecks.io (free plan), **Add Check**: name `anwar-os
+   backup`, schedule **Cron** `15 3 * * *`, time zone `Europe/Prague`, grace
+   time **2 hours** (the timer adds up to 15 min of jitter; a backup takes a
+   minute or two).
+2. Copy the ping URL (`https://hc-ping.com/<uuid>`) into `infra/.env`:
+   `BACKUP_PING_URL=https://hc-ping.com/<uuid>`. `backup.sh` pings it on
+   success and `<url>/fail` on failure, so a failure alerts at once.
+3. `sudo systemctl start anwar-os-backup.service`; the check turns green.
+4. In healthchecks.io → Integrations, add e-mail (default) and, if you like,
+   Telegram.

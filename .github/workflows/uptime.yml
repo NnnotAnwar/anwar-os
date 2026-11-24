@@ -1,0 +1,67 @@
+name: Uptime
+
+# External uptime check: the server can't report itself when it is down (its
+# own alerts come from osbot on the same machine). Every 10 minutes GitHub
+# checks the sites with retries and sends a Telegram message only when one goes
+# down or comes back (infra/uptime/check.sh). docs/DEPLOY.md §19.
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   UPTIME_TELEGRAM_TOKEN    a bot token (osbot's is fine: it only sends)
+#   UPTIME_TELEGRAM_CHAT_ID  your chat id (OSBOT_OWNER_CHAT_ID)
+# Without them the checks still run and show in the job summary, silently.
+# Optional repository variable UPTIME_TARGETS replaces the target list
+# ("name|url|expected status" per line).
+#
+# State (who is up or down since when) is kept in the Actions cache, saved only
+# when something changed. Notes: GitHub may start scheduled runs late under
+# load, and pauses schedules in a public repo after 60 days without commits.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check the sites
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: infra/uptime
+          sparse-checkout-cone-mode: false
+
+      - name: Restore the previous state
+        uses: actions/cache/restore@v4
+        with:
+          path: .uptime-state
+          key: uptime-state-${{ github.run_id }}
+          restore-keys: uptime-state-
+
+      - name: Check
+        id: check
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.UPTIME_TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.UPTIME_TELEGRAM_CHAT_ID }}
+          UPTIME_TARGETS: ${{ vars.UPTIME_TARGETS }}
+          STATE_FILE: .uptime-state/state
+        run: |
+          if [ -z "$TELEGRAM_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::notice::UPTIME_TELEGRAM_TOKEN / UPTIME_TELEGRAM_CHAT_ID are not set: checking without sending messages."
+          fi
+          bash infra/uptime/check.sh
+
+      - name: Save the new state
+        if: steps.check.outputs.changed == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .uptime-state
+          key: uptime-state-${{ github.run_id }}-${{ github.run_attempt }}

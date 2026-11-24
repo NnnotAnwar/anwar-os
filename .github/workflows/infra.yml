@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: shellcheck
-        run: shellcheck --version && shellcheck -x infra/*.sh infra/backup/*.sh
+        run: shellcheck --version && shellcheck -x infra/*.sh infra/backup/*.sh infra/uptime/*.sh
 
       - name: compose config
         run: |

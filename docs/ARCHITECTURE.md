@@ -239,6 +239,7 @@ internet; only `web` can call it, signing each request with an HMAC secret.
 |---|---|
 | `GET /services` | containers labelled `os.managed=true`: state, health, uptime, image tag, restart count |
 | `GET /services/:name/logs?tail=200` | last log lines (stdout/stderr) |
+| `GET /host` | the server's vitals: disk, memory, load, uptime, kernel, pending reboot, Docker disk usage, last backup, edge domains (read-only mounts) |
 | `POST /services/:name/{start,stop,restart}` | lifecycle |
 | `POST /services/:name/deploy` `{ tag }` | `docker compose pull` + recreate that one service, waits for healthcheck, rolls back to the previous tag on failure |
 
@@ -253,6 +254,11 @@ Only labelled services can be touched; `db`, the edge `caddy`, `ops-agent` itsel
 - Restart in one tap, start with Undo, stop asks first (then Undo); deploy with Undo to the previous tag.
 - Deploy: picks from the latest image tags in GHCR (commit message shown).
 - Projects link to their services, so "Planuj Směny" shows its deploy state.
+- Server section: host vitals from `GET /host`, certificate expiry per edge
+  domain (web dials 443 with SNI; the agent has no route out), a problems line
+  and the Telegram alert settings (kinds on/off, mute). External uptime checks
+  run in GitHub Actions (`uptime.yml`), since the server can't report its own
+  outage.
 
 ### Bots
 
@@ -269,7 +275,8 @@ Only labelled services can be touched; `db`, the edge `caddy`, `ops-agent` itsel
   = `bot-expenses:<id>`); the `bot_expenses` schema stays as an archive.
 - **osbot** (`bots/osbot/`): Anwar's own bot for the platform. Quick capture
   (forward a message → Inbox by default, or task / note / link / idea), `/today`,
-  calendar reminders and feedback alerts (ops alerts later). Unlike the other
+  calendar reminders, feedback alerts and server alerts (every 5 min, state in
+  `ops_alert_state`, rules shared with Ops → Server; DEPLOY.md §19). Unlike the other
   bots it has **no database role**: it calls the web app's internal API
   (`/api/internal/osbot/*`, `src/modules/osbot/`), HMAC-signed with
   `OSBOT_API_SECRET` (timestamp + nonce + method + path + body, 60 s window,
