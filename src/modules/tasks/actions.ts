@@ -7,7 +7,7 @@ import { runModuleAction } from "@/core/module-actions"
 import type { Tx } from "@/db"
 import { tasksLists as l, tasksTasks as t } from "@/db/schema"
 import { likeContains } from "@/lib/sql-like"
-import { addDays, formatIsoDate, wallClock, type LocalDate } from "@/modules/calendar/lib/zoned"
+import { addDays, formatIsoDate, parseIsoDate, wallClock, type LocalDate } from "@/modules/calendar/lib/zoned"
 import { parseTask } from "./lib/parse"
 import { nextDueIso } from "./lib/repeat"
 import {
@@ -102,12 +102,13 @@ function isUniqueViolation(error: unknown) {
   return e?.code === "23505" || e?.cause?.code === "23505"
 }
 
-async function insertTask(tx: Tx, input: z.infer<typeof createTaskInput>) {
+async function insertTask(tx: Tx, input: z.infer<typeof createTaskInput>, id?: string) {
   const { listName, ...fields } = input
   const listId = listName ? await ensureList(tx, listName) : (fields.listId ?? null)
   const [row] = await tx
     .insert(t)
     .values({
+      id,
       title: fields.title,
       notes: fields.notes ?? "",
       dueDate: fields.dueDate ?? null,
@@ -273,9 +274,14 @@ export const actions = {
       "Add a task from natural language, e.g. \"Call the bank tomorrow 10:00 !high #University\" or \"Pay rent every month on 1st\". Understands dates, times, !priority, #list and repeats in English and Czech.",
     kind: "write",
     input: quickAddInput,
-    handler: async ({ text, listId, dueToday }): Promise<Task> => {
-      const today = await viewerToday()
+    handler: async ({ id, text, listId, dueToday, today: writtenOn }): Promise<Task> => {
+      const today = (writtenOn && parseIsoDate(writtenOn)) || (await viewerToday())
       return asViewer(async (tx) => {
+        // Idempotent with a client-made id: a retried offline task lands once.
+        if (id) {
+          const [existing] = await tx.select(columns).from(t).where(eq(t.id, id))
+          if (existing) return toTask(existing)
+        }
         const lists = await tx.select({ id: l.id, name: l.name }).from(l)
         const parsed = parseTask(text, today, lists.map((x) => x.name))
         if (!parsed.title) throw new TaskInputError("Add a few words for the task itself, not just the date.")
@@ -291,7 +297,7 @@ export const actions = {
           rrule: parsed.rrule,
           listId: known?.id ?? (parsed.list ? null : listId),
           listName: parsed.list && !known ? parsed.list : undefined,
-        })
+        }, id)
       })
     },
   }),

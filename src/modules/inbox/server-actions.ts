@@ -36,7 +36,7 @@ async function run<S extends z.ZodType, T>(
  * other features: the global capture sheet, the PWA share target, and later
  * the Telegram bot (through a route that signs in as the owner).
  */
-export async function captureToInbox(input: { text: string; url?: string | null; source?: InboxItem["source"] }): Promise<Result<InboxItem>> {
+export async function captureToInbox(input: { id?: string; text: string; url?: string | null; source?: InboxItem["source"] }): Promise<Result<InboxItem>> {
   return run(captureInput, input, (d) => actions.capture.handler(d), "That wasn't captured. Check your connection and try again.")
 }
 

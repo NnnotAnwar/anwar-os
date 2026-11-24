@@ -388,9 +388,19 @@ export const actions = {
       "Record a transaction from one line of text, e.g. '250 food lunch' (spent 250 in Food, note 'lunch'), '+45000 salary', '89,90 eating out @cash #coffee yesterday'. A bare number is spending unless the category is an income category. Returns the created transaction.",
     kind: "write",
     input: quickAddInput,
-    handler: async ({ text, accountId }): Promise<Transaction> => {
-      const today = await viewerToday()
+    handler: async ({ id, text, accountId, today: writtenOn }): Promise<Transaction> => {
+      const today = writtenOn ?? (await viewerToday())
       return asViewer(async (tx) => {
+        // Idempotent with a client-made id: a retried offline expense lands once.
+        if (id) {
+          const [existing] = await tx
+            .select(transactionColumns)
+            .from(t)
+            .innerJoin(a, eq(a.id, t.accountId))
+            .leftJoin(c, eq(c.id, t.categoryId))
+            .where(eq(t.id, id))
+          if (existing) return existing
+        }
         const [accounts, categories] = await Promise.all([loadAccounts(tx, false), loadCategories(tx, false)])
         const parsed = parseQuickAdd(text, { categories, accounts, today, defaultAccountId: defaultAccountId(accounts, accountId) })
         if (!parsed.ok) throw new BudgetInputError(parsed.error)
@@ -398,6 +408,7 @@ export const actions = {
         const [row] = await tx
           .insert(t)
           .values({
+            id,
             accountId: parsed.accountId,
             categoryId: parsed.categoryId,
             amountMinor: parsed.amountMinor,

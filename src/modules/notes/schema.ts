@@ -7,6 +7,8 @@ export const noteFields = {
 }
 
 export const createNoteInput = z.object({
+  /** Optional id made by the client: creating again with the same id returns the first note (offline retries). */
+  id: z.uuid().optional(),
   title: noteFields.title,
   body: noteFields.body.default(""),
 })

@@ -45,7 +45,11 @@ export const createTaskInput = taskFields
 export const updateTaskInput = taskFields.partial().extend({ id: z.uuid() }).superRefine(dateRules)
 export const taskIdInput = z.object({ id: z.uuid() })
 export const quickAddInput = z.object({
+  /** Optional id made by the client: adding again with the same id returns the first task (offline retries). */
+  id: z.uuid().optional(),
   text: z.string().trim().min(1, "Write the task first — a few words are enough.").max(500),
+  /** The day the text was written, which "tomorrow" counts from (captured offline); default: today. */
+  today: isoDate.optional(),
   /** The list to file it in when the text names none (the list being viewed). */
   listId: z.uuid().nullable().default(null),
   /** Give undated tasks today's date (adding from the Today view). */

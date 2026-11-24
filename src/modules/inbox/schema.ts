@@ -12,6 +12,8 @@ const webUrl = z
 
 export const captureInput = z
   .object({
+    /** Optional id made by the client: capturing again with the same id returns the first item (offline retries). */
+    id: z.uuid().optional(),
     text: z.string().max(10_000, "That's too long for the inbox — save it as a note instead.").default(""),
     url: webUrl.nullish(),
     source: z.enum(inboxSources).default("app"),

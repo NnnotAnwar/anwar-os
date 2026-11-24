@@ -122,6 +122,14 @@ export const actions = {
     input: createNoteInput,
     handler: (input): Promise<{ id: string; updatedAt: string }> =>
       asViewer(async (tx) => {
+        // Idempotent with a client-made id: a retried offline note lands once.
+        if (input.id) {
+          const [existing] = await tx
+            .select({ id: notesNotes.id, updatedAt: notesNotes.updatedAt })
+            .from(notesNotes)
+            .where(eq(notesNotes.id, input.id))
+          if (existing) return { id: existing.id, updatedAt: existing.updatedAt.toISOString() }
+        }
         // owner_id defaults to app.current_user_id(); RLS checks it matches.
         const [row] = await tx
           .insert(notesNotes)

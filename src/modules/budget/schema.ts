@@ -52,7 +52,11 @@ export const transactionFields = z.object({
 export const createTransactionInput = transactionFields
 export const updateTransactionInput = transactionFields.extend({ id: z.uuid() })
 export const quickAddInput = z.object({
+  /** Optional id made by the client: adding again with the same id returns the first transaction (offline retries). */
+  id: z.uuid().optional(),
   text: z.string().trim().min(1, "Type an amount, e.g. “250 food lunch”.").max(300),
+  /** The day the line was written, which "yesterday" counts from (captured offline); default: today. */
+  today: isoDate.optional(),
   accountId: z.uuid().nullable().default(null),
 })
 export const transferInput = z.object({

@@ -155,10 +155,15 @@ export const actions = {
       "Capture anything into the inbox to sort later: a thought, a to-do, a link. A URL inside the text is pulled out as the item's link.",
     kind: "write",
     input: captureInput,
-    handler: ({ text, url, source }): Promise<InboxItem> =>
+    handler: ({ id, text, url, source }): Promise<InboxItem> =>
       asViewer(async (tx) => {
+        // Idempotent with a client-made id: a retried offline capture lands once.
+        if (id) {
+          const [existing] = await tx.select(columns).from(i).where(eq(i.id, id))
+          if (existing) return toItem(existing)
+        }
         const split = splitCapture(text, url)
-        const [row] = await tx.insert(i).values({ text: split.text, url: split.url, source }).returning(columns)
+        const [row] = await tx.insert(i).values({ id, text: split.text, url: split.url, source }).returning(columns)
         return toItem(row!)
       }),
   }),

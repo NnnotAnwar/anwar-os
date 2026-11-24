@@ -26,7 +26,8 @@ function firstIssue(error: { issues: { message: string }[] }) {
 }
 
 /** Creates without navigating: the editor swaps its URL in place and keeps typing. */
-export async function createNote(input: { title: string; body: string }): Promise<SaveResult> {
+/** `id`: made by the editor, so a retry (or the offline outbox) can't create the note twice. */
+export async function createNote(input: { id?: string; title: string; body: string }): Promise<SaveResult> {
   const parsed = createNoteInput.safeParse(input)
   if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) }
 

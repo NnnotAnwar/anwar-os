@@ -30,14 +30,14 @@ function firstIssue(error: z.ZodError) {
  * goes through the module's own typed actions, so validation and RLS are the
  * module's; the result says where the new item lives.
  */
-const savers: Record<CaptureDestinationId, (draft: CaptureDraft, shared: boolean) => Promise<CaptureResult>> = {
-  async inbox(draft, shared) {
-    const result = await captureToInbox({ text: inboxText(draft), url: draft.url || null, source: shared ? "share" : "app" })
+const savers: Record<CaptureDestinationId, (draft: CaptureDraft, shared: boolean, id?: string) => Promise<CaptureResult>> = {
+  async inbox(draft, shared, id) {
+    const result = await captureToInbox({ id, text: inboxText(draft), url: draft.url || null, source: shared ? "share" : "app" })
     return result.ok ? { ok: true, href: "/app/inbox", message: "Saved to Inbox." } : result
   },
 
-  async note(draft) {
-    const parsed = createNoteInput.safeParse({ title: titleFor(draft), body: bodyFor(draft) })
+  async note(draft, _shared, clientId) {
+    const parsed = createNoteInput.safeParse({ id: clientId, title: titleFor(draft), body: bodyFor(draft) })
     if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) }
     const { id } = await notes.create.handler(parsed.data)
     revalidatePath("/app/notes")
@@ -63,15 +63,19 @@ const savers: Record<CaptureDestinationId, (draft: CaptureDraft, shared: boolean
   },
 }
 
-/** Saves a capture. `shared` marks it as coming from another app's share sheet. */
-export async function saveCapture(destination: string, draft: CaptureDraft, shared = false): Promise<CaptureResult> {
+/**
+ * Saves a capture. `shared` marks it as coming from another app's share sheet.
+ * `id` (Inbox and Note): made by the client, so a retry through the offline
+ * outbox can't save it twice (src/lib/offline).
+ */
+export async function saveCapture(destination: string, draft: CaptureDraft, shared = false, id?: string): Promise<CaptureResult> {
   if (!isCaptureDestination(destination)) return { ok: false, error: "Pick where to save it." }
   const parsed = draftInput.safeParse(draft)
   if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) }
   const { title, text, url } = parsed.data
   if (!title.trim() && !text.trim() && !url.trim()) return { ok: false, error: "Write something or paste a link first." }
   try {
-    return await savers[destination]({ title, text, url: url.trim() }, shared)
+    return await savers[destination]({ title, text, url: url.trim() }, shared, id)
   } catch (error) {
     console.error("capture failed", error)
     return { ok: false, error: OFFLINE }
