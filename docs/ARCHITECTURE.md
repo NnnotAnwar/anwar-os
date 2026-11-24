@@ -145,6 +145,10 @@ feedback inbox, projects, bots, ops, tools with saved results, settings.
   `user.role` ∈ `owner | demo | user`, writable only by the server.
 - **Demo mode (later):** Better Auth `anonymous` plugin creates throwaway users with
   role `demo`; a nightly job deletes them and cascades their rows.
+- **Personal API tokens** (`core_api_tokens`): Bearer access for `/api/mcp` and
+  `/api/v1/*` only, read or read+write, hashed, revocable, rate-limited; a
+  token request sets `app.api_token_id` (no access to the token table) and is
+  read-only in Postgres without the write scope. [API.md](API.md).
 - **Checks:** `proxy.ts` does a cheap cookie presence check to redirect `/app` for
   signed-out visitors; the DAL (`requireViewer`) validates the session against the
   database on every request. RLS is the final guard.
@@ -290,7 +294,12 @@ external service (health URL + Vercel or server deploy state); on Today it gets 
 ## 9. Long-term
 
 - **AI assistant** over module actions + `search_documents` embeddings (Claude API).
-- **MCP server** at `/api/mcp` exposing module actions as tools, OAuth via Better Auth.
+- **MCP server** at `/api/mcp` exposing module actions as tools (read actions
+  always, write actions with a write-scoped token; never ops/bots). Auth is a
+  personal API token (Settings → API tokens, stored as SHA-256, Bearer
+  `aos_…`, acting as its owner through RLS); OAuth later. The same tokens drive
+  the iPhone Shortcuts API (`/api/v1/today`, `capture`, `expense`). See
+  [API.md](API.md) and [SHORTCUTS.md](SHORTCUTS.md).
 - **PWA**: installable (`src/app/manifest.ts`, icons from `pnpm icons`, a small
   hand-written `public/sw.js`: offline page, immutable assets only), share target
   → `/app/capture` (Inbox by default, or Note / Link / Idea). Still to do: push
