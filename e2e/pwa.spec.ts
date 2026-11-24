@@ -30,7 +30,7 @@ test("the manifest makes it installable and points sharing at Capture", async ({
   await expect(page.locator('meta[name="mobile-web-app-capable"], meta[name="apple-mobile-web-app-capable"]')).not.toHaveCount(0)
 })
 
-test("the service worker shows the offline page and never caches pages or data", async ({ page, context }) => {
+test("the service worker shows the offline page and caches only assets and the offline pages", async ({ page, context }) => {
   const response = await page.goto("/app")
   // `next dev` sends a CSP with 'unsafe-eval' and doesn't register the worker.
   test.skip(Boolean(response?.headers()["content-security-policy"]?.includes("'unsafe-eval'")), "production builds only")
@@ -45,10 +45,13 @@ test("the service worker shows the offline page and never caches pages or data",
     return urls
   })
   expect(cached).toContain("/offline.html")
-  for (const path of cached) expect(path).toMatch(/^\/(offline\.html|icons\/|_next\/static\/)/)
+  // Saved app pages: only the ones offline mode opens (e2e/offline.spec.ts); never data or other pages.
+  for (const path of cached) {
+    expect(path).toMatch(/^\/(offline\.html|icons\/|_next\/static\/|app(\/(inbox|tasks|notes|notes\/new|budget|capture))?$)/)
+  }
 
   await context.setOffline(true)
-  await page.goto("/app/notes").catch(() => {})
+  await page.goto("/app/settings").catch(() => {})
   await expect(page.getByRole("heading", { name: "You're offline" })).toBeVisible()
   await context.setOffline(false)
   await page.getByRole("link", { name: "Try again" }).click()
