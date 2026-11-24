@@ -46,8 +46,18 @@ export function totp(base32Secret: string, at = Date.now()) {
   return code.toString().padStart(6, "0")
 }
 
+/**
+ * Waits until streamed parts of the page have been revealed. React reveals
+ * Suspense content a few hundred ms after it arrives; until then a fallback is
+ * showing (on /login, a sign-in form that doesn't know `next` yet).
+ */
+export async function settled(page: Page) {
+  await page.waitForLoadState("networkidle")
+}
+
 export async function signInWithPassword(page: Page, { email, password }: { email: string; password: string }, next = "/app") {
   await page.goto(`/login?next=${encodeURIComponent(next)}`)
+  await settled(page)
   await page.getByLabel("Email").fill(email)
   await page.getByLabel("Password").fill(password)
   await page.getByRole("button", { name: "Sign in", exact: true }).click()

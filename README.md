@@ -52,7 +52,7 @@ Everything private stays private; what's public is chosen item by item.
 
 | Module | What it does |
 |---|---|
-| Today | The day at a glance: calendar, due tasks, reminders and widgets from every module |
+| Today | The day at a glance: calendar, due tasks, reminders and widgets from every module, in your order (Edit Today: drag, hide, reset) |
 | Tasks | Lists, due dates, priorities and repeats, typed in plain words |
 | Inbox | Capture now, sort later (also the PWA share target) |
 | Notes | Autosaving editor with pinning and search |
@@ -67,7 +67,7 @@ Everything private stays private; what's public is chosen item by item.
 | Bots | Telegram bot stats and settings |
 | Monthly report | The month in numbers against the month before: spending by category, subscriptions, tasks, captures, site views; as a page, a PDF in Files → Reports, and on the 1st in Telegram |
 
-**Everywhere:** ⌘K palette (jump, search every module, create), light and dark theme,
+**Everywhere:** ⌘K palette (jump, search every module, create), light, dark or scheduled theme (fixed hours or sunset to sunrise, no flash on load),
 passkeys and two-factor sign-in, an offline page, and the same UI on desktop and phone.
 
 **Telegram bots** (`bots/`, Python + aiogram)

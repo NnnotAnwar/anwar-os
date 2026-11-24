@@ -405,6 +405,15 @@
   }
 }
 
+/* Light ↔ dark switches in one frame, not as a page-wide colour fade
+   (src/components/theme/theme-provider.tsx adds this for two frames). */
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
 /* Year ruler: ticks rise left to right once on load, then the "now" marker lands. */
 @keyframes ruler-rise {
   from {

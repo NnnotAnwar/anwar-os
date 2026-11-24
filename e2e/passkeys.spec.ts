@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto"
 import { expect, test, type BrowserContext, type Page } from "@playwright/test"
 import { hashPassword } from "better-auth/crypto"
 import postgres from "postgres"
+import { settled } from "./support"
 
 const admin = postgres(process.env.MIGRATION_DATABASE_URL!, { max: 1, onnotice: () => {} })
 const id = `e2e-${randomBytes(4).toString("hex")}`
@@ -40,6 +41,7 @@ async function addVirtualAuthenticator(context: BrowserContext, page: Page, { us
 
 async function signInWithPassword(page: Page) {
   await page.goto("/login?next=/app/settings")
+  await settled(page)
   await page.getByLabel("Email").fill(email)
   await page.getByLabel("Password").fill(password)
   await page.getByRole("button", { name: "Sign in", exact: true }).click()
@@ -70,13 +72,14 @@ test("add a passkey, sign in with it, rename and remove it", async ({ context, p
   // Sign out (drop the session), then come back with the passkey alone.
   await context.clearCookies()
   await page.goto("/login")
+  await settled(page)
   await page.getByRole("button", { name: "Sign in with a passkey" }).click()
   await expect(page).toHaveURL(/\/app$/)
 
   await page.goto("/app/settings")
   await page.locator(`[aria-label^="Rename"]`).click()
   await page.getByLabel("Passkey name").fill("E2E laptop")
-  await page.getByRole("button", { name: "Save" }).click()
+  await page.getByRole("button", { name: "Save", exact: true }).click()
   await expect(passkeys.getByText("E2E laptop")).toBeVisible()
 
   await page.getByRole("button", { name: "Remove E2E laptop" }).click()
@@ -87,6 +90,7 @@ test("add a passkey, sign in with it, rename and remove it", async ({ context, p
   // The removed passkey no longer opens the door.
   await context.clearCookies()
   await page.goto("/login")
+  await settled(page)
   await page.getByRole("button", { name: "Sign in with a passkey" }).click()
   await expect(page.getByText("isn't registered here anymore")).toBeVisible()
   await expect(page).toHaveURL(/\/login/)

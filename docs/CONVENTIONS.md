@@ -25,12 +25,28 @@ A module is `src/modules/<id>/` with a `manifest.ts` registered in
 | `create` | header "New" menu, ⌘K, the card's sheet |
 | `shortcuts` | options inside the card's sheet (private `/app/…` or public `/…`) |
 | `badge` | lazy count on the card ("3 new") |
-| `widgets` | Today tiles (lazy async Server Components) |
+| `widgets` | Today tiles (lazy async Server Components); the owner orders and hides them (see below) |
 | `search` | ⌘K global search |
 | `actions` | typed operations (zod) — also future AI / MCP tools |
 
 Routes are thin re-export files under `src/app/(private)/app/<id>/` and
 `src/app/(public)/<path>/`.
+
+**Today widgets.** A widget's identity is `<module id>:<widget id>`; keep both
+ids stable (renaming one resets that widget's place). Today renders every
+widget the viewer's role can see (`src/core/today-widgets.ts`) in the owner's
+saved order (Edit Today, `core_preferences.today_order` / `today_hidden`):
+saved ones first, then any new widget at the end in registry order, unknown ids
+ignored (`src/core/today-layout.ts`). Hidden widgets aren't loaded. Nothing to
+register beyond the manifest; a widget's title is what the editor lists.
+
+**Theme.** `useTheme()` from `@/components/theme/theme-provider` (not
+next-themes): light, dark, system or scheduled (fixed hours, or sunset to
+sunrise at an approximate place). Saved in `core_preferences` and mirrored into
+the `aos-theme` cookie; the root layout renders a fixed choice into `<html>`
+and runs a nonce'd pre-paint script (`src/lib/theme.ts`) for the rest. Style
+dark mode with the `dark:` variant only; never read the theme to branch markup
+on the server.
 
 ## Database
 

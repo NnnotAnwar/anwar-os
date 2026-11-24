@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
-import { headers } from "next/headers"
-import { ThemeProvider } from "next-themes"
+import { cookies, headers } from "next/headers"
+import { ThemeProvider } from "@/components/theme/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { decodeThemeCookie, THEME_COLORS, THEME_COOKIE, themeScript } from "@/lib/theme"
 import "./globals.css"
 
 // Inter carries the UI and every number (tabular figures). Satoshi, the display
@@ -32,8 +33,8 @@ export const viewport: Viewport = {
   // the insets; the body keeps content clear of the notch in landscape.
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f4f9" },
-    { media: "(prefers-color-scheme: dark)", color: "#121022" },
+    { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLORS.dark },
   ],
 }
 
@@ -49,14 +50,25 @@ export const instant = false
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const nonce = (await headers()).get("x-nonce") ?? undefined
+  // The signed-in user's appearance (src/lib/theme.ts); visitors have none: system.
+  const theme = decodeThemeCookie((await cookies()).get(THEME_COOKIE)?.value)
+  // A fixed choice is right in the HTML itself; system and scheduled need the
+  // browser (its preference, its clock), so the script below sets them before paint.
+  const fixed = theme?.mode === "dark" || theme?.mode === "light" ? theme.mode : undefined
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${inter.variable} h-full antialiased ${fixed ?? ""}`}
+      style={fixed ? { colorScheme: fixed } : undefined}
+    >
       <head>
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript(theme) }} />
         <link rel="preconnect" href="https://api.fontshare.com" crossOrigin="" />
         <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@500,700&display=swap" />
       </head>
       <body className="flex min-h-full flex-col text-foreground">
-        <ThemeProvider nonce={nonce} attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ThemeProvider initial={theme}>
           <TooltipProvider>
             {children}
             {/* Above the home indicator, and above the phone tab bar in the app (--toast-bottom, globals.css). */}

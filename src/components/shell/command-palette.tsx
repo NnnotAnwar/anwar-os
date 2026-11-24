@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { defaultFilter } from "cmdk"
-import { ArrowRight, CornerDownLeft, History, LogOut, Monitor, Moon, Sun } from "@/components/icons"
-import { useTheme } from "next-themes"
+import { ArrowRight, Clock, CornerDownLeft, History, LogOut, Monitor, Moon, Sun } from "@/components/icons"
+import { useTheme } from "@/components/theme/theme-provider"
+import type { ThemeMode } from "@/lib/theme"
 import {
   Command,
   CommandDialog,
@@ -102,11 +103,14 @@ export function CommandPalette({
   const show = (text: string) => !q || defaultFilter(text, q) > 0
   const commands = search.module ? [] : nav.filter((item) => show(`go ${item.label}`))
   const createItems = search.module ? [] : creates.filter((item) => show(`create ${item.label}`))
-  const themes = [
-    { value: "light", label: "Light theme", icon: <Sun /> },
-    { value: "dark", label: "Dark theme", icon: <Moon /> },
-    { value: "system", label: "Match system theme", icon: <Monitor /> },
-  ].filter((t) => !search.module && show(`theme ${t.label}`))
+  const themes = (
+    [
+      { value: "light", label: "Light theme", icon: <Sun /> },
+      { value: "dark", label: "Dark theme", icon: <Moon /> },
+      { value: "system", label: "Match system theme", icon: <Monitor /> },
+      { value: "scheduled", label: "Scheduled theme (dark at night)", icon: <Clock /> },
+    ] satisfies { value: ThemeMode; label: string; icon: ReactNode }[]
+  ).filter((t) => !search.module && show(`theme ${t.label}`))
   const showSignOut = !search.module && show("sign out log out")
 
   const groups = search.data?.groups ?? []
