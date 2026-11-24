@@ -80,6 +80,12 @@ export async function presignDownload(
   return getSignedUrl(client, command, { expiresIn: DOWNLOAD_URL_TTL })
 }
 
+/** Writes an object the server made itself (e.g. a generated report), replacing any at `key`. */
+export async function putObject(key: string, body: Uint8Array, mime: string) {
+  const { client, bucket } = storage()
+  await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: mime, ContentLength: body.byteLength }))
+}
+
 /** Size and type as stored, or null when there is no such object. */
 export async function statObject(key: string): Promise<{ size: number; mime: string } | null> {
   const { client, bucket } = storage()
