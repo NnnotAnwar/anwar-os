@@ -175,6 +175,7 @@ async def test_the_app_starts_the_alert_loop(monkeypatch):
         return []
 
     monkeypatch.setattr(app, "background_tasks", fake_tasks)
+    monkeypatch.setattr(app, "digest_tasks", fake_tasks)
     monkeypatch.setattr(app, "ops_alerts_task", fake_alerts)
 
     class Dispatcher:
@@ -186,6 +187,9 @@ async def test_the_app_starts_the_alert_loop(monkeypatch):
 
         async def stop_polling(self):
             self._stop.set()
+
+        def get(self, key, default=None):  # aiogram's Dispatcher is a mapping of workflow data
+            return default
 
     config = Config(bot_token="unused", api_url="http://web:3000", api_secret="x" * 32, owner_chat_id=CHAT, app_url=APP)
     stop = asyncio.Event()
