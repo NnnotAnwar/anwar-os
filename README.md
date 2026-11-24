@@ -57,6 +57,7 @@ Everything private stays private; what's public is chosen item by item.
 | Notes | Autosaving editor with pinning and search |
 | Calendar | Events, recurrence, reminders and an ICS feed |
 | Budget | Accounts, categories, plans, goals and recurring payments |
+| Habits | Daily habits on chosen weekdays with streaks, ticked off on Today or in Telegram |
 | Files | Knowledge base: folders, uploads to object storage, markdown documents |
 | Links, Ideas, Projects, CV | Private by default, publish item by item to the public site |
 | Feedback | Complaints and suggestions from the public form, with status |
@@ -69,7 +70,8 @@ passkeys and two-factor sign-in, an offline page, and the same UI on desktop and
 **Telegram bots** (`bots/`, Python + aiogram)
 
 - **osbot**: forward anything to save it as a task, note, link or idea; `/today`;
-  calendar reminders with snooze; new-feedback alerts. Talks to the app only through
+  `/habits` with one-tap check-offs and habit reminders; calendar reminders with
+  snooze; new-feedback alerts. Talks to the app only through
   an HMAC-signed internal API.
 - **Expense bot**: type `250 coffee`, pick a category, done. Every expense is a Budget
   transaction; day / week / month summaries, history and CSV export.
