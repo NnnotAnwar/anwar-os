@@ -1,4 +1,5 @@
-"""Buttons on the cards the loops send: reminders (Snooze / Got it) and feedback (Mark read / Spam / Undo)."""
+"""Buttons on the cards the loops send: reminders (Snooze / Got it), feedback (Mark read / Spam / Undo)
+and contact messages (Replied / Archive / Undo)."""
 
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ from .. import texts
 from ..api import OsbotApi
 from ..errors import describe
 from ..fmt import clock
-from ..keyboards import FeedbackCb, ReminderCb, feedback_keyboard, only_links
+from ..keyboards import ContactCb, FeedbackCb, ReminderCb, contact_keyboard, feedback_keyboard, only_links
 from ..snooze import ReminderMemory
 from ..tg import accessible, edit, edit_markup
 
@@ -73,8 +74,31 @@ async def on_feedback(callback: types.CallbackQuery, callback_data: FeedbackCb, 
     await callback.answer(STATUS_TOASTS.get(status, "Updated"))
 
 
+CONTACT_TOASTS = {"replied": "✓ Marked replied", "archived": "🗄 Archived", "new": "↩ Back to waiting"}
+
+
+async def on_contact(callback: types.CallbackQuery, callback_data: ContactCb, api: OsbotApi) -> None:
+    card = accessible(callback)
+    if card is None:
+        await callback.answer(texts.TOO_OLD)
+        return
+    try:
+        result = await api.contact_status(callback_data.id, callback_data.status)
+    except Exception as error:
+        problem = describe(error, action="contact status")
+        if problem.kind == "gone":
+            await edit_markup(card, only_links(card.reply_markup))
+        await callback.answer(problem.toast(), show_alert=True)
+        return
+    status, previous = result.get("status", callback_data.status), result.get("previous", "new")
+    url = _first_url(card.reply_markup)
+    await edit(card, texts.with_contact_footer(card.html_text, status), contact_keyboard(callback_data.id, url, status, previous))
+    await callback.answer(CONTACT_TOASTS.get(status, "Updated"))
+
+
 def make_router() -> Router:
     router = Router(name="alerts")
     router.callback_query.register(on_reminder, ReminderCb.filter())
     router.callback_query.register(on_feedback, FeedbackCb.filter())
+    router.callback_query.register(on_contact, ContactCb.filter())
     return router

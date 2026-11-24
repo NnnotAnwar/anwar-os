@@ -142,6 +142,28 @@ def test_feedback_text_and_footer():
     assert texts.with_feedback_footer(read, "new") == text
 
 
+def test_contact_text_and_footer():
+    item = {
+        "topicLabel": "Freelance project",
+        "name": "Petr <Admin>",
+        "company": None,
+        "email": "petr@example.com",
+        "message": "A booking app",
+        "createdAt": "2026-11-16T12:05:00Z",
+    }
+    text = texts.contact_text(item, NOW)
+    assert text == (
+        "✉️ <b>New contact</b> · Freelance project\n<b>Petr &lt;Admin&gt;</b>\npetr@example.com\n"
+        "<blockquote>A booking app</blockquote>\n<i>Reply by email</i> · <i>13:05</i>"
+    )
+    assert "<blockquote expandable>" in texts.contact_text({**item, "message": "x" * 500}, NOW)
+
+    replied = texts.with_contact_footer(text, "replied")
+    assert replied.endswith("\n\n<i>✓ Marked replied</i>")
+    assert texts.with_contact_footer(replied, "archived").endswith("</i>\n\n<i>🗄 Archived</i>")
+    assert texts.with_contact_footer(replied, "new") == text
+
+
 def test_saved_text():
     assert texts.saved_text({"kind": "note", "title": "Milk"}) == "📝 <b>Note saved</b>\nMilk"
     assert texts.saved_text({"kind": "task", "title": "Call <bank>"}) == "✅ <b>Task added</b>\nCall &lt;bank&gt;"

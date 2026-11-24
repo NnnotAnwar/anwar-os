@@ -384,6 +384,31 @@ async def test_feedback_that_is_gone(tg: Tg):
     assert tg.toast().show_alert and "no longer exists" in tg.toast().text
 
 
+async def test_contact_replied_and_undo(tg: Tg):
+    tg.api.contact_status = AsyncMock(return_value={"id": FEEDBACK_ID, "status": "replied", "previous": "new"})
+    card = bot_message(
+        "✉️ New contact · Job offer\nJana\njana@example.com\nWe're hiring\nReply by email",
+        entities=[{"type": "bold", "offset": 3, "length": 11}],
+        reply_markup={"inline_keyboard": [[{"text": "↗ Open", "url": "https://os.example/app/feedback/contact/1"}]]},
+    )
+    await tg.press(f"ct:{FEEDBACK_ID}:replied", message=card)
+    tg.api.contact_status.assert_awaited_once_with(FEEDBACK_ID, "replied")
+    edited = tg.session.last("EditMessageText")
+    assert edited.text.startswith("✉️ <b>New contact</b>")
+    assert edited.text.endswith("\n\n<i>✓ Marked replied</i>")
+    assert buttons(edited.reply_markup) == [
+        ("↗ Open", "https://os.example/app/feedback/contact/1"),
+        ("↩ Undo", f"ct:{FEEDBACK_ID}:new"),
+    ]
+    assert tg.toast().text == "✓ Marked replied"
+
+
+async def test_contact_that_is_gone(tg: Tg):
+    tg.api.contact_status = AsyncMock(side_effect=ApiError(404, "gone", "That message no longer exists."))
+    await tg.press(f"ct:{FEEDBACK_ID}:archived")
+    assert tg.toast().show_alert and "no longer exists" in tg.toast().text
+
+
 # --- stale buttons and errors -------------------------------------------------------------------
 
 

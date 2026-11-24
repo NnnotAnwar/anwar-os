@@ -60,3 +60,60 @@ export const feedbackSubmissions = pgTable(
   },
   (t) => [index("feedback_submissions_ip_created_idx").on(t.ipHash, t.createdAt.desc())],
 )
+
+// Contact: named messages from employers and clients (the public /contact
+// form). Unlike feedback they are never anonymous: a name and an email are
+// required so there is someone to answer. Same one way in as feedback:
+// app.submit_contact() (db/modules/contact.sql), a security definer function.
+
+export const contactTopics = ["job", "freelance", "other"] as const
+export type ContactTopic = (typeof contactTopics)[number]
+
+export const contactStatuses = ["new", "replied", "archived"] as const
+export type ContactStatus = (typeof contactStatuses)[number]
+
+export const contactMessages = pgTable(
+  "contact_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: text("owner_id")
+      .notNull()
+      .default(sql`app.current_user_id()`)
+      .references(() => user.id, { onDelete: "cascade" }),
+    topic: text("topic", { enum: contactTopics }).notNull(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    company: text("company"),
+    message: text("message").notNull(),
+    status: text("status", { enum: contactStatuses }).notNull().default("new"),
+    /** When the owner was told about it (osbot or the web's direct notify); null = not yet. */
+    alertedAt: timestamp("alerted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("contact_messages_owner_created_idx").on(t.ownerId, t.createdAt.desc()),
+    index("contact_messages_owner_status_idx").on(t.ownerId, t.status),
+    check("contact_messages_topic_valid", sql`${t.topic} in ('job', 'freelance', 'other')`),
+    check("contact_messages_status_valid", sql`${t.status} in ('new', 'replied', 'archived')`),
+    check("contact_messages_name_length", sql`char_length(${t.name}) between 1 and 100`),
+    check("contact_messages_email_length", sql`char_length(${t.email}) between 3 and 200`),
+    check("contact_messages_company_length", sql`char_length(${t.company}) <= 120`),
+    check("contact_messages_message_length", sql`char_length(${t.message}) between 10 and 5000`),
+  ],
+)
+
+/**
+ * Rate-limit and replay log for the contact form, like feedback_submissions:
+ * the signed form token each accepted message used and a keyed hash of the
+ * sender's IP, kept for a day. No grants to os_app at all.
+ */
+export const contactSubmissions = pgTable(
+  "contact_submissions",
+  {
+    token: text("token").primaryKey(),
+    ipHash: text("ip_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("contact_submissions_ip_created_idx").on(t.ipHash, t.createdAt.desc())],
+)

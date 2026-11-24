@@ -1,6 +1,7 @@
 import "server-only"
 import { TaskInputError } from "@/modules/tasks/actions"
 import { OsbotApiError, osbotRoute, parseInput } from "./api"
+import { ackContact, ackContactInput, contactStatus, contactStatusInput, newContact } from "./contact-alerts"
 import {
   ackFeedback,
   ackFeedbackInput,
@@ -81,6 +82,15 @@ export const feedbackNewGET = osbotRoute(async () => ({ items: await newFeedback
 
 /** POST feedback/ack { ids: string[] } */
 export const feedbackAckPOST = osbotRoute(async ({ body }) => ackFeedback(parseInput(ackFeedbackInput, body).ids))
+
+/** GET contact/new: unannounced contact messages, oldest first. */
+export const contactNewGET = osbotRoute(async () => ({ items: await newContact() }))
+
+/** POST contact/ack { ids: string[] } */
+export const contactAckPOST = osbotRoute(async ({ body }) => ackContact(parseInput(ackContactInput, body).ids))
+
+/** POST contact/status { id, status: "new" | "replied" | "archived" } */
+export const contactStatusPOST = osbotRoute(async ({ body }) => contactStatus(parseInput(contactStatusInput, body)))
 
 /** POST heartbeat { version, startedAt } */
 export const heartbeatPOST = osbotRoute(async ({ body }) => {

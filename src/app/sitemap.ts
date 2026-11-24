@@ -22,6 +22,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: absoluteUrl("/tools"), changeFrequency: "monthly", priority: 0.6 },
     ...TOOLS.map((t) => ({ url: absoluteUrl(`/tools/${t.slug}`), changeFrequency: "yearly" as const, priority: 0.5 })),
     { url: absoluteUrl("/feedback"), changeFrequency: "yearly", priority: 0.4 },
+    { url: absoluteUrl("/contact"), changeFrequency: "yearly", priority: 0.6 },
   ]
   // A database hiccup shouldn't take the static part of the sitemap down with it.
   const [projects, notes] = await Promise.all([

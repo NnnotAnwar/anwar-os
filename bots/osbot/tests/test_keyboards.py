@@ -79,6 +79,14 @@ def test_feedback_keyboard_states():
     assert buttons(kb.feedback_keyboard("f1", None, "read", "new")) == [("↩ Undo", "fb:f1:new")]
 
 
+def test_contact_keyboard_states():
+    assert [b[0] for b in buttons(kb.contact_keyboard("c1", None))] == ["✓ Replied", "🗄 Archive"]
+    assert buttons(kb.contact_keyboard("c1", None, "archived", "new")) == [("↩ Undo", "ct:c1:new")]
+    # Callback data stays under Telegram's 64 bytes with a real uuid.
+    uuid = "0b9f9c4e-2f5e-4c39-9a51-1f4c9c2f7f10"
+    assert all(len(b[1].encode()) <= 64 for b in buttons(kb.contact_keyboard(uuid, None)))
+
+
 def test_task_keyboards():
     task = {"id": TASK_ID, "url": "https://os.example/app/tasks?task=1", "previousDueDate": None}
     assert [b[0] for b in buttons(kb.task_keyboard(task, 0))] == ["✓ Done", "⏭ Tomorrow", "↗ Open in app", "‹ Back"]

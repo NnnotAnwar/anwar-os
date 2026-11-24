@@ -120,9 +120,10 @@ data layer under `actions.ts` and the auth layer change.
 | `/links` | curated public bookmarks |
 | `/tools/*` | calculators: calories, basic, statistics, compound growth |
 | `/feedback` | complaints and suggestions to Anwar, anonymous allowed |
+| `/contact` | job offers and projects: name, email, optional company, topic; Anwar answers by email. Works without JavaScript (plain POST, 303 to `/contact/sent` or `/contact?error=<code>`) |
 
 **Private** (`/app`, owner only): Today, notes, ideas, goals, links, files, calendar,
-feedback inbox, projects, bots, ops, tools with saved results, settings.
+feedback inbox (Feedback · Contact tabs), projects, bots, ops, tools with saved results, settings.
 
 ---
 
@@ -191,11 +192,22 @@ module prefix (`notes_*`, `links_*`). Money is integer minor units + ISO currenc
 
 ### Public writes
 
-The feedback form is one of the two anonymous writes. It goes through
+The feedback form is one of the anonymous writes. It goes through
 `app.submit_feedback(...)`, a `security definer` function in a non-exposed schema
 that validates lengths, checks the rate-limit table, and inserts with
 `owner_id` = the site owner. `os_app` can execute it without a viewer; it cannot
 insert into `feedback_items` directly.
+
+The contact form (`/contact`) works the same way through `app.submit_contact(...)`
+(`contact_messages`, rate-limit log `contact_submissions`: 3 per 10 minutes and 10
+per day per keyed IP hash; archived messages are deleted after 12 months). It must
+work without JavaScript, so instead of the feedback form's proof of work it carries
+a signed token rendered into the page per request (`<nonce>.<issued>.<HMAC>`,
+refused within 3 s of issue or after 2 h, each nonce accepted once). The form posts
+to a server function: with JavaScript it returns the next form state (errors keep
+what was typed); without it the server redirects (Post/Redirect/Get), because a
+Cache Components page doesn't render `useActionState`'s form state into the HTML of
+a no-JS POST. Nothing personal goes into the URL.
 
 Page views are the other one: the public layout's beacon posts to `/api/a`,
 which drops Do-Not-Track/GPC, bots, unknown paths and the signed-in owner, and
@@ -222,7 +234,7 @@ config because content mixes EN/CS/RU) kept in sync by triggers; ⌘K queries it
 | **ideas** | private, opt-in public | backlog with status (raw → exploring → building → shipped / dropped), tags, publish toggle | 3 |
 | **goals** | private | a few goals per year, measured by a number (+1 in one tap) or by the tasks and projects linked to them; progress under the year ruler on Today; Goal picker in the task and project editors | 6 |
 | **links** | private, opt-in public | bookmarks with tags; title/description/favicon fetched on save; public ones feed `/links` | 3 |
-| **feedback** | public form + private inbox | anonymous complaints/suggestions, optional contact; statuses, reply notes, Telegram alert | 3 |
+| **feedback** | public forms + private inbox | anonymous complaints/suggestions, optional contact; statuses, reply notes, Telegram alert. Contact form (`/contact`): named job offers and projects, new / replied / archived, Reply by email, Telegram alert with Replied / Archive | 3 |
 | **tools** | public + saved results | calories (Mifflin–St Jeor BMR, TDEE, macros), basic calculator, statistics (mean, median, SD, percentiles from pasted numbers), compound growth. Pure client-side math with unit tests | 3 |
 | **files** | private | knowledge base: uploads to object storage, folders + tags, markdown documents, previews, full-text search (PDF text extraction later) | 4 |
 | **calendar** | private | events with recurrence and reminders, important dates; private ICS feed; Google Calendar import later | 4 |
@@ -285,7 +297,7 @@ Only labelled services can be touched; `db`, the edge `caddy`, `ops-agent` itsel
   = `bot-expenses:<id>`); the `bot_expenses` schema stays as an archive.
 - **osbot** (`bots/osbot/`): Anwar's own bot for the platform. Quick capture
   (forward a message → Inbox by default, or task / note / link / idea), `/today`,
-  calendar reminders, feedback alerts and server alerts (every 5 min, state in
+  calendar reminders, feedback and contact-form alerts and server alerts (every 5 min, state in
   `ops_alert_state`, rules shared with Ops → Server; DEPLOY.md §19). Unlike the other
   bots it has **no database role**: it calls the web app's internal API
   (`/api/internal/osbot/*`, `src/modules/osbot/`), HMAC-signed with
@@ -295,7 +307,7 @@ Only labelled services can be touched; `db`, the edge `caddy`, `ops-agent` itsel
   `runModuleAction()` and RLS work exactly as for a signed-in owner. Only
   `OSBOT_OWNER_CHAT_ID` is served. Its heartbeat goes through the same API
   (`osbot_heartbeats`, shown in Settings → Telegram); while it is fresh, web
-  leaves feedback alerts to the bot, otherwise web notifies directly.
+  leaves feedback and contact alerts to the bot, otherwise web notifies directly.
 - Stats views of a bot's own schema (`<schema>.stats_daily`, …) are granted to
   `os_app` read-only; osbot and the expense bot report a heartbeat through their
   API instead (Bots stats sources `osbot`, `budget-bot`).

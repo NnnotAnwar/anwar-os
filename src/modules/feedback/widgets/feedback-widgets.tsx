@@ -9,16 +9,34 @@ const rowClass =
   "flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 -mx-2 outline-none hover:bg-track focus-visible:ring-3 focus-visible:ring-ring/50"
 
 export async function NewFeedback({ ctx }: { ctx: ViewerContext }) {
-  const [counts, items] = await Promise.all([
+  const [counts, items, contact] = await Promise.all([
     actions.counts.handler({}),
     actions.list.handler({ filter: "new", limit: 3 }),
+    actions.contactCounts.handler({}),
   ])
+  const contactLine =
+    contact.new > 0 ? (
+      <NextLink
+        href="/app/feedback/contact?status=new"
+        className="text-meta self-start rounded text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        {contact.new === 1 ? "1 contact message" : `${contact.new} contact messages`} waiting for a reply
+      </NextLink>
+    ) : null
   if (counts.new === 0) {
-    return <p className="text-meta text-muted-foreground">All caught up — nothing new is waiting for you.</p>
+    return contactLine ? (
+      <div className="grid gap-1">
+        {contactLine}
+        <p className="text-caption text-muted-foreground">No new feedback.</p>
+      </div>
+    ) : (
+      <p className="text-meta text-muted-foreground">All caught up — nothing new is waiting for you.</p>
+    )
   }
   const now = new Date()
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+      {contactLine}
       <NextLink
         href="/app/feedback?status=new"
         className="flex items-baseline gap-1.5 self-start rounded outline-none focus-visible:ring-3 focus-visible:ring-ring/50"

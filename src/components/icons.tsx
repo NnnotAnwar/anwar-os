@@ -214,3 +214,6 @@ export const Plant = bold(P.Plant)
 export const Archive = bold(P.Archive)
 // goals
 export const Minus = bold(P.Minus)
+// contact form
+export const Envelope = bold(P.Envelope)
+export const ArrowBendUpLeft = bold(P.ArrowBendUpLeft)

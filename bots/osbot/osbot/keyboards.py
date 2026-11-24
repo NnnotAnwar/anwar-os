@@ -75,6 +75,13 @@ class FeedbackCb(CallbackData, prefix="fb"):
     status: str
 
 
+class ContactCb(CallbackData, prefix="ct"):
+    """Set the contact message's status (replied, archived, new = Undo)."""
+
+    id: str
+    status: str
+
+
 class RetryCb(CallbackData, prefix="rt"):
     """Try a failed request again: today | cap (with `kind`, the message it replies to)."""
 
@@ -251,4 +258,16 @@ def feedback_keyboard(item_id: str, url: str | None, status: str = "new", previo
         actions = [_button("✓ Mark read", FeedbackCb(id=item_id, status="read")), _button("🚫 Spam", FeedbackCb(id=item_id, status="spam"))]
     else:
         actions = [_button("↩ Undo", FeedbackCb(id=item_id, status=previous))]
+    return _rows([url_button("↗ Open", url), *actions])
+
+
+def contact_keyboard(item_id: str, url: str | None, status: str = "new", previous: str = "new") -> InlineKeyboardMarkup | None:
+    """New: Replied / Archive. After either: Undo (back to `previous`). Telegram buttons can't open mailto:, so Open leads to the app."""
+    if status == "new":
+        actions = [
+            _button("✓ Replied", ContactCb(id=item_id, status="replied")),
+            _button("🗄 Archive", ContactCb(id=item_id, status="archived")),
+        ]
+    else:
+        actions = [_button("↩ Undo", ContactCb(id=item_id, status=previous))]
     return _rows([url_button("↗ Open", url), *actions])
