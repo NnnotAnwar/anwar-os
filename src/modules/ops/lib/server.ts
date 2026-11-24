@@ -334,4 +334,5 @@ export const alertKindLabels: Record<OpsAlertKind, { label: string; description:
   container: { label: "Services", description: "A container is down, unhealthy or restarting" },
   reboot: { label: "Reboot", description: `A reboot has been pending for more than ${LIMITS.rebootAlertHours / 24} days` },
   agent: { label: "Agent", description: "ops-agent can't be reached, so nothing else can be checked" },
+  files: { label: "Files storage", description: "The weekly check finds lost, damaged or orphaned files, or didn't run" },
 }

@@ -3,6 +3,7 @@ import {
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3"
@@ -90,6 +91,36 @@ export async function statObject(key: string): Promise<{ size: number; mime: str
     if (status === 404 || status === 403) return null
     throw error
   }
+}
+
+/** Size and last change as stored, or null when there is no such object (the files storage check). */
+export async function headObject(key: string): Promise<{ size: number; lastModified: Date | null } | null> {
+  const { client, bucket } = storage()
+  try {
+    const head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }))
+    return { size: head.ContentLength ?? 0, lastModified: head.LastModified ?? null }
+  } catch (error) {
+    const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
+    if (status === 404) return null
+    throw error
+  }
+}
+
+/**
+ * Every object in the bucket, 1000 per request (ListObjectsV2 pages). Unlike
+ * removeObjects this throws: the storage check must not mistake a failed
+ * listing for an empty bucket.
+ */
+export async function* listObjects(): AsyncGenerator<{ key: string; size: number; lastModified: Date | null }> {
+  const { client, bucket } = storage()
+  let token: string | undefined
+  do {
+    const page = await client.send(new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: token, MaxKeys: 1000 }))
+    for (const o of page.Contents ?? []) {
+      if (o.Key) yield { key: o.Key, size: o.Size ?? 0, lastModified: o.LastModified ?? null }
+    }
+    token = page.IsTruncated ? page.NextContinuationToken : undefined
+  } while (token)
 }
 
 /**
