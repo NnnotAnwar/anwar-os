@@ -48,6 +48,10 @@ const env: NodeJS.ProcessEnv = {
   GOOGLE_CLIENT_ID: "",
   GOOGLE_CLIENT_SECRET: "",
   OSBOT_TOKEN: "",
+  // ops-agent: e2e/ops-server.spec.ts starts a fake one on this port while it
+  // runs; for every other spec nothing listens there ("can't reach the agent").
+  OPS_AGENT_URL: `http://127.0.0.1:${Number(process.env.E2E_OPS_AGENT_PORT ?? 3399)}`,
+  OPS_AGENT_SECRET: randomBytes(32).toString("hex"),
   NEXT_TELEMETRY_DISABLED: "1",
   NODE_ENV: "production",
 }

@@ -5,7 +5,9 @@ import { asViewer, requireViewer, type Viewer } from "@/core/auth"
 import { defineAction } from "@/core/module"
 import { opsEvents } from "@/db/schema"
 import { agentRequest, isAgentError, offlineMessage } from "./agent"
+import { alertSettingsInput, getAlertSettings, saveAlertSettings, type AlertSettings } from "./alerts"
 import { imageTags, type TagsResult } from "./ghcr"
+import { loadServerStatus, type ServerStatus } from "./host"
 import {
   controlInput,
   deployInput,
@@ -210,6 +212,32 @@ export const actions = {
       if (res.status !== 200 || isAgentError(res.data)) return { ok: false, error: "Unknown service." }
       return imageTags(res.data.image, res.data.tag)
     },
+  }),
+
+  server: defineAction({
+    description:
+      "The server's vital signs: disk, memory and swap, load, uptime, kernel, pending reboot, Docker disk usage, the last backup and the TLS certificate expiry of every site the edge serves.",
+    kind: "read",
+    input: z.object({}),
+    handler: async (): Promise<ServerStatus> => {
+      await requireOwner()
+      return loadServerStatus()
+    },
+  }),
+
+  alertSettings: defineAction({
+    description: "Which server alerts osbot sends (kinds switched off) and whether they are muted until a time.",
+    kind: "read",
+    input: z.object({}),
+    handler: async (): Promise<AlertSettings> => getAlertSettings(),
+  }),
+
+  updateAlertSettings: defineAction({
+    description:
+      "Switch server alert kinds off or on (disk, memory, backup, cert, container, reboot, agent) and mute all of them until a time (null = unmute).",
+    kind: "write",
+    input: alertSettingsInput,
+    handler: async (input): Promise<AlertSettings> => saveAlertSettings(input),
   }),
 
   events: defineAction({

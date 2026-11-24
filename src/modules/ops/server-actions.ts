@@ -3,7 +3,9 @@
 import { refresh } from "next/cache"
 import type { z } from "zod"
 import { actions, type ControlResult, type DeployResult } from "./actions"
+import { alertSettingsInput, type AlertSettings } from "./alerts"
 import type { TagsResult } from "./ghcr"
+import type { ServerStatus } from "./host"
 import { controlInput, deployInput, eventsInput, logsInput, tagsInput, type LogLine, type OpsEvent, type ServicesResult } from "./schema"
 
 const OFFLINE = "That didn't reach the server. Check your connection and try again."
@@ -64,6 +66,26 @@ export async function loadTags(input: unknown): Promise<TagsResult> {
   try {
     return await actions.tags.handler(data)
   } catch {
+    return { ok: false, error: OFFLINE }
+  }
+}
+
+/** Polled by the Server section (every minute while visible). */
+export async function pollServer(): Promise<ServerStatus | null> {
+  try {
+    return await actions.server.handler({})
+  } catch {
+    return null
+  }
+}
+
+export async function updateAlertSettings(input: unknown): Promise<{ ok: true; settings: AlertSettings } | { ok: false; error: string }> {
+  const data = await parse(alertSettingsInput, input)
+  if (!data) return { ok: false, error: "Those settings aren't valid." }
+  try {
+    return { ok: true, settings: await actions.updateAlertSettings.handler(data) }
+  } catch (e) {
+    console.error("ops alert settings failed", e)
     return { ok: false, error: OFFLINE }
   }
 }
