@@ -209,3 +209,5 @@ export const ImageSquare = bold(P.ImageSquare)
 export const CloudSlash = bold(P.CloudSlash)
 export const CloudArrowUp = bold(P.CloudArrowUp)
 export const WarningCircle = bold(P.WarningCircle)
+// goals
+export const Minus = bold(P.Minus)
