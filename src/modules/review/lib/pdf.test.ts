@@ -1,5 +1,7 @@
+import fontkit from "@pdf-lib/fontkit"
 import { PDFDocument } from "pdf-lib"
 import { describe, expect, it } from "vitest"
+import { INTER_BOLD, INTER_REGULAR } from "../fonts/inter"
 import type { MonthlyReport } from "../schema"
 import { pdfSafe, renderReportPdf } from "./pdf"
 
@@ -24,6 +26,7 @@ const report: MonthlyReport = {
     categories: [
       { name: "Potraviny a drogérie", color: null, amountMinor: 8_000_00, previousMinor: 6_000_00 },
       { name: "Café ☕", color: null, amountMinor: 4_400_00, previousMinor: 4_000_00 },
+      { name: "Продукты", color: null, amountMinor: 1_000_00, previousMinor: 0 },
     ],
     changes: [{ name: "Potraviny a drogérie", color: null, amountMinor: 8_000_00, previousMinor: 6_000_00 }],
     otherCurrencies: [{ currency: "EUR", expenseMinor: 12_99, incomeMinor: 0 }],
@@ -42,7 +45,18 @@ describe("pdfSafe", () => {
   it("keeps what the font has, drops accents it lacks, and replaces the rest", () => {
     expect(pdfSafe("Café", latin1)).toBe("Café")
     expect(pdfSafe("Řeřicha čaj", latin1)).toBe("Rericha caj")
-    expect(pdfSafe("Coffee ☕", latin1)).toBe("Coffee ?")
+    expect(pdfSafe("Coffee ☕ to go", latin1)).toBe("Coffee to go")
+    expect(pdfSafe("☕ Coffee", latin1)).toBe("Coffee")
+    expect(pdfSafe("Кофе", latin1)).toBe("????")
+  })
+
+  it("keeps Czech, Russian and the punctuation the report uses with the embedded Inter", () => {
+    for (const data of [INTER_REGULAR, INTER_BOLD]) {
+      const font = fontkit.create(Buffer.from(data, "base64"))
+      const supported = new Set(font.characterSet)
+      const text = "Potraviny a drogérie · Řeřicha čaj · Продукты и ЖКХ — «ёлка» №5 · +12% · Kč 1 547,00 € ✓"
+      expect(pdfSafe(text, supported)).toBe("Potraviny a drogérie · Řeřicha čaj · Продукты и ЖКХ — «ёлка» №5 · +12% · Kč 1 547,00 €")
+    }
   })
 })
 

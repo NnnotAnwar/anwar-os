@@ -1,9 +1,12 @@
-// The monthly report as a one- or two-page A4 PDF. pdf-lib with the built-in
-// Helvetica: pure JS, no browser, no font files, so it renders the same in the
-// arm64 production image and in tests. Helvetica only has Latin-1 (WinAnsi):
-// other letters lose their accents ("č" → "c"), anything else becomes "?".
+// The monthly report as a one- or two-page A4 PDF. pdf-lib with Inter embedded
+// (../fonts/inter.ts: Latin with Czech, Cyrillic, common punctuation; only the
+// glyphs used end up in the file): pure JS, no browser, so it renders the same
+// in the arm64 production image and in tests. What Inter lacks is replaced:
+// a letter from another script becomes "?", emoji and other symbols are dropped.
 
-import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib"
+import fontkit from "@pdf-lib/fontkit"
+import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib"
+import { INTER_BOLD, INTER_REGULAR } from "../fonts/inter"
 import { formatMoney } from "@/modules/budget/lib/money"
 import { percentChange } from "./compare"
 import type { MonthlyReport } from "../schema"
@@ -18,7 +21,11 @@ const BAR = rgb(0.84, 0.82, 0.98)
 
 type Fonts = { regular: PDFFont; bold: PDFFont }
 
-/** Replaces what Helvetica can't draw: accents dropped, the rest "?". */
+/**
+ * Replaces what the font can't draw: a missing accent is dropped ("ǹ" → "n"),
+ * a letter or digit of another script becomes "?", and emoji and other symbols
+ * go (with the space they leave).
+ */
 export function pdfSafe(text: string, supported: Set<number>): string {
   let out = ""
   for (const ch of text.normalize("NFC")) {
@@ -27,10 +34,11 @@ export function pdfSafe(text: string, supported: Set<number>): string {
       out += ch
       continue
     }
-    const plain = ch.normalize("NFKD").replace(/[̀-ͯ]/g, "")
-    out += [...plain].every((c) => supported.has(c.codePointAt(0)!)) && plain ? plain : "?"
+    const plain = ch.normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    if (plain && [...plain].every((c) => supported.has(c.codePointAt(0)!))) out += plain
+    else if (/[\p{L}\p{N}]/u.test(ch)) out += "?"
   }
-  return out
+  return out.replace(/ {2,}/g, " ").trim()
 }
 
 class Writer {
@@ -129,7 +137,11 @@ function vs(current: number, previous: number, previousLabel: string, format: (v
 /** The report as PDF bytes. `generatedAt` is printed in the footer. */
 export async function renderReportPdf(report: MonthlyReport, generatedAt = new Date()): Promise<Uint8Array> {
   const doc = await PDFDocument.create()
-  const fonts = { regular: await doc.embedFont(StandardFonts.Helvetica), bold: await doc.embedFont(StandardFonts.HelveticaBold) }
+  doc.registerFontkit(fontkit)
+  const fonts = {
+    regular: await doc.embedFont(Buffer.from(INTER_REGULAR, "base64"), { subset: true }),
+    bold: await doc.embedFont(Buffer.from(INTER_BOLD, "base64"), { subset: true }),
+  }
   doc.setTitle(`Monthly report · ${report.label}`)
   doc.setAuthor("anwar.os")
   doc.setCreator("anwar.os")
