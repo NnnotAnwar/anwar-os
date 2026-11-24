@@ -175,3 +175,25 @@ class OsbotApi:
     async def ack_monthly(self, month: str) -> int:
         data = await self._request("POST", "/monthly/ack", payload={"month": month})
         return int(data["acked"])
+
+    # --- habits (habits.py) -------------------------------------------------------
+
+    async def habits(self, date: str | None = None) -> dict[str, Any]:
+        """The /habits card for `date` (YYYY-MM-DD, default today):
+        {"date", "today", "label", "habits": [{"id", "name", "emoji", "done", "current"}], "done", "total", "url"}"""
+        return await self._request("GET", "/habits", params={"date": date} if date else None)
+
+    async def toggle_habit(self, habit_id: str, date: str | None = None) -> dict[str, Any]:
+        """Flips one habit for `date` (default today); returns {"toggled": {"id", "done", "name"}, …that day's card}."""
+        payload: dict[str, Any] = {"id": habit_id}
+        if date:
+            payload["date"] = date
+        return await self._request("POST", "/habits/toggle", payload=payload)
+
+    async def habit_nudges(self) -> dict[str, Any]:
+        """{"date", "reminders": [{"id", "name", "emoji", "time"}], "evening": {"time", "habits"} | None, "url"}"""
+        return await self._request("GET", "/habits/nudges")
+
+    async def ack_habit_nudges(self, date: str, reminders: list[str], evening: bool) -> int:
+        data = await self._request("POST", "/habits/nudges/ack", payload={"date": date, "reminders": reminders, "evening": evening})
+        return int(data["acked"])

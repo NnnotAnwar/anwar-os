@@ -86,7 +86,7 @@ def test_build_dispatcher_wires_api_targets_and_routers():
     assert dp["app_url"] == "https://os.example"
     assert isinstance(dp["reminders"], ReminderMemory)
     assert isinstance(dp["weekly"], WeeklyMemory)
-    assert [r.name for r in dp.sub_routers] == ["menu", "today", "weekly", "monthly", "alerts", "capture", "fallback"]
+    assert [r.name for r in dp.sub_routers] == ["menu", "today", "weekly", "monthly", "habits", "alerts", "capture", "fallback"]
     # Routers are built per dispatcher, so a second one works too.
     assert len(app.build_dispatcher(api, OWNER).sub_routers) == 7
 

@@ -19,6 +19,8 @@ private bot."
 | `/month` `[last \| YYYY-MM]` | the monthly report (this month so far by default), with ↗ Open in app, 📄 PDF and 🔄 Refresh |
 | payment reminders | from 10:00 the day before a recurring expense charges: `💳 Tomorrow: Netflix · 299 CZK` (several: one list with the total), ↗ Subscriptions |
 | budget limits | once a category reaches 90 % of its monthly limit (Budget → Limits): `⚠️ Food: 92 % of the monthly limit` with what's left and, when it heads past the limit, the month-end pace; once it's used up: `🔴 Food: monthly limit used up` and by how much; each once per category and month (a jump straight past 100 % sends only the second), ↗ Limits |
+| `/habits` | today's habits as buttons (`✅ 🧘 Stretch · 🔥 4` / `⬜ Read`): a tap ticks one off or back and the card redraws with the new streaks; ↗ Open in app, 🔄 Refresh. Buttons carry their day, so an old card changes its own day |
+| habit reminders | at a habit's own reminder time, if it isn't done yet: `⏰ Time for 🧘 Stretch` with a tick button; the evening nudge (off unless switched on in Habits) lists what's still open. Once a day each; nothing when all is done (`habits.py`) |
 | weekly review | Sundays from 19:00, once: tasks done / added / overdue, 🎯 focus (top 3 due or overdue), next week's calendar, spending vs last week with top categories and the Budget plan, payments next week, new ideas / notes / links / feedback; ↗ Open in app, 💤 1 h, ⏭ Skip |
 | monthly report | the 1st from 10:00, once, for last month: spending vs the month before with top categories and the biggest changes, income and net, subscriptions a month, tasks done / added, new notes / ideas / links / feedback, site views with top pages. Its PDF is filed into Files → Reports first; ↗ Open in app, 📄 PDF |
 
@@ -66,10 +68,13 @@ any mismatch, then acts as the site owner with row-level security on.
 | `GET monthly?month=` | the monthly report (`YYYY-MM`, default this month so far), with `delivered` |
 | `POST monthly/pdf` | `{ month }`: saves its PDF into Files → Reports (replacing that month's copy); `{ saved, fileId, name, url }`, `saved: false` without object storage |
 | `POST monthly/ack` | `{ month }` once the report on the 1st is sent: idempotent |
+| `GET habits?date=` | the day's habits (default today) for the `/habits` card: `{ date, label, habits: [{ id, name, emoji, done, current }], done, total, url }` |
+| `POST habits/toggle` | `{ id, date? }`: flips one habit for that day, returns `toggled` plus the day's card |
+| `GET habits/nudges`, `POST habits/nudges/ack` | habit reminders and the evening nudge due now; `{ date, reminders: [ids], evening }` once sent |
 | `POST ops-alerts/check`, `POST ops-alerts/ack` | server alerts (`osbot/ops_alerts.py`): what started or stopped being wrong since the owner was last told; `{ items: [{ key, event }] }` once sent |
 
 Loops run once a minute, just after the minute turns: heartbeat, reminders,
-feedback, payments, weekly (`digest.py`), monthly (`monthly.py`), budget limits (`budget_limits.py`). Each item is sent first and acknowledged after, so a crash can repeat
+feedback, payments, weekly (`digest.py`), monthly (`monthly.py`), budget limits (`budget_limits.py`), habits (`habits.py`). Each item is sent first and acknowledged after, so a crash can repeat
 one message but never lose one. While the heartbeat is fresh, the web app stops
 sending its own direct feedback alerts and leaves them to osbot.
 
