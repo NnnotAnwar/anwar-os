@@ -406,17 +406,17 @@ export const actions = {
 
   search: defineAction({
     description:
-      "Search the knowledge base: folder names, file names, descriptions and tags, and document titles and text. Case-insensitive substring match.",
+      "Search the knowledge base: folder names, file names, descriptions and tags, and document titles and text. Case-insensitive substring match (also within tags).",
     kind: "read",
     input: searchInput,
     handler: ({ query, limit }): Promise<SearchResult[]> =>
       asViewer(async (tx) => {
         const pattern = likeContains(query)
-        const tag = query.toLowerCase()
         const fileMatch: SQL = or(
           ilike(filesFiles.name, pattern),
           ilike(filesFiles.description, pattern),
-          sql`${tag} = any(${filesFiles.tags})`,
+          // Part of a tag counts too ("tax" finds #taxes).
+          sql`exists (select 1 from unnest(${filesFiles.tags}) tag where tag ilike ${pattern})`,
         )!
         const [folders, files, documents, allFolders] = await Promise.all([
           tx.select(folderColumns).from(filesFolders).where(ilike(filesFolders.name, pattern)).limit(limit),

@@ -14,6 +14,7 @@ import {
   budgetTransactions as t,
 } from "@/db/schema"
 import { likeContains } from "@/lib/sql-like"
+import { amountQuery } from "./lib/amount-search"
 import { dedupeKey, markDuplicates } from "./lib/csv"
 import { monthOf, monthRange, todayIn } from "./lib/dates"
 import { savingsRate } from "./lib/money"
@@ -170,6 +171,8 @@ async function loadTransactions(tx: Tx, input: z.infer<typeof listTransactionsIn
   const from = input.from ?? range?.from
   const to = input.to ?? range?.to
   const pattern = input.query ? likeContains(input.query) : null
+  // "250" also finds the amount (abs(amount_minor) is indexed: db/modules/search.sql).
+  const amount = input.query ? amountQuery(input.query) : null
   return tx
     .select(transactionColumns)
     .from(t)
@@ -187,6 +190,12 @@ async function loadTransactions(tx: Tx, input: z.infer<typeof listTransactionsIn
               ilike(t.note, pattern),
               ilike(c.name, pattern),
               sql`exists (select 1 from unnest(${t.tags}) tag where tag ilike ${pattern})`,
+              amount
+                ? and(
+                    sql`abs(${t.amountMinor}) between ${amount.min} and ${amount.max}`,
+                    amount.sign === "-" ? sql`${t.amountMinor} < 0` : amount.sign === "+" ? sql`${t.amountMinor} > 0` : undefined,
+                  )
+                : undefined,
             )
           : undefined,
       ),

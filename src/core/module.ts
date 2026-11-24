@@ -42,13 +42,26 @@ export type WidgetDef = {
 }
 
 export type SearchHit = {
+  /** Unique within the module. */
   id: string
   title: string
+  /** Why it matched: a short excerpt around the match (highlighted in the UI). */
   snippet?: string
+  /** Facts about the item, shown small: a date, its list or folder, a status. */
+  meta?: string[]
+  /** A figure shown on the right in tabular numbers, e.g. an amount. */
+  aside?: string
+  /** Opens the item itself, not just its module. */
   href: string
 }
 
-/** Global search (⌘K) asks every module the viewer can use for matches. */
+/**
+ * Global search (⌘K, the phone search sheet) asks every module the viewer can
+ * use for matches. Runs as the viewer (RLS applies); providers must still filter
+ * to the viewer's own rows where a table has a "read published" policy, so the
+ * site owner's public rows never show up as someone else's. Return at most
+ * `limit` hits, best first; the shell ranks them again across modules.
+ */
 export type SearchProvider = (query: string, limit: number) => Promise<SearchHit[]>
 
 /** One option inside a service card: a section, a filtered view, a public page. */

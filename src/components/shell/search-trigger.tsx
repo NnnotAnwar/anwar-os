@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react"
 import { Search } from "@/components/icons"
 import { Kbd } from "@/components/ui/kbd"
 import { cn } from "@/lib/utils"
-import { openCommandPalette } from "./command-events"
+import { openCommandPalette, openSearchSheet } from "./command-events"
 
 const subscribe = () => () => {}
 const isMac = () => /Mac|iPhone|iPad/.test(navigator.platform)
@@ -31,15 +31,17 @@ export function SearchTrigger({ className }: { className?: string }) {
   )
 }
 
+/** Phones: opens the full-screen search sheet (a 44px target). */
 export function SearchIconTrigger() {
   return (
     <button
       type="button"
-      onClick={openCommandPalette}
+      onClick={openSearchSheet}
       aria-label="Search"
-      className="flex size-9 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+      aria-haspopup="dialog"
+      className="flex size-11 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
     >
-      <Search className="size-[18px]" aria-hidden />
+      <Search className="size-5" aria-hidden />
     </button>
   )
 }

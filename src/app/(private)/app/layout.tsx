@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import { House, Plus, Settings, SquaresFour, SunHorizon } from "@/components/icons"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CommandPalette } from "@/components/shell/command-palette"
+import { SearchSheet } from "@/components/search/search-sheet"
 import { CreateMenu } from "@/components/shell/create-menu"
 import { KeyboardShortcuts } from "@/components/shell/keyboard-shortcuts"
 import { ServiceWorker } from "@/components/pwa/service-worker"
@@ -80,6 +81,9 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
       </Suspense>
       <Suspense fallback={null}>
         <Palette />
+      </Suspense>
+      <Suspense fallback={null}>
+        <PhoneSearch />
       </Suspense>
       <Suspense fallback={null}>
         <Shortcuts />
@@ -163,7 +167,18 @@ async function Palette() {
     { label: "Settings", href: "/app/settings", icon: <Settings /> },
   ]
   const creates = mods.flatMap((m) => (m.create ? [{ ...m.create, icon: <Plus /> }] : []))
-  return <CommandPalette nav={nav} creates={creates} />
+  return <CommandPalette nav={nav} creates={creates} modules={searchModules(mods)} />
+}
+
+/** The services global search covers, for its filter chips and result groups. */
+function searchModules(mods: Awaited<ReturnType<typeof visibleModules>>["mods"]) {
+  return mods.filter((m) => m.search).map((m) => ({ id: m.id, name: m.name, icon: <m.icon /> }))
+}
+
+/** Phones: the header's search icon opens this full-screen sheet. */
+async function PhoneSearch() {
+  const { mods } = await visibleModules()
+  return <SearchSheet modules={searchModules(mods)} />
 }
 
 /** `g` + letter: Today, Services, then each module by its first free letter. */
