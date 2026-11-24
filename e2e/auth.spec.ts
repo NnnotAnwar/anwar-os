@@ -1,7 +1,7 @@
 // Password sign-in, then two-factor: set up TOTP in Settings with a code computed
 // here from the key the page shows, sign in with a code, then with a backup code.
 import { expect, test } from "@playwright/test"
-import { adminDb, createUser, signInWithPassword, totp } from "./support"
+import { adminDb, createUser, settled, signInWithPassword, totp } from "./support"
 
 const admin = adminDb()
 let user: Awaited<ReturnType<typeof createUser>>
@@ -24,6 +24,7 @@ test("a wrong password is refused without saying which part was wrong", async ({
 test("private pages send signed-out visitors to sign in, and back afterwards", async ({ page }) => {
   await page.goto("/app/notes")
   await expect(page).toHaveURL(/\/login\?next=%2Fapp%2Fnotes$/)
+  await settled(page)
   await page.getByLabel("Email").fill(user.email)
   await page.getByLabel("Password").fill(user.password)
   await page.getByRole("button", { name: "Sign in", exact: true }).click()
