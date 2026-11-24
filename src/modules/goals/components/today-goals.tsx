@@ -30,7 +30,7 @@ export async function TodayGoals({ today }: { today: CalendarDate }) {
           All goals
         </Link>
       </div>
-      <ul className="grid gap-x-6 gap-y-0.5 md:grid-cols-2">
+      <ul className="grid grid-cols-1 gap-x-6 gap-y-0.5 md:grid-cols-2">
         {goals.map((goal) => {
           const pct = percent(goal.progress)
           const p = pace(goal.progress, goal.status, elapsed)
@@ -38,7 +38,7 @@ export async function TodayGoals({ today }: { today: CalendarDate }) {
             <li key={goal.id}>
               <Link
                 href={`/app/goals/${goal.id}`}
-                className="press -mx-2 grid min-h-11 content-center gap-1.5 rounded-lg px-2 py-1.5 outline-none hover:bg-track focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="press -mx-2 grid min-h-11 grid-cols-1 content-center gap-1.5 rounded-lg px-2 py-1.5 outline-none hover:bg-track focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <span className="flex items-baseline gap-2">
                   <span className="text-body min-w-0 flex-1 truncate">{goal.title}</span>

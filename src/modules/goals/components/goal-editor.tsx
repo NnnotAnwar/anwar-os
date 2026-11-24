@@ -296,7 +296,6 @@ export function GoalEditor({
             id={id}
             goal={shown}
             measured={target !== null}
-            unit={value.unit}
             elapsed={value.year === thisYear ? elapsed : null}
             locale={locale}
             flush={flush}
@@ -315,7 +314,6 @@ function ProgressCard({
   id,
   goal,
   measured,
-  unit,
   elapsed,
   locale,
   flush,
@@ -326,7 +324,6 @@ function ProgressCard({
   id: string
   goal: Goal
   measured: boolean
-  unit: string
   elapsed: number | null
   locale: string
   /** Saves a just-typed target first, so the server counts against it. */
@@ -381,7 +378,7 @@ function ProgressCard({
             className="size-11 md:size-9"
             onClick={() => log(-1)}
             disabled={pending || goal.currentValue <= 0}
-            aria-label="Take 1 off"
+            aria-label="Take one off"
           >
             <Minus />
           </Button>
@@ -408,9 +405,9 @@ function ProgressCard({
             className="h-11 md:h-9"
             onClick={() => log(1)}
             disabled={pending}
-            aria-label={`Add 1${unit ? ` ${unit}` : ""}`}
+            aria-label="Log one more"
           >
-            <Plus />1{unit ? ` ${unit}` : ""}
+            <Plus />1
           </Button>
         </div>
       )}

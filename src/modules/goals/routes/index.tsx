@@ -80,34 +80,36 @@ async function Goals({ searchParams }: Pick<PageProps<"/app/goals">, "searchPara
         description={description}
       />
 
-      <nav aria-label="Year" className="flex items-center gap-1">
-        <YearLink year={year - 1} disabled={year - 1 < Math.min(firstYear, today.year - 1)} current={today.year} status={status} label="Previous year">
-          <ChevronLeft />
-        </YearLink>
-        <span className="text-heading min-w-16 text-center font-display tabular-nums" aria-current="page">
-          {year}
-        </span>
-        <YearLink year={year + 1} disabled={year + 1 > lastYear} current={today.year} status={status} label="Next year">
-          <ChevronRight />
-        </YearLink>
-        {year !== today.year && (
-          <Link
-            href={href(today.year, today.year, status)}
-            transitionTypes={NAV_TAB}
-            className="text-caption ml-1 rounded px-2 py-3 text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            Back to {today.year}
-          </Link>
-        )}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+        <nav aria-label="Year" className="flex items-center gap-1">
+          <YearLink year={year - 1} disabled={year - 1 < Math.min(firstYear, today.year - 1)} current={today.year} status={status} label="Previous year">
+            <ChevronLeft />
+          </YearLink>
+          <span className="text-heading min-w-16 text-center font-display tabular-nums" aria-current="page">
+            {year}
+          </span>
+          <YearLink year={year + 1} disabled={year + 1 > lastYear} current={today.year} status={status} label="Next year">
+            <ChevronRight />
+          </YearLink>
+          {year !== today.year && (
+            <Link
+              href={href(today.year, today.year, status)}
+              transitionTypes={NAV_TAB}
+              className="text-caption ml-1 rounded px-2 py-3 text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              Back to {today.year}
+            </Link>
+          )}
+        </nav>
         {total > 0 && (
-          <div className="segmented ml-auto" role="group" aria-label="Show">
+          <div className="segmented max-sm:w-full sm:ml-auto" role="group" aria-label="Show">
             {([null, ...goalStatuses] as const).map((s) => (
               <Link
                 key={s ?? "all"}
                 href={href(year, today.year, s)}
                 aria-current={status === s ? "page" : undefined}
                 className={cn(
-                  "text-small flex h-9 items-center rounded-lg px-2.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8",
+                  "text-small flex h-9 items-center justify-center rounded-lg px-2.5 text-muted-foreground max-sm:flex-1 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8",
                   status === s && "segment-active text-foreground",
                 )}
               >
@@ -116,7 +118,7 @@ async function Goals({ searchParams }: Pick<PageProps<"/app/goals">, "searchPara
             ))}
           </div>
         )}
-      </nav>
+      </div>
 
       {year >= today.year && status !== "done" && status !== "dropped" && <QuickAddGoal year={year} />}
 

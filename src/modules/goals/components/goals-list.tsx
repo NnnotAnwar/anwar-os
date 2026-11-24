@@ -288,10 +288,10 @@ function GoalCard({
               size="sm"
               onClick={logOne}
               disabled={pending}
-              aria-label={`Add 1${unit ? ` ${unit}` : ""} to ${goal.title}`}
+              aria-label={`Log one more for ${goal.title}`}
               className="h-11 min-w-11 md:h-8"
             >
-              <Plus />1{unit ? ` ${unit}` : ""}
+              <Plus />1
             </Button>
           )}
         </div>
