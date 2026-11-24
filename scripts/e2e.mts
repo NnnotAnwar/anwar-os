@@ -52,6 +52,8 @@ const env: NodeJS.ProcessEnv = {
   // runs; for every other spec nothing listens there ("can't reach the agent").
   OPS_AGENT_URL: `http://127.0.0.1:${Number(process.env.E2E_OPS_AGENT_PORT ?? 3399)}`,
   OPS_AGENT_SECRET: randomBytes(32).toString("hex"),
+  // No Claude: the assistant and receipt photos show their "add ANTHROPIC_API_KEY" state.
+  ANTHROPIC_API_KEY: "",
   NEXT_TELEMETRY_DISABLED: "1",
   NODE_ENV: "production",
 }

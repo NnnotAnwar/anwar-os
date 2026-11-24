@@ -201,3 +201,8 @@ export const BellSlash = bold(P.BellSlash)
 export const PenNib = bold(P.PenNib)
 export const DeviceTablet = bold(P.DeviceTablet)
 export const ChartBar = bold(P.ChartBar)
+// assistant + receipt photos
+export const Sparkle = bold(P.Sparkle)
+export const Camera = bold(P.Camera)
+export const ImageSquare = bold(P.ImageSquare)
+export const WarningCircle = bold(P.WarningCircle)

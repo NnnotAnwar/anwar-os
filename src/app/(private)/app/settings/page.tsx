@@ -7,6 +7,7 @@ import { isSessionFresh, listApiTokens } from "@/core/api-tokens/server"
 import { getSignInMethods } from "@/core/sign-in-methods"
 import { TelegramStatus } from "@/modules/osbot/components/telegram-status"
 import { ApiTokens } from "./api-tokens"
+import { AssistantUsageSection } from "@/modules/assistant/components/usage-section"
 import { SignInMethods } from "./sign-in-methods"
 
 export const metadata = { title: "Settings" }
@@ -36,6 +37,9 @@ export default function SettingsPage() {
         </Suspense>
         <Suspense fallback={null}>
           <ApiTokensSection />
+        </Suspense>
+        <Suspense fallback={null}>
+          <AssistantUsageSection />
         </Suspense>
       </div>
     </Page>
