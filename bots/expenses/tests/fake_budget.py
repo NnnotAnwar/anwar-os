@@ -67,6 +67,8 @@ class FakeBudget:
     # path -> (status, body): answer this instead (e.g. to simulate an outage)
     fail: dict[str, tuple[int, dict[str, Any]]] = field(default_factory=dict)
     unsigned: int = 0
+    # GET /subscriptions answers this as is (Budget's recurring expenses; set by tests).
+    recurring: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not self.categories:
@@ -292,6 +294,9 @@ class FakeBudget:
                     )
                 )
             return {"dryRun": bool(body.get("dryRun")), "accountId": self.account_id, "imported": imported, "existing": existing}
+        if (method, path) == ("GET", "/subscriptions"):
+            empty = {"items": [], "subscriptions": [], "allRecurring": [], "url": "http://web:3000/app/budget/subscriptions"}
+            return {"today": today_local().isoformat(), "currency": self.currency, **(self.recurring or empty)}
         return None
 
     def require(self, txn_id: str) -> Txn:

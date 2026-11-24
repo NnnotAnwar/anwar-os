@@ -114,9 +114,25 @@ const recurringBase = z.object({
 })
 const endsAfterStart = (v: { startOn: string; endOn: string | null }) => !v.endOn || v.endOn >= v.startOn
 const endMessage = { message: "The end can't be before the start.", path: ["endOn"] }
-export const createRecurringInput = recurringBase.refine(endsAfterStart, endMessage)
-export const updateRecurringInput = recurringBase.extend({ id: z.uuid() }).refine(endsAfterStart, endMessage)
+// subscription: listed and totalled under Subscriptions (money out only).
+// Left out of an update, it stays as it was.
+export const createRecurringInput = recurringBase
+  .extend({ subscription: z.boolean().default(false) })
+  .refine(endsAfterStart, endMessage)
+export const updateRecurringInput = recurringBase
+  .extend({ id: z.uuid(), subscription: z.boolean().optional() })
+  .refine(endsAfterStart, endMessage)
 export const setActiveInput = z.object({ id: z.uuid(), active: z.boolean() })
+export const setSubscriptionInput = z.object({ id: z.uuid(), subscription: z.boolean() })
+/** Recurring charges between two dates (default: the next 7 days from the viewer's today). */
+export const upcomingPaymentsInput = z
+  .object({
+    from: isoDate.optional(),
+    to: isoDate.optional(),
+    days: z.number().int().min(1).max(62).default(7),
+    subscriptionsOnly: z.boolean().default(false),
+  })
+  .refine((v) => !v.from || !v.to || v.to >= v.from, { message: "The end can't be before the start.", path: ["to"] })
 
 // Goals ----------------------------------------------------------------------
 
@@ -226,6 +242,42 @@ export type Recurring = {
   nextDue: string
   endOn: string | null
   active: boolean
+  subscription: boolean
+}
+
+/** A recurring expense on the Subscriptions screen. */
+export type SubscriptionItem = Recurring & {
+  /** The next charge on or after today, or null when paused or finished. */
+  nextCharge: string | null
+  /** What it costs a month / a year, positive minor units (money out). */
+  monthlyMinor: number
+  yearlyMinor: number
+}
+
+/** What active recurring expenses cost, per currency, positive minor units. */
+export type RecurringCost = { currency: string; monthlyMinor: number; yearlyMinor: number; count: number }
+
+export type SubscriptionsData = {
+  today: string
+  baseCurrency: string
+  /** Every recurring expense: active first, by next charge. */
+  items: SubscriptionItem[]
+  /** Active subscriptions, base currency first. */
+  subscriptions: RecurringCost[]
+  /** Every active recurring expense (subscriptions included), base currency first. */
+  allRecurring: RecurringCost[]
+}
+
+/** One expected charge of a recurring expense. amountMinor is positive (money out). */
+export type UpcomingPayment = {
+  recurringId: string
+  note: string
+  amountMinor: number
+  currency: string
+  date: string
+  subscription: boolean
+  categoryName: string | null
+  accountName: string
 }
 
 export type Goal = {

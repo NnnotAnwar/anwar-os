@@ -58,6 +58,7 @@ def help_text(currency: str = DEFAULT_CURRENCY) -> str:
         "/today · /week · /month — totals, top categories, comparison with the previous period; "
         "use ◀ ▶ to move between periods\n"
         "/history — recent entries; tap one to edit or delete it\n"
+        "/subscriptions — what your subscriptions cost a month and a year, and when each charges next\n"
         "/export — this month as a CSV file\n\n"
         f"Everything lands in Budget on anwar.os ({currency}, your default account); "
         "categories are Budget's, dates are Prague time. Edits made there show up here too."

@@ -287,6 +287,11 @@ class BudgetApi:
             log.warning("range truncated by the web app", extra={"from": first.isoformat(), "to": last.isoformat()})
         return [parse_expense(x) for x in data["items"]]
 
+    async def subscriptions(self) -> dict[str, Any]:
+        """Budget's recurring expenses for /subscriptions: {"today", "currency", "items", "subscriptions",
+        "allRecurring", "url"}; amounts are positive minor units (subscriptions.py renders it)."""
+        return await self._request("GET", "/subscriptions")
+
     # --- heartbeat and import ---------------------------------------------------
 
     async def heartbeat(self, version: str, started_at: datetime) -> None:

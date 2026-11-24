@@ -3,6 +3,7 @@
 import { useState, useTransition, type FormEvent } from "react"
 import { toast } from "sonner"
 import { Pause, Play, Plus, Repeat, Trash2 } from "@/components/icons"
+import { Toggle } from "@/components/editor-fields"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { removeWithUndo } from "@/lib/undo-toast"
@@ -97,6 +98,7 @@ export function RecurringBoard({
                   <span className="text-body-strong truncate">{item.note}</span>
                   <span className="text-caption truncate text-muted-foreground">
                     {describeRule(item)} · {item.categoryName ?? "Uncategorised"} · {item.accountName}
+                    {item.subscription && " · Subscription"}
                   </span>
                 </button>
                 <span className="grid justify-items-end gap-0.5">
@@ -149,15 +151,18 @@ const freqUnit: Record<RecurringFreq, [string, string]> = {
   yearly: ["year", "years"],
 }
 
-function RecurringForm({
+export function RecurringForm({
   item,
   accounts,
   categories,
   today,
   onDone,
   onDelete,
+  defaults,
 }: {
   item: Recurring | null
+  /** For a new one: start as a subscription, in this category. */
+  defaults?: { subscription?: boolean; categoryId?: string }
   accounts: AccountOption[]
   categories: CategoryOption[]
   today: string
@@ -168,7 +173,8 @@ function RecurringForm({
   const [note, setNote] = useState(item?.note ?? "")
   const [amount, setAmount] = useState(item ? amountToInput(Math.abs(item.amountMinor)) : "")
   const [accountId, setAccountId] = useState(item?.accountId ?? accounts[0]?.id ?? "")
-  const [categoryId, setCategoryId] = useState(item?.categoryId ?? "")
+  const [categoryId, setCategoryId] = useState(item?.categoryId ?? defaults?.categoryId ?? "")
+  const [subscription, setSubscription] = useState(item?.subscription ?? defaults?.subscription ?? false)
   const [freq, setFreq] = useState<RecurringFreq>(item?.freq ?? "monthly")
   const [interval, setEvery] = useState(String(item?.interval ?? 1))
   const [startOn, setStartOn] = useState(item?.startOn ?? today)
@@ -193,6 +199,7 @@ function RecurringForm({
       startOn,
       endOn: endOn || null,
       tags: item?.tags ?? [],
+      subscription: direction === "out" && subscription,
     }
     start(async () => {
       const result = item ? await updateRecurring({ id: item.id, ...payload }) : await createRecurring(payload)
@@ -250,6 +257,14 @@ function RecurringForm({
           <Input id="rec-end" type="date" value={endOn} min={startOn} onChange={(e) => setEndOn(e.target.value)} className="dark:[color-scheme:dark]" />
         </Field>
       </div>
+      {direction === "out" && (
+        <Toggle
+          checked={subscription}
+          onChange={setSubscription}
+          label="Subscription"
+          description="Counted under Subscriptions, with a reminder the day before each charge."
+        />
+      )}
       <FormError>{error}</FormError>
       <div className="flex flex-wrap items-center gap-2">
         {item && (

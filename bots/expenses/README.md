@@ -29,6 +29,7 @@ Persistent menu (reply keyboard): **📅 Today · 🗓 Week · 📊 Month · �
 | `/stats` | same as `/month` |
 | `/history` | recent expenses, 8 per page; tap a number to edit or delete (delete asks to confirm) |
 | `/export [YYYY-MM]` | a month as CSV (UTF-8 with BOM; date, time, amount, currency, category, note) |
+| `/subscriptions` | what subscriptions cost a month and a year, each with its cadence and next charge; other recurring payments in one line; 🔄 Refresh, ↗ Open in Budget |
 | `/cancel` | leaves an edit in progress |
 
 Summaries, history and CSV cover **all** spending in Budget (transfers between own
@@ -71,6 +72,7 @@ bot's own-database days) get a short "expired" answer instead of spinning.
   | `GET expenses/range?from&to` | day/week/month overviews, comparisons, CSV |
   | `POST heartbeat` | Bots panel + Docker health |
   | `POST import` | the one-time import below |
+  | `GET subscriptions` | `/subscriptions`: Budget's recurring expenses with next charge and monthly/yearly cost |
 
 - **Errors** are specific (`expenses_bot/errors.py`): anwar.os not answering, signature
   refused (secret mismatch), API switched off, endpoint missing (deploy web), expense

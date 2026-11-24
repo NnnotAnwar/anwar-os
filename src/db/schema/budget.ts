@@ -134,6 +134,12 @@ export const budgetRecurring = pgTable(
     nextDue: date("next_due", { mode: "string" }).notNull(),
     endOn: date("end_on", { mode: "string" }),
     active: boolean("active").notNull().default(true),
+    /**
+     * A subscription (streaming, software, a gym): listed under Budget →
+     * Subscriptions with its monthly cost. Other recurring expenses (rent,
+     * utilities) are shown there too, but not counted in "Subscriptions cost…".
+     */
+    subscription: boolean("subscription").notNull().default(false),
     ...timestamps(),
   },
   (t) => [

@@ -19,6 +19,7 @@ COMMANDS = [
     BotCommand(command="week", description="This week by category"),
     BotCommand(command="month", description="This month by category"),
     BotCommand(command="history", description="Recent entries: edit or delete"),
+    BotCommand(command="subscriptions", description="Subscriptions: cost and next charges"),
     BotCommand(command="export", description="This month as a CSV file"),
     BotCommand(command="help", description="How to use the bot"),
 ]

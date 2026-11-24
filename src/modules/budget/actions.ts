@@ -1,5 +1,5 @@
 import "server-only"
-import { and, asc, desc, eq, gte, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm"
 import { z } from "zod"
 import { asViewer, requireViewer } from "@/core/auth"
 import { defineAction } from "@/core/module"
@@ -21,6 +21,7 @@ import { savingsRate } from "./lib/money"
 import { actualMonths, comparePlan, netWorthByMonth, projectPlan, type ComparisonRow } from "./lib/projection"
 import { defaultAccountId, parseQuickAdd } from "./lib/quick-add"
 import { dueDates } from "./lib/recurring"
+import { chargesBetween, dayRange, monthlyCost, nextCharge, totalsByCurrency, yearlyCost } from "./lib/subscriptions"
 import {
   archiveInput,
   BudgetInputError,
@@ -38,7 +39,9 @@ import {
   planInput,
   quickAddInput,
   setActiveInput,
+  setSubscriptionInput,
   transferInput,
+  upcomingPaymentsInput,
   updateAccountInput,
   updateCategoryInput,
   updateGoalInput,
@@ -51,7 +54,10 @@ import {
   type Overview,
   type PlanRow,
   type Recurring,
+  type SubscriptionItem,
+  type SubscriptionsData,
   type Transaction,
+  type UpcomingPayment,
 } from "./schema"
 
 // ---------------------------------------------------------------------------
@@ -262,6 +268,33 @@ async function loadOverview(tx: Tx, month: string, today: string): Promise<Overv
     accounts,
     transactionCount: totals.reduce((n, x) => n + x.count, 0),
   }
+}
+
+async function loadRecurring(tx: Tx, where?: SQL): Promise<Recurring[]> {
+  return tx
+    .select({
+      id: r.id,
+      accountId: r.accountId,
+      accountName: a.name,
+      currency: r.currency,
+      categoryId: r.categoryId,
+      categoryName: c.name,
+      amountMinor: r.amountMinor,
+      note: r.note,
+      tags: r.tags,
+      freq: r.freq,
+      interval: r.interval,
+      startOn: r.startOn,
+      nextDue: r.nextDue,
+      endOn: r.endOn,
+      active: r.active,
+      subscription: r.subscription,
+    })
+    .from(r)
+    .innerJoin(a, eq(a.id, r.accountId))
+    .leftJoin(c, eq(c.id, r.categoryId))
+    .where(where)
+    .orderBy(desc(r.active), asc(r.nextDue), asc(r.note))
 }
 
 /** Throws a friendly error when a category id is set but its kind doesn't fit the parent rule. */
@@ -576,31 +609,81 @@ export const actions = {
       "List recurring templates (rent, salary, subscriptions): signed amount, account, category, rule (every N weeks/months/years from startOn), next due date and whether active.",
     kind: "read",
     input: z.object({}),
-    handler: (): Promise<Recurring[]> =>
-      asViewer((tx) =>
-        tx
-          .select({
-            id: r.id,
-            accountId: r.accountId,
-            accountName: a.name,
-            currency: r.currency,
-            categoryId: r.categoryId,
-            categoryName: c.name,
-            amountMinor: r.amountMinor,
-            note: r.note,
-            tags: r.tags,
-            freq: r.freq,
-            interval: r.interval,
-            startOn: r.startOn,
-            nextDue: r.nextDue,
-            endOn: r.endOn,
-            active: r.active,
-          })
-          .from(r)
-          .innerJoin(a, eq(a.id, r.accountId))
-          .leftJoin(c, eq(c.id, r.categoryId))
-          .orderBy(desc(r.active), asc(r.nextDue), asc(r.note)),
-      ),
+    handler: (): Promise<Recurring[]> => asViewer((tx) => loadRecurring(tx)),
+  }),
+
+  subscriptions: defineAction({
+    description:
+      "Every recurring expense (money out) for the Subscriptions screen: each with its next charge on or after today (null when paused or finished), what it costs a month and a year (positive minor units), and whether it is marked as a subscription. Totals per currency for active subscriptions and for all active recurring expenses.",
+    kind: "read",
+    input: z.object({}),
+    handler: async (): Promise<SubscriptionsData> => {
+      const today = await viewerToday()
+      return asViewer(async (tx) => {
+        const [rows, base] = await Promise.all([loadRecurring(tx, lt(r.amountMinor, 0)), baseCurrency(tx)])
+        const items: SubscriptionItem[] = rows.map((row) => ({
+          ...row,
+          nextCharge: nextCharge(row, today),
+          monthlyMinor: monthlyCost(row.amountMinor, row),
+          yearlyMinor: yearlyCost(row.amountMinor, row),
+        }))
+        // Active first, soonest charge first; paused and finished ones by name.
+        items.sort((x, y) => {
+          if (!!x.nextCharge !== !!y.nextCharge) return x.nextCharge ? -1 : 1
+          if (x.nextCharge && y.nextCharge && x.nextCharge !== y.nextCharge) return x.nextCharge < y.nextCharge ? -1 : 1
+          return x.note.localeCompare(y.note)
+        })
+        const charging = items.filter((i) => i.nextCharge)
+        return {
+          today,
+          baseCurrency: base,
+          items,
+          subscriptions: totalsByCurrency(charging.filter((i) => i.subscription), base),
+          allRecurring: totalsByCurrency(charging, base),
+        }
+      })
+    },
+  }),
+
+  upcomingPayments: defineAction({
+    description:
+      "Recurring expenses expected between two dates, soonest first: by default the next 7 days from today (in the user's timezone); `from`/`to` (inclusive) or `days` pick another range. Paused templates and charges already recorded are left out. amountMinor is positive (money out).",
+    kind: "read",
+    input: upcomingPaymentsInput,
+    handler: async ({ from, to, days, subscriptionsOnly }): Promise<UpcomingPayment[]> => {
+      const start = from ?? (await viewerToday())
+      const end = to ?? dayRange(start, days).to
+      return asViewer(async (tx) => {
+        const rows = await loadRecurring(
+          tx,
+          and(lt(r.amountMinor, 0), eq(r.active, true), lte(r.nextDue, end), subscriptionsOnly ? eq(r.subscription, true) : undefined),
+        )
+        const payments = rows.flatMap((row) =>
+          chargesBetween(row, start, end).map((date) => ({
+            recurringId: row.id,
+            note: row.note,
+            amountMinor: Math.abs(row.amountMinor),
+            currency: row.currency,
+            date,
+            subscription: row.subscription,
+            categoryName: row.categoryName,
+            accountName: row.accountName,
+          })),
+        )
+        return payments.sort((x, y) => (x.date === y.date ? x.note.localeCompare(y.note) : x.date < y.date ? -1 : 1))
+      })
+    },
+  }),
+
+  setRecurringSubscription: defineAction({
+    description: "Mark a recurring expense as a subscription (listed and totalled under Subscriptions) or not.",
+    kind: "write",
+    input: setSubscriptionInput,
+    handler: ({ id, subscription }): Promise<void> =>
+      asViewer(async (tx) => {
+        const [row] = await tx.update(r).set({ subscription }).where(and(eq(r.id, id), subscription ? lt(r.amountMinor, 0) : undefined)).returning({ id: r.id })
+        if (!row) throw new BudgetInputError(subscription ? "Only a recurring expense can be a subscription." : "That template doesn't exist any more.")
+      }),
   }),
 
   dueCount: defineAction({
@@ -629,7 +712,7 @@ export const actions = {
         try {
           const [row] = await tx
             .insert(r)
-            .values({ ...input, nextDue: input.startOn })
+            .values({ ...input, subscription: input.subscription && input.amountMinor < 0, nextDue: input.startOn })
             .returning({ id: r.id })
           return { id: row!.id }
         } catch (e) {
@@ -643,13 +726,18 @@ export const actions = {
       "Change a recurring template. Already generated transactions stay as they are; if the start date changes, the next due date restarts from it (dates already generated are skipped).",
     kind: "write",
     input: updateRecurringInput,
-    handler: ({ id, ...fields }): Promise<void> =>
+    handler: ({ id, subscription, ...fields }): Promise<void> =>
       asViewer(async (tx) => {
-        const [current] = await tx.select({ startOn: r.startOn, nextDue: r.nextDue }).from(r).where(eq(r.id, id))
+        const [current] = await tx
+          .select({ startOn: r.startOn, nextDue: r.nextDue, subscription: r.subscription })
+          .from(r)
+          .where(eq(r.id, id))
         if (!current) throw new BudgetInputError("That template doesn't exist any more.")
         const nextDue = current.startOn === fields.startOn ? current.nextDue : fields.startOn
+        // Income is never a subscription; left out, the flag stays as it was.
+        const flag = (subscription ?? current.subscription) && fields.amountMinor < 0
         try {
-          await tx.update(r).set({ ...fields, nextDue }).where(eq(r.id, id))
+          await tx.update(r).set({ ...fields, subscription: flag, nextDue }).where(eq(r.id, id))
         } catch (e) {
           friendly(e)
         }

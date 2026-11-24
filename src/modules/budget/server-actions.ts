@@ -18,6 +18,7 @@ import {
   planInput,
   quickAddInput,
   setActiveInput,
+  setSubscriptionInput,
   transferInput,
   updateAccountInput,
   updateCategoryInput,
@@ -92,6 +93,8 @@ export const updateRecurring = async (input: unknown) =>
   write(updateRecurringInput, input, (d) => actions.updateRecurring.handler(d), SAVE)
 export const setRecurringActive = async (input: unknown) =>
   write(setActiveInput, input, (d) => actions.setRecurringActive.handler(d), SAVE)
+export const setRecurringSubscription = async (input: unknown) =>
+  write(setSubscriptionInput, input, (d) => actions.setRecurringSubscription.handler(d), SAVE)
 export const deleteRecurring = async (input: unknown) =>
   write(idInput, input, (d) => actions.deleteRecurring.handler(d), "The template wasn't deleted. Try again.")
 export const generateDue = async () =>
