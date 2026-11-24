@@ -151,6 +151,15 @@ export const goalFields = z.object({
 export const createGoalInput = goalFields
 export const updateGoalInput = goalFields.extend({ id: z.uuid() })
 
+// Limits ---------------------------------------------------------------------
+
+export const setLimitInput = z.object({
+  categoryId: z.uuid("Choose a category."),
+  /** The monthly limit in the base currency, minor units. */
+  amountMinor: minor.positive("Set a limit above zero.").max(1e13, "That limit is too large."),
+})
+export const removeLimitInput = z.object({ categoryId: z.uuid() })
+
 // Plan -----------------------------------------------------------------------
 
 export const planInput = z.object({
@@ -321,6 +330,36 @@ export type Overview = {
   otherCurrencies: { currency: string; incomeMinor: number; expenseMinor: number }[]
   accounts: Account[]
   transactionCount: number
+}
+
+/** One category's monthly limit and how much of it this month has used. */
+export type CategoryLimit = {
+  categoryId: string
+  name: string
+  color: string
+  limitMinor: number
+  /** Spent this month in the base currency, subcategories included (positive). */
+  spentMinor: number
+  /** limitMinor − spentMinor; negative once over. */
+  leftMinor: number
+  /** Whole percent used, floored. */
+  percent: number
+  /** ok < 90 %, near from 90 %, over at 100 %. */
+  status: "ok" | "near" | "over"
+  /** Month-end total at the current pace; null for past months and the first two days. */
+  paceMinor: number | null
+  /** What the category averaged a month over the three full months before `month`. */
+  averageMinor: number
+}
+
+export type LimitsData = {
+  month: string
+  today: string
+  baseCurrency: string
+  /** Categories with a limit, the fullest first. */
+  items: CategoryLimit[]
+  /** Top-level expense categories without a limit, with what they averaged over the last three full months. */
+  withoutLimit: { categoryId: string; name: string; color: string; averageMinor: number }[]
 }
 
 export class BudgetInputError extends Error {}

@@ -17,7 +17,9 @@ import {
   importInput,
   planInput,
   quickAddInput,
+  removeLimitInput,
   setActiveInput,
+  setLimitInput,
   setSubscriptionInput,
   transferInput,
   updateAccountInput,
@@ -86,6 +88,10 @@ export const updateCategory = async (input: unknown) =>
 export const archiveCategory = async (input: unknown) => write(archiveInput, input, (d) => actions.archiveCategory.handler(d), SAVE)
 export const deleteCategory = async (input: unknown) =>
   write(idInput, input, (d) => actions.deleteCategory.handler(d), "The category wasn't deleted. Try again.")
+
+export const setLimit = async (input: unknown) => write(setLimitInput, input, (d) => actions.setLimit.handler(d), SAVE)
+export const removeLimit = async (input: unknown) =>
+  write(removeLimitInput, input, (d) => actions.removeLimit.handler(d), "The limit wasn't removed. Try again.")
 
 export const createRecurring = async (input: unknown) =>
   write(createRecurringInput, input, (d) => actions.createRecurring.handler(d), SAVE)
