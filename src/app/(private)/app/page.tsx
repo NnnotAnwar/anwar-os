@@ -12,6 +12,7 @@ import { requireViewer } from "@/core/auth"
 import { modulesFor, type ViewerContext, type WidgetDef } from "@/core/module"
 import { calendarDate } from "@/lib/time"
 import { modules } from "@/modules/_registry"
+import { TodayGoals } from "@/modules/goals/components/today-goals"
 
 export default function TodayPage() {
   return (
@@ -80,6 +81,9 @@ async function TodayHeader() {
         <p className="text-meta text-muted-foreground">{date}</p>
       </div>
       <YearRuler today={today} locale={locale} />
+      <Suspense fallback={null}>
+        <TodayGoals today={today} />
+      </Suspense>
     </header>
   )
 }

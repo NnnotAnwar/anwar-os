@@ -121,7 +121,7 @@ data layer under `actions.ts` and the auth layer change.
 | `/tools/*` | calculators: calories, basic, statistics, compound growth |
 | `/feedback` | complaints and suggestions to Anwar, anonymous allowed |
 
-**Private** (`/app`, owner only): Today, notes, ideas, links, files, calendar,
+**Private** (`/app`, owner only): Today, notes, ideas, goals, links, files, calendar,
 feedback inbox, projects, bots, ops, tools with saved results, settings.
 
 ---
@@ -220,6 +220,7 @@ config because content mixes EN/CS/RU) kept in sync by triggers; ⌘K queries it
 | **cv** | public + editor | experience, education, skills, languages as structured rows; `/cv` page, print/PDF | 3 |
 | **projects** | public + private | showcase with case studies; private side links each project to its services in ops | 3 |
 | **ideas** | private, opt-in public | backlog with status (raw → exploring → building → shipped / dropped), tags, publish toggle | 3 |
+| **goals** | private | a few goals per year, measured by a number (+1 in one tap) or by the tasks and projects linked to them; progress under the year ruler on Today; Goal picker in the task and project editors | 6 |
 | **links** | private, opt-in public | bookmarks with tags; title/description/favicon fetched on save; public ones feed `/links` | 3 |
 | **feedback** | public form + private inbox | anonymous complaints/suggestions, optional contact; statuses, reply notes, Telegram alert | 3 |
 | **tools** | public + saved results | calories (Mifflin–St Jeor BMR, TDEE, macros), basic calculator, statistics (mean, median, SD, percentiles from pasted numbers), compound growth. Pure client-side math with unit tests | 3 |

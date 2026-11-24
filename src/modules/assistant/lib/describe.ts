@@ -11,6 +11,7 @@ const NOUNS: Record<string, [singular: string, plural: string]> = {
   links: ["link", "links"],
   files: ["file", "files"],
   projects: ["project", "projects"],
+  goals: ["goal", "goals"],
   feedback: ["feedback", "feedback"],
   cv: ["CV", "CV"],
   bots: ["bot", "bots"],
@@ -34,6 +35,8 @@ const WRITE_VERBS: [RegExp, string, string][] = [
   [/^schedule$/, "Rescheduled", "Reschedule"],
   [/^setStatus$/, "Updated", "Change status of"],
   [/^setPinned$/, "Updated", "Pin or unpin"],
+  [/^(logProgress|setProgress)$/, "Updated", "Update progress of"],
+  [/^link$/, "Linked", "Link to"],
   [/^delete/, "Deleted", "Delete"],
   [/^update/, "Updated", "Update"],
 ]

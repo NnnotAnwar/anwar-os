@@ -212,3 +212,5 @@ export const WarningCircle = bold(P.WarningCircle)
 // habits
 export const Plant = bold(P.Plant)
 export const Archive = bold(P.Archive)
+// goals
+export const Minus = bold(P.Minus)

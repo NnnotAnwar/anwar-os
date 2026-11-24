@@ -22,6 +22,7 @@ import { useAutosave } from "@/lib/use-autosave"
 import { cn } from "@/lib/utils"
 import { projectStatuses, statusLabels, type Project, type ProjectStatus } from "../schema"
 import { deleteProject, saveProject } from "../server-actions"
+import { GoalPicker } from "@/modules/goals/components/goal-picker"
 
 type Form = {
   title: string
@@ -246,6 +247,7 @@ export function ProjectEditor({
                 </select>
               )}
             </Field>
+            {id && <GoalPicker projectId={id} selectClassName={fieldClass} />}
             <Field label="Your role">
               {(fid) => (
                 <input
