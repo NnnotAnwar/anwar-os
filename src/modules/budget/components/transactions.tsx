@@ -12,6 +12,7 @@ import { amountToInput, formatMoney, parseAmount } from "../lib/money"
 import type { Transaction } from "../schema"
 import { createTransaction, createTransfer, deleteTransactions, quickAdd, updateTransaction } from "../server-actions"
 import { DirectionToggle, Field, FormError, Sheet, selectClass } from "./bits"
+import { ReceiptScanButton } from "./receipt-scan"
 import { categoryGroups, type AccountOption, type CategoryOption } from "./types"
 
 // ---------------------------------------------------------------------------
@@ -106,6 +107,7 @@ export function QuickAdd({
           className="h-10 text-base md:h-9 md:text-sm"
           disabled={accounts.length === 0}
         />
+        <ReceiptScanButton accounts={accounts} locale={locale} />
         <Button type="submit" size="lg" disabled={pending || accounts.length === 0} className="h-10 md:h-9">
           <Plus />
           Add
