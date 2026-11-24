@@ -239,6 +239,20 @@
       "when": 1795480969416,
       "tag": "0033_budget_subscriptions_osbot_deliveries_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795481010917,
+      "tag": "0034_ops_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1795481011620,
+      "tag": "0035_ops_alerts_rls",
+      "breakpoints": true
     }
   ]
 }
