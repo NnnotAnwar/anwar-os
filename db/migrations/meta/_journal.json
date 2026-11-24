@@ -218,6 +218,13 @@
       "when": 1795480313532,
       "tag": "0030_core_api_tokens_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1795480952288,
+      "tag": "0031_search_trgm_indexes",
+      "breakpoints": true
     }
   ]
 }
