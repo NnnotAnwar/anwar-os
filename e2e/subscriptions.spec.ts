@@ -3,7 +3,7 @@
 // subscription, cancel with Undo. Today shows the charge under "Upcoming payments".
 import { randomBytes } from "node:crypto"
 import { expect, test } from "@playwright/test"
-import { adminDb, OWNER } from "./support"
+import { adminDb, OWNER, ownerCredentials } from "./support"
 
 test.use({ storageState: OWNER })
 
@@ -11,9 +11,20 @@ const run = randomBytes(3).toString("hex")
 const netflix = `Netflix ${run}`
 const rent = `Rent ${run}`
 
+// Its own account: the page needs one, and other specs create and delete theirs.
+const account = `Card ${run}`
+
+test.beforeAll(async () => {
+  const admin = adminDb()
+  const [owner] = await admin`select id from auth."user" where email = ${ownerCredentials().email}`
+  await admin`insert into budget_accounts (owner_id, name) values (${owner!.id as string}, ${account})`
+  await admin.end()
+})
+
 test.afterAll(async () => {
   const admin = adminDb()
   await admin`delete from budget_recurring where note like ${`% ${run}`}`
+  await admin`delete from budget_accounts where name = ${account}`
   await admin.end()
 })
 
