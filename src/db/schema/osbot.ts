@@ -71,14 +71,15 @@ export const osbotFeedbackAlerts = pgTable(
   (t) => [check("osbot_feedback_alerts_channel_valid", sql`${t.channel} in ('osbot', 'direct')`)],
 )
 
-export const osbotDeliveryKinds = ["payment", "weekly"] as const
+export const osbotDeliveryKinds = ["payment", "weekly", "monthly"] as const
 export type OsbotDeliveryKind = (typeof osbotDeliveryKinds)[number]
 
 /**
  * Digests osbot has already sent, so its scheduled messages go out once even
  * when the bot restarts: "payment" = the reminder the day before a recurring
  * charge (key `<recurring id>:<charge date>`), "weekly" = the Sunday review
- * (key = the week's Monday, `2026-11-16`). Pruned after 60 days.
+ * (key = the week's Monday, `2026-11-16`), "monthly" = the report on the 1st
+ * (key = the reported month, `2026-10`). Pruned after 60 days.
  */
 export const osbotDeliveries = pgTable(
   "osbot_deliveries",
@@ -92,7 +93,7 @@ export const osbotDeliveries = pgTable(
   (t) => [
     unique("osbot_deliveries_key").on(t.ownerId, t.kind, t.key),
     index("osbot_deliveries_owner_delivered_idx").on(t.ownerId, t.deliveredAt),
-    check("osbot_deliveries_kind_valid", sql`${t.kind} in ('payment', 'weekly')`),
+    check("osbot_deliveries_kind_valid", sql`${t.kind} in ('payment', 'weekly', 'monthly')`),
     check("osbot_deliveries_key_length", sql`char_length(${t.key}) between 1 and 120`),
   ],
 )
