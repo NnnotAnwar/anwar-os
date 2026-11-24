@@ -8,6 +8,7 @@ import {
   budgetAccounts as a,
   budgetCategories as c,
   budgetGoals as g,
+  budgetLimits as l,
   budgetPlans as p,
   budgetRecurring as r,
   budgetSettings as s,
@@ -16,7 +17,8 @@ import {
 import { likeContains } from "@/lib/sql-like"
 import { amountQuery } from "./lib/amount-search"
 import { dedupeKey, markDuplicates } from "./lib/csv"
-import { monthOf, monthRange, todayIn } from "./lib/dates"
+import { monthOf, monthRange, shiftMonth, todayIn } from "./lib/dates"
+import { limitStatus, monthPace, percentUsed } from "./lib/limits"
 import { savingsRate } from "./lib/money"
 import { actualMonths, comparePlan, netWorthByMonth, projectPlan, type ComparisonRow } from "./lib/projection"
 import { defaultAccountId, parseQuickAdd } from "./lib/quick-add"
@@ -38,7 +40,9 @@ import {
   monthInput,
   planInput,
   quickAddInput,
+  removeLimitInput,
   setActiveInput,
+  setLimitInput,
   setSubscriptionInput,
   transferInput,
   upcomingPaymentsInput,
@@ -49,8 +53,10 @@ import {
   updateTransactionInput,
   type Account,
   type Category,
+  type CategoryLimit,
   type CategoryTotal,
   type Goal,
+  type LimitsData,
   type Overview,
   type PlanRow,
   type Recurring,
@@ -268,6 +274,64 @@ async function loadOverview(tx: Tx, month: string, today: string): Promise<Overv
     accounts,
     transactionCount: totals.reduce((n, x) => n + x.count, 0),
   }
+}
+
+/**
+ * Every top-level expense category with its limit (if any), this month's
+ * spending (subcategories rolled up, base currency, transfers left out, like
+ * the overview) and its average over the three full months before `month`.
+ */
+async function loadLimits(tx: Tx, month: string, today: string): Promise<LimitsData> {
+  const base = await baseCurrency(tx)
+  const { from, to } = monthRange(month)
+  const avgFrom = monthRange(shiftMonth(month, -3)).from
+  const avgTo = monthRange(shiftMonth(month, -1)).to
+  const rows = await tx.execute<{ id: string; name: string; color: string; limit_minor: string | null; spent: string; earlier: string }>(sql`
+    with spent as (
+      select coalesce(cat.parent_id, cat.id) as category_id,
+             coalesce(-sum(tr.amount_minor) filter (where tr.occurred_on between ${from} and ${to}), 0) as spent,
+             coalesce(-sum(tr.amount_minor) filter (where tr.occurred_on between ${avgFrom} and ${avgTo}), 0) as earlier
+      from budget_transactions tr
+      join budget_categories cat on cat.id = tr.category_id
+      where tr.occurred_on between ${avgFrom} and ${to}
+        and tr.transfer_id is null
+        and tr.amount_minor < 0
+        and tr.currency = ${base}
+      group by 1
+    )
+    select c.id, c.name, c.color, lim.amount_minor as limit_minor,
+           coalesce(spent.spent, 0) as spent, coalesce(spent.earlier, 0) as earlier
+    from budget_categories c
+    left join budget_limits lim on lim.category_id = c.id
+    left join spent on spent.category_id = c.id
+    where c.kind = 'expense' and c.parent_id is null and not c.archived
+    order by c.name`)
+  const items: CategoryLimit[] = []
+  const withoutLimit: LimitsData["withoutLimit"] = []
+  for (const row of rows) {
+    const spentMinor = Number(row.spent)
+    const averageMinor = Math.round(Number(row.earlier) / 3)
+    if (row.limit_minor === null) {
+      withoutLimit.push({ categoryId: row.id, name: row.name, color: row.color, averageMinor })
+      continue
+    }
+    const limitMinor = Number(row.limit_minor)
+    items.push({
+      categoryId: row.id,
+      name: row.name,
+      color: row.color,
+      limitMinor,
+      spentMinor,
+      leftMinor: limitMinor - spentMinor,
+      percent: percentUsed(spentMinor, limitMinor),
+      status: limitStatus(spentMinor, limitMinor),
+      paceMinor: monthPace(spentMinor, month, today),
+      averageMinor,
+    })
+  }
+  // Fullest first (by the exact ratio), then by name.
+  items.sort((x, y) => y.spentMinor / y.limitMinor - x.spentMinor / x.limitMinor || x.name.localeCompare(y.name))
+  return { month, today, baseCurrency: base, items, withoutLimit }
 }
 
 async function loadRecurring(tx: Tx, where?: SQL): Promise<Recurring[]> {
@@ -587,6 +651,8 @@ export const actions = {
         await checkParent(tx, fields.parentId, fields.kind, id)
         try {
           await tx.update(c).set(fields).where(eq(c.id, id))
+          // A limit belongs to a top-level expense category; a moved or re-kinded one loses it.
+          if (fields.parentId || fields.kind !== "expense") await tx.delete(l).where(eq(l.categoryId, id))
         } catch (e) {
           friendly(e)
         }
@@ -610,6 +676,47 @@ export const actions = {
     handler: ({ id }): Promise<void> =>
       asViewer(async (tx) => {
         await tx.delete(c).where(eq(c.id, id))
+      }),
+  }),
+
+  // Limits ------------------------------------------------------------------
+
+  limits: defineAction({
+    description:
+      "Monthly spending limits per top-level expense category (default: the current month in the user's timezone), in the base currency: each limit with what the month has spent so far (subcategories included, transfers left out), what's left (negative once over), percent used, status (ok under 90 %, near from 90 %, over at 100 %), the month-end total at the current pace, and the category's average over the previous three months. Also lists top-level expense categories without a limit, with their averages (a starting point for setting one).",
+    kind: "read",
+    input: monthInput,
+    handler: async ({ month }): Promise<LimitsData> => {
+      const today = await viewerToday()
+      return asViewer((tx) => loadLimits(tx, month ?? monthOf(today), today))
+    },
+  }),
+
+  setLimit: defineAction({
+    description:
+      "Set or change the monthly spending limit of a top-level expense category, in the base currency (minor units, e.g. 600000 = 6 000 CZK). It applies to every month and counts the category's subcategories. The user gets a Telegram message at 90 % and at 100 %.",
+    kind: "write",
+    input: setLimitInput,
+    handler: ({ categoryId, amountMinor }): Promise<void> =>
+      asViewer(async (tx) => {
+        const [cat] = await tx.select({ kind: c.kind, parentId: c.parentId }).from(c).where(eq(c.id, categoryId))
+        if (!cat) throw new BudgetInputError("That category doesn't exist any more.")
+        if (cat.kind !== "expense") throw new BudgetInputError("Limits are for expense categories.")
+        if (cat.parentId) throw new BudgetInputError("Set the limit on the parent category: it counts its subcategories.")
+        await tx
+          .insert(l)
+          .values({ categoryId, amountMinor })
+          .onConflictDoUpdate({ target: [l.ownerId, l.categoryId], set: { amountMinor } })
+      }),
+  }),
+
+  removeLimit: defineAction({
+    description: "Remove the monthly limit of an expense category. Its spending is still tracked; only the limit and its alerts go.",
+    kind: "write",
+    input: removeLimitInput,
+    handler: ({ categoryId }): Promise<void> =>
+      asViewer(async (tx) => {
+        await tx.delete(l).where(eq(l.categoryId, categoryId))
       }),
   }),
 

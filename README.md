@@ -56,7 +56,7 @@ Everything private stays private; what's public is chosen item by item.
 | Inbox | Capture now, sort later (also the PWA share target) |
 | Notes | Autosaving editor with pinning and search |
 | Calendar | Events, recurrence, reminders and an ICS feed |
-| Budget | Accounts, categories, plans, goals and recurring payments |
+| Budget | Accounts, categories, monthly limits per category, plans, goals, subscriptions and recurring payments |
 | Files | Knowledge base: folders, uploads to object storage, markdown documents |
 | Links, Ideas, Projects, CV | Private by default, publish item by item to the public site |
 | Feedback | Complaints and suggestions from the public form, with status |

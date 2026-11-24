@@ -17,6 +17,7 @@ private bot."
 | feedback alerts | the message quoted, ↗ Open, ✓ Mark read, 🚫 Spam, ↩ Undo |
 | `/week` | the week in review (below), with ↗ Open in app and 🔄 Refresh |
 | payment reminders | from 10:00 the day before a recurring expense charges: `💳 Tomorrow: Netflix · 299 CZK` (several: one list with the total), ↗ Subscriptions |
+| budget limits | once a category reaches 90 % of its monthly limit (Budget → Limits): `⚠️ Food: 92 % of the monthly limit` with what's left and, when it heads past the limit, the month-end pace; once it's used up: `🔴 Food: monthly limit used up` and by how much; each once per category and month (a jump straight past 100 % sends only the second), ↗ Limits |
 | weekly review | Sundays from 19:00, once: tasks done / added / overdue, 🎯 focus (top 3 due or overdue), next week's calendar, spending vs last week with top categories and the Budget plan, payments next week, new ideas / notes / links / feedback; ↗ Open in app, 💤 1 h, ⏭ Skip |
 
 Messages are HTML (`texts.py`), edited in place where a button changes them,
@@ -56,12 +57,14 @@ any mismatch, then acts as the site owner with row-level security on.
 | `POST heartbeat` | every minute; Settings → Telegram shows it |
 | `GET payments/due` | recurring expenses charging tomorrow (owner's timezone) not reminded yet, each with a `key` |
 | `POST payments/ack` | `{ keys }` (`<recurring id>:<date>`) once sent: idempotent |
+| `GET budget-limits/due` | categories at 90 % / 100 % of their monthly limit this month not announced yet, each with `key` and every `keys` it settles |
+| `POST budget-limits/ack` | `{ keys }` (`<category id>:<YYYY-MM>:<90\|100>`) once sent: idempotent |
 | `GET weekly?date=` | the review of the week (Mon–Sun) containing `date`, default today, with `delivered` |
 | `POST weekly/ack` | `{ week }` (its Monday) once the Sunday review is sent: idempotent |
 | `POST ops-alerts/check`, `POST ops-alerts/ack` | server alerts (`osbot/ops_alerts.py`): what started or stopped being wrong since the owner was last told; `{ items: [{ key, event }] }` once sent |
 
 Loops run once a minute, just after the minute turns: heartbeat, reminders,
-feedback, payments, weekly (`digest.py`). Each item is sent first and acknowledged after, so a crash can repeat
+feedback, payments, weekly (`digest.py`), budget limits (`budget_limits.py`). Each item is sent first and acknowledged after, so a crash can repeat
 one message but never lose one. While the heartbeat is fresh, the web app stops
 sending its own direct feedback alerts and leaves them to osbot.
 

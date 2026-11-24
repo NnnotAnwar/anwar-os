@@ -232,6 +232,33 @@ export const budgetGoals = pgTable(
   ],
 )
 
+/**
+ * A monthly spending limit for one top-level expense category, in the base
+ * currency; it applies to every calendar month and counts its subcategories.
+ * Removing the category removes its limit.
+ */
+export const budgetLimits = pgTable(
+  "budget_limits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: ownerId(),
+    categoryId: uuid("category_id").notNull(),
+    amountMinor: money("amount_minor").notNull(),
+    ...timestamps(),
+  },
+  (t) => [
+    unique("budget_limits_owner_category_key").on(t.ownerId, t.categoryId),
+    foreignKey({
+      name: "budget_limits_category_fk",
+      columns: [t.ownerId, t.categoryId],
+      foreignColumns: [budgetCategories.ownerId, budgetCategories.id],
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    check("budget_limits_amount_positive", sql`${t.amountMinor} > 0 and ${t.amountMinor} < 100000000000000`),
+  ],
+)
+
 /** The capital-growth plan: one per user. Return in basis points (700 = 7.00 %). */
 export const budgetPlans = pgTable(
   "budget_plans",

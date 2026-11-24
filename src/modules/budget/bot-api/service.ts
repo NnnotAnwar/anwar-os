@@ -15,6 +15,7 @@ import { addDaysIso, monthOf, monthRange, parseIsoDate, todayIn } from "../lib/d
 import { defaultAccountId, parseQuickAdd } from "../lib/quick-add"
 import { BudgetInputError, type Account } from "../schema"
 import { BOT_IMPORT_KEY, rankCategories, toBotExpense, type BotCategory, type BotExpense, type CurrencyTotals } from "./lib"
+import { limitForExpense, type BotLimit } from "./limits"
 
 // What the expense bot (bots/expenses) can do in Budget, as the site owner.
 // Writes go through the Budget module's own actions (createTransaction,
@@ -203,7 +204,7 @@ export const quickInput = z.object({
 })
 
 export type QuickResult =
-  | { status: "created"; expense: BotExpense; totals: ReturnType<typeof totalsJson>; matchedBy: "name" | "note" | null }
+  | { status: "created"; expense: BotExpense; totals: ReturnType<typeof totalsJson>; limit: BotLimit | null; matchedBy: "name" | "note" | null }
   | { status: "needs_category"; draft: { amountMinor: number; note: string; occurredOn: string; currency: string } }
 
 /** The category the owner filed this exact note under most often (case-insensitive), if any. */
@@ -283,7 +284,7 @@ async function insertExpense(
   input: { amountMinor: number; categoryId: string | null; note: string; occurredOn?: string; tags?: string[] },
   accountId: string,
   timezone: string,
-): Promise<{ expense: BotExpense; totals: ReturnType<typeof totalsJson> }> {
+): Promise<{ expense: BotExpense; totals: ReturnType<typeof totalsJson>; limit: BotLimit | null }> {
   const { id } = await budget(() =>
     actions.createTransaction.handler({
       accountId,
@@ -295,7 +296,8 @@ async function insertExpense(
     }),
   )
   const [expense, totals] = await Promise.all([requireExpense(id), runningTotals(timezone)])
-  return { expense, totals: totalsJson(totals) }
+  // The category's monthly limit as it stands now ("Food: 800 of 6 000 left").
+  return { expense, totals: totalsJson(totals), limit: await limitForExpense(expense) }
 }
 
 // ---------------------------------------------------------------------------
@@ -336,7 +338,8 @@ export async function updateExpense(input: z.infer<typeof updateInput>, timezone
       tags: row?.tags ?? [],
     }),
   )
-  return getExpense(input.id, timezone)
+  const updated = await getExpense(input.id, timezone)
+  return { ...updated, limit: await limitForExpense(updated.expense) }
 }
 
 /** Deletes one expense; returns it as it was (for the bot's "Removed" line). */

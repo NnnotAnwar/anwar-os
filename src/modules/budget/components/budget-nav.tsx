@@ -10,6 +10,7 @@ const sections = [
   { href: "/app/budget/transactions", label: "Transactions" },
   { href: "/app/budget/accounts", label: "Accounts" },
   { href: "/app/budget/categories", label: "Categories" },
+  { href: "/app/budget/limits", label: "Limits" },
   { href: "/app/budget/recurring", label: "Recurring" },
   { href: "/app/budget/subscriptions", label: "Subscriptions" },
   { href: "/app/budget/goals", label: "Goals" },

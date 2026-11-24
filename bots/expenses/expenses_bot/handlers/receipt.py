@@ -246,7 +246,7 @@ async def on_receipt(callback: types.CallbackQuery, callback_data: ReceiptCb, st
             await _put(state, message_id, draft)
             await callback.answer(describe(exc, action="save receipt").toast(), show_alert=True)
             return
-        await show(callback, card_text(saved.expense, "s", totals=saved.totals), keyboards.expense_actions(saved.expense["id"]))
+        await show(callback, card_text(saved.expense, "s", totals=saved.totals, limit=saved.limit), keyboards.expense_actions(saved.expense["id"]))
         await callback.answer("Saved")
         return
 
