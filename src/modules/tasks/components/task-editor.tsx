@@ -11,6 +11,7 @@ import { priorityLabels, taskPriorities, type ProjectOption, type Task, type Tas
 import { getProjectOptions } from "../server-actions"
 import { quickDates } from "./schedule-sheet"
 import { Sheet } from "@/components/sheet"
+import { GoalPicker } from "@/modules/goals/components/goal-picker"
 
 export type TaskPatch = Partial<Pick<Task, "title" | "notes" | "dueDate" | "dueTime" | "priority" | "listId" | "projectId" | "rrule">>
 
@@ -294,6 +295,7 @@ function EditorForm({
           </select>
         </div>
       </div>
+      <GoalPicker taskId={task.id} labelClassName={fieldLabel} />
 
       <div className="flex items-center gap-2 border-t border-hairline pt-3">
         <Button type="button" variant="ghost" size="lg" className="text-muted-foreground" onClick={() => onDelete(task)}>
