@@ -309,6 +309,13 @@
       "when": 1795523295575,
       "tag": "0043_budget_limits_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1795523315460,
+      "tag": "0044_osbot_monthly_delivery",
+      "breakpoints": true
     }
   ]
 }

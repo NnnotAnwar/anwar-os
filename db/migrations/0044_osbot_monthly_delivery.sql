@@ -1,0 +1,2 @@
+ALTER TABLE "osbot_deliveries" DROP CONSTRAINT "osbot_deliveries_kind_valid";--> statement-breakpoint
+ALTER TABLE "osbot_deliveries" ADD CONSTRAINT "osbot_deliveries_kind_valid" CHECK ("osbot_deliveries"."kind" in ('payment', 'weekly', 'budget-limit', 'monthly'));
