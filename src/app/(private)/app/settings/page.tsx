@@ -3,8 +3,10 @@ import { Page } from "@/components/motion"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shell/page-header"
 import { requireViewer } from "@/core/auth"
+import { isSessionFresh, listApiTokens } from "@/core/api-tokens/server"
 import { getSignInMethods } from "@/core/sign-in-methods"
 import { TelegramStatus } from "@/modules/osbot/components/telegram-status"
+import { ApiTokens } from "./api-tokens"
 import { SignInMethods } from "./sign-in-methods"
 
 export const metadata = { title: "Settings" }
@@ -31,6 +33,9 @@ export default function SettingsPage() {
         </section>
         <Suspense fallback={null}>
           <TelegramSection />
+        </Suspense>
+        <Suspense fallback={null}>
+          <ApiTokensSection />
         </Suspense>
       </div>
     </Page>
@@ -59,6 +64,28 @@ async function TelegramSection() {
       </div>
       <div className="glass rounded-xl p-5">
         <TelegramStatus />
+      </div>
+    </section>
+  )
+}
+
+/** Personal API tokens for Claude (MCP) and Shortcuts; not for demo accounts. */
+async function ApiTokensSection() {
+  const viewer = await requireViewer()
+  if (viewer.role === "demo" || viewer.isAnonymous) return null
+  const [tokens, fresh] = await Promise.all([listApiTokens(), isSessionFresh()])
+  return (
+    <section aria-labelledby="api-tokens-heading" className="grid gap-4 md:grid-cols-[14rem_1fr] md:gap-8">
+      <div className="grid content-start gap-1">
+        <h2 id="api-tokens-heading" className="font-medium">
+          API tokens
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Let Claude (over MCP) and iPhone Shortcuts read or add your things. Each token acts as you; revoke it any time.
+        </p>
+      </div>
+      <div className="glass rounded-xl p-5">
+        <ApiTokens tokens={tokens} fresh={fresh} siteUrl={process.env.BETTER_AUTH_URL ?? ""} />
       </div>
     </section>
   )
