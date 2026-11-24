@@ -14,10 +14,22 @@
 #   monthly/ anwar_os-2026-11.dump.age              BACKUP_KEEP_MONTHLY (6)
 # The first successful backup of an ISO week / month is promoted, so a failed
 # night doesn't leave a gap in the weekly/monthly series.
+#
+# Every run also records how it went in BACKUP_STATUS_DIR (default
+# /var/backups/anwar-os-status, world-readable, no secrets): last.json for the
+# latest run (ok or failed) and last-success.json for the latest good one. The
+# control panel reads them through ops-agent (Ops → Server, and osbot's
+# "backup older than 26 h / failed" alert). The dumps themselves stay in the
+# root-only BACKUP_LOCAL_DIR.
 set -euo pipefail
 
 # shellcheck source=infra/backup/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+# What the run is doing, for the failure status ("failed while uploading").
+step="starting"
+started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+status_file="" status_size=0 status_offsite=false
 
 ping_status() {
   # Optional dead-man's switch (healthchecks.io style): URL on success, URL/fail
@@ -26,11 +38,36 @@ ping_status() {
   curl -fsS -m 10 --retry 3 -o /dev/null "${BACKUP_PING_URL}$1" || true
 }
 
+json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/ }"
+  printf '%s' "$s"
+}
+
+# write_status <name.json> <ok|failed> [error]: replaces the file atomically
+# (mode 644). Never fails the backup: the status is a report, not the job.
+write_status() {
+  local name="$1" status="$2" error="${3:-}" dir="${BACKUP_STATUS_DIR:-/var/backups/anwar-os-status}" tmpf
+  install -d -m 755 "$dir" 2>/dev/null || return 0
+  tmpf="$(mktemp "$dir/.status.XXXXXX" 2>/dev/null)" || return 0
+  if printf '{"status":"%s","started_at":"%s","finished_at":"%s","file":"%s","size_bytes":%d,"offsite":%s,"error":"%s"}\n' \
+    "$status" "$started_at" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(json_escape "$status_file")" \
+    "$status_size" "$status_offsite" "$(json_escape "$error")" >"$tmpf" \
+    && chmod 644 "$tmpf" && mv -f -- "$tmpf" "$dir/$name"; then
+    return 0
+  fi
+  rm -f -- "$tmpf"
+  return 0
+}
+
 on_exit() {
   local rc=$?
   [[ -n "${tmp:-}" ]] && rm -f -- "$tmp"
   if ((rc != 0)); then
     log "backup FAILED (exit $rc)"
+    write_status last.json failed "failed while $step (exit $rc)"
     ping_status /fail
   fi
 }
@@ -58,6 +95,7 @@ prune_local() {
 
 main() {
   trap on_exit EXIT
+  step="reading the configuration"
   load_env
   configure_remote
 
@@ -83,6 +121,7 @@ main() {
   file="$LOCAL_DIR/$name"
   tmp="$LOCAL_DIR/.${name}.partial"
 
+  step="dumping the database"
   log "dumping $DB_NAME"
   compose exec -T db pg_dump -U postgres -d "$DB_NAME" --format=custom --compress=6 \
     | age "${recipients[@]}" -o "$tmp"
@@ -90,9 +129,12 @@ main() {
   (($(stat -c %s "$tmp") > 512)) || die "dump is suspiciously small"
   mv "$tmp" "$file"
   tmp=""
+  status_file="$name"
+  status_size="$(stat -c %s "$file")"
   log "wrote $file ($(du -h "$file" | cut -f1))"
 
   if [[ -n "$REMOTE" ]]; then
+    step="uploading"
     log "uploading to $REMOTE"
     rclone copyto "$file" "$REMOTE/daily/$name"
     if ! list_remote weekly | grep -q "^${FILE_PREFIX}${week}"; then
@@ -103,12 +145,17 @@ main() {
       rclone copyto "$file" "$REMOTE/monthly/${FILE_PREFIX}${month}${FILE_SUFFIX}"
       log "promoted to monthly/$month"
     fi
+    step="pruning old backups"
     prune_remote daily "$keep_daily"
     prune_remote weekly "$keep_weekly"
     prune_remote monthly "$keep_monthly"
+    status_offsite=true
   fi
 
+  step="pruning local copies"
   prune_local "$keep_local"
+  write_status last-success.json ok
+  write_status last.json ok
   ping_status ""
   log "backup OK: $name"
 }

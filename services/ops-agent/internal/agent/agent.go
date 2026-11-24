@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/nnnotanwar/anwar-os/services/ops-agent/internal/docker"
+	"github.com/nnnotanwar/anwar-os/services/ops-agent/internal/host"
 	"github.com/nnnotanwar/anwar-os/services/ops-agent/internal/sign"
 )
 
@@ -77,6 +78,13 @@ type Config struct {
 	// Settle is how long a container without a healthcheck must stay running.
 	Settle  time.Duration
 	Version string
+	// Host serves GET /host (the panel's "Server" section). Nil = 404.
+	Host HostReporter
+}
+
+// HostReporter collects the server's vital signs (package host).
+type HostReporter interface {
+	Collect(ctx context.Context) *host.Report
 }
 
 type Agent struct {
@@ -387,6 +395,7 @@ type ctxKey struct{}
 // Handler is the whole API, signature check included.
 func (a *Agent) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /host", a.hostReport)
 	mux.HandleFunc("GET /services", a.listServices)
 	mux.HandleFunc("GET /services/{name}", a.getService)
 	mux.HandleFunc("GET /services/{name}/logs", a.logs)
@@ -469,6 +478,21 @@ func (a *Agent) listServices(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"services": svcs,
 		"agent":    map[string]any{"version": a.cfg.Version, "time": time.Now().UTC().Format(time.RFC3339)},
+	})
+}
+
+// hostReport is read-only and never fails as a whole: a source that can't be
+// read (a missing bind mount, a slow daemon) is null with the reason in errors.
+func (a *Agent) hostReport(w http.ResponseWriter, r *http.Request) {
+	if a.cfg.Host == nil {
+		writeJSON(w, http.StatusNotFound, apiError{"not_found", "host metrics are not enabled on this agent"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"host":  a.cfg.Host.Collect(ctx),
+		"agent": map[string]any{"version": a.cfg.Version, "time": time.Now().UTC().Format(time.RFC3339)},
 	})
 }
 

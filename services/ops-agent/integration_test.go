@@ -12,12 +12,15 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,6 +28,7 @@ import (
 
 	"github.com/nnnotanwar/anwar-os/services/ops-agent/internal/agent"
 	"github.com/nnnotanwar/anwar-os/services/ops-agent/internal/docker"
+	"github.com/nnnotanwar/anwar-os/services/ops-agent/internal/host"
 	"github.com/nnnotanwar/anwar-os/services/ops-agent/internal/sign"
 )
 
@@ -109,9 +113,34 @@ func TestIntegration(t *testing.T) {
 	run("db", "--label", "os.managed=true", "--label", "os.protected=true", "alpine:3.20", "sleep", "3600")
 	run("unmanaged", "alpine:3.20", "sleep", "3600")
 
+	// GET /host: the bind mounts of compose.prod.yml, faked as temp directories.
+	hostRoot := t.TempDir()
+	for name, content := range map[string]string{
+		"run/reboot-required":        "*** System restart required ***\n",
+		"run/reboot-required.pkgs":   "linux-image-generic\n",
+		"backup/last.json":           `{"status":"ok","finished_at":"2026-11-24T02:16:10Z","file":"anwar_os-x.dump.age","size_bytes":4096,"offsite":true}`,
+		"backup/last-success.json":   `{"status":"ok","finished_at":"2026-11-24T02:16:10Z","file":"anwar_os-x.dump.age","size_bytes":4096,"offsite":true}`,
+		"edge-sites/anwar-os.caddy":  "anwar-os.com {\n\trespond ok\n}\nwww.anwar-os.com {\n\tredir https://anwar-os.com\n}\n",
+		"edge-sites/shiftella.caddy": "shiftella.app {\n\tfile_server\n}\n",
+	} {
+		path := filepath.Join(hostRoot, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	eng := docker.New(socket())
-	a := agent.New(eng, sign.NewVerifier(itSecret), agent.Config{Projects: []string{project}, DeployTimeout: 60 * time.Second, Settle: 2 * time.Second, Version: "it"},
-		slog.New(slog.NewTextHandler(io.Discard, nil)))
+	a := agent.New(eng, sign.NewVerifier(itSecret), agent.Config{
+		Projects: []string{project}, DeployTimeout: 60 * time.Second, Settle: 2 * time.Second, Version: "it",
+		Host: host.New(host.Config{
+			Proc: "/proc", DiskPath: hostRoot,
+			RunDir:    filepath.Join(hostRoot, "run"),
+			BackupDir: filepath.Join(hostRoot, "backup"),
+			SitesDir:  filepath.Join(hostRoot, "edge-sites"),
+		}, eng),
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	srv := httptest.NewServer(a.Handler())
 	defer srv.Close()
 	c := client{t: t, url: srv.URL}
@@ -145,6 +174,44 @@ func TestIntegration(t *testing.T) {
 		}
 		if strings.Join(names, ",") != "bot,db,worker" {
 			t.Fatalf("services = %v", names)
+		}
+	})
+
+	t.Run("reports the host", func(t *testing.T) {
+		code, body := c.do("GET", "/host", "")
+		if code != 200 {
+			t.Fatalf("%d %v", code, body)
+		}
+		h := body["host"].(map[string]any)
+		errs := h["errors"].(map[string]any)
+		if h["hostname"] == "" || h["cpus"].(float64) < 1 || h["kernel"] == "" || errs["docker"] != nil {
+			t.Errorf("docker info: %v", h)
+		}
+		if dd, ok := h["docker_disk"].(map[string]any); !ok || dd["images"].(float64) < 1 {
+			t.Errorf("docker_disk = %v (%v)", h["docker_disk"], errs["docker_disk"])
+		}
+		if disk, ok := h["disk"].(map[string]any); !ok || disk["total_bytes"].(float64) <= 0 {
+			t.Errorf("disk = %v (%v)", h["disk"], errs["disk"])
+		}
+		if rb, ok := h["reboot"].(map[string]any); !ok || rb["required"] != true {
+			t.Errorf("reboot = %v", h["reboot"])
+		}
+		if b, ok := h["backup"].(map[string]any); !ok || b["last_success"].(map[string]any)["size_bytes"].(float64) != 4096 {
+			t.Errorf("backup = %v", h["backup"])
+		}
+		if sites := fmt.Sprint(h["sites"]); sites != "[anwar-os.com shiftella.app www.anwar-os.com]" {
+			t.Errorf("sites = %s", sites)
+		}
+		if runtime.GOOS == "linux" { // the host's /proc (macOS has none)
+			if mem, ok := h["memory"].(map[string]any); !ok || mem["total_bytes"].(float64) <= 0 {
+				t.Errorf("memory = %v (%v)", h["memory"], errs["memory"])
+			}
+			if load, ok := h["load"].([]any); !ok || len(load) != 3 {
+				t.Errorf("load = %v", h["load"])
+			}
+			if h["uptime_seconds"] == nil {
+				t.Errorf("uptime = nil (%v)", errs["uptime"])
+			}
 		}
 	})
 

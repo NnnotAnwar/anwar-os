@@ -20,6 +20,7 @@ import (
 
 	"github.com/nnnotanwar/anwar-os/services/ops-agent/internal/agent"
 	"github.com/nnnotanwar/anwar-os/services/ops-agent/internal/docker"
+	"github.com/nnnotanwar/anwar-os/services/ops-agent/internal/host"
 	"github.com/nnnotanwar/anwar-os/services/ops-agent/internal/sign"
 )
 
@@ -67,6 +68,15 @@ func main() {
 		DeployTimeout: seconds("OPS_AGENT_DEPLOY_TIMEOUT", 240),
 		Settle:        seconds("OPS_AGENT_SETTLE", 10),
 		Version:       version,
+		// GET /host. The bind mounts come from infra/compose.prod.yml; one that
+		// isn't there just leaves its section empty ("not mounted").
+		Host: host.New(host.Config{
+			Proc:      env("OPS_AGENT_PROC", "/proc"),
+			DiskPath:  env("OPS_AGENT_DISK_PATH", "/"),
+			RunDir:    env("OPS_AGENT_HOST_RUN", "/host/run"),
+			BackupDir: env("OPS_AGENT_BACKUP_STATUS_DIR", "/host/backup"),
+			SitesDir:  env("OPS_AGENT_SITES_DIR", "/host/edge-sites"),
+		}, engine),
 	}, log)
 
 	srv := &http.Server{

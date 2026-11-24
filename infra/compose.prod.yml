@@ -289,6 +289,23 @@ services:
       OPS_AGENT_REGISTRY_TOKEN: ${OPS_AGENT_REGISTRY_TOKEN:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      # GET /host (Ops → Server), all read-only. Memory, load, uptime and the
+      # kernel come from the container's own /proc (not namespaced = the host's).
+      # The host's /run, NOT recursive: only /run/reboot-required(.pkgs) is
+      # read, and no submount (Docker's netns files, user runtime dirs) gets
+      # pinned in the agent's mount namespace. Needs Docker Engine >= 25.
+      - type: bind
+        source: /run
+        target: /host/run
+        read_only: true
+        bind:
+          recursive: disabled
+      # Status of the nightly backup (infra/backup/backup.sh writes last.json
+      # and last-success.json; no secrets). The dumps' own directory stays
+      # root-only and is not mounted.
+      - ${BACKUP_STATUS_DIR:-/var/backups/anwar-os-status}:/host/backup:ro
+      # The edge site files: which domains to check certificates for.
+      - ${EDGE_SITES_DIR:-/opt/edge/sites}:/host/edge-sites:ro
     expose:
       - "8080"
     networks:
