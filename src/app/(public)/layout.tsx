@@ -6,6 +6,7 @@ import { SiteMenu, SiteNav } from "@/components/site/site-nav"
 import type { Metadata } from "next"
 import { connection } from "next/server"
 import { feedAlternates, getSiteUrl, siteDescription, siteName, siteTitle } from "@/lib/site"
+import { PageViewBeacon } from "@/modules/analytics/components/page-view-beacon"
 import "@/components/site/site.css"
 
 /**
@@ -48,6 +49,7 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <SiteFooter />
+      <PageViewBeacon />
     </div>
   )
 }
