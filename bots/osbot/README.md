@@ -58,11 +58,18 @@ any mismatch, then acts as the site owner with row-level security on.
 | `POST payments/ack` | `{ keys }` (`<recurring id>:<date>`) once sent: idempotent |
 | `GET weekly?date=` | the review of the week (Mon–Sun) containing `date`, default today, with `delivered` |
 | `POST weekly/ack` | `{ week }` (its Monday) once the Sunday review is sent: idempotent |
+| `POST ops-alerts/check`, `POST ops-alerts/ack` | server alerts (`osbot/ops_alerts.py`): what started or stopped being wrong since the owner was last told; `{ items: [{ key, event }] }` once sent |
 
 Loops run once a minute, just after the minute turns: heartbeat, reminders,
 feedback, payments, weekly (`digest.py`). Each item is sent first and acknowledged after, so a crash can repeat
 one message but never lose one. While the heartbeat is fresh, the web app stops
 sending its own direct feedback alerts and leaves them to osbot.
+
+Server alerts run every 5 minutes (docs/DEPLOY.md §19): disk, memory, backups,
+certificates, containers, a pending reboot, ops-agent. The web app keeps their
+state, so each problem is sent once (🔴, with ↗ Open Ops) and its recovery
+once (✅); kinds and a mute are set in Ops → Server. When the app itself
+doesn't answer two checks in a row, the bot says so on its own.
 
 ## Environment
 

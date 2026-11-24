@@ -21,6 +21,7 @@ from .fmt import set_timezone
 from .handlers import make_routers, on_error
 from .loops import background_tasks
 from .middleware import OwnerOnlyMiddleware
+from .ops_alerts import ops_alerts_task
 from .snooze import ReminderMemory
 from .targets import CaptureTargets
 
@@ -141,6 +142,7 @@ async def _poll_until_stopped(
     )
     loops = background_tasks(bot, api, config.owner_chat_id, config.version, started_at, reminders)
     loops += digest_tasks(bot, api, config.owner_chat_id, dp.get("weekly") or WeeklyMemory())
+    loops.append(ops_alerts_task(bot, api, config.owner_chat_id, config.app_url))
     stopper = asyncio.create_task(stop.wait(), name="stop-signal")
     tasks = [polling, *loops, stopper]
     try:
