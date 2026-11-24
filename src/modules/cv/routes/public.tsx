@@ -1,10 +1,11 @@
 import { Suspense } from "react"
 import Link from "next/link"
 import { connection } from "next/server"
-import { IdCard } from "@/components/icons"
+import { Envelope, IdCard } from "@/components/icons"
 import { NAV_FORWARD, Page, Reveal, SkeletonExit } from "@/components/motion"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
 import { CvSheet } from "../components/cv-sheet"
 import { PrintButton } from "../components/print-button"
 import { getPublicCv } from "../public"
@@ -33,7 +34,24 @@ async function Resume() {
   await connection()
   const cv = await getPublicCv()
   if (!cv) return <NotPublished />
-  return <CvSheet cv={cv} actions={<PrintButton />} />
+  return (
+    <CvSheet
+      cv={cv}
+      actions={
+        <div className="flex flex-wrap items-start gap-2 print:hidden">
+          <Link
+            href="/contact"
+            transitionTypes={NAV_FORWARD}
+            className={cn(buttonVariants({ variant: "outline", size: "lg" }), "max-sm:h-11")}
+          >
+            <Envelope />
+            Contact me
+          </Link>
+          <PrintButton />
+        </div>
+      }
+    />
+  )
 }
 
 function NotPublished() {
@@ -48,7 +66,7 @@ function NotPublished() {
         <Link href="/projects" transitionTypes={NAV_FORWARD} className={buttonVariants({ size: "lg" })}>
           See projects
         </Link>
-        <Link href="/feedback" transitionTypes={NAV_FORWARD} className={buttonVariants({ variant: "outline", size: "lg" })}>
+        <Link href="/contact" transitionTypes={NAV_FORWARD} className={buttonVariants({ variant: "outline", size: "lg" })}>
           Send a message
         </Link>
       </div>

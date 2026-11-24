@@ -44,7 +44,8 @@ More), a grid of services with option sheets, safe areas for the iPhone home scr
 ## What's inside
 
 **Public site** (`/`): CV, projects with case studies, ideas, saved links, small tools
-(calculator, calories, compound interest, statistics) and an anonymous feedback form.
+(calculator, calories, compound interest, statistics), an anonymous feedback form and a
+contact form for job offers and projects (works without JavaScript).
 Everything private stays private; what's public is chosen item by item.
 
 **Private app** (`/app`, owner only)
@@ -59,7 +60,7 @@ Everything private stays private; what's public is chosen item by item.
 | Budget | Accounts, categories, plans, goals and recurring payments |
 | Files | Knowledge base: folders, uploads to object storage, markdown documents |
 | Links, Ideas, Projects, CV | Private by default, publish item by item to the public site |
-| Feedback | Complaints and suggestions from the public form, with status |
+| Feedback | Complaints and suggestions from the public form, with status; a Contact tab for job offers and projects, answered by email |
 | Ops | Server control panel: status, logs, restart and deploy of each service |
 | Bots | Telegram bot stats and settings |
 
@@ -69,7 +70,7 @@ passkeys and two-factor sign-in, an offline page, and the same UI on desktop and
 **Telegram bots** (`bots/`, Python + aiogram)
 
 - **osbot**: forward anything to save it as a task, note, link or idea; `/today`;
-  calendar reminders with snooze; new-feedback alerts. Talks to the app only through
+  calendar reminders with snooze; new-feedback and contact-form alerts. Talks to the app only through
   an HMAC-signed internal API.
 - **Expense bot**: type `250 coffee`, pick a category, done. Every expense is a Budget
   transaction; day / week / month summaries, history and CSV export.

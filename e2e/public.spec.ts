@@ -2,7 +2,7 @@
 import { expect, test } from "@playwright/test"
 import { OWNER, watchCsp } from "./support"
 
-const publicPages = ["/", "/projects", "/writing", "/ideas", "/links", "/cv", "/tools", "/tools/calculator", "/feedback", "/login"]
+const publicPages = ["/", "/projects", "/writing", "/ideas", "/links", "/cv", "/tools", "/tools/calculator", "/feedback", "/contact", "/login"]
 
 for (const path of publicPages) {
   test(`${path} renders with no CSP violations`, async ({ page }) => {

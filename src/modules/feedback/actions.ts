@@ -13,6 +13,7 @@ import {
   type FeedbackStatus,
 } from "./schema"
 import { z } from "zod"
+import { contactActions } from "./contact/actions"
 
 const columns = {
   id: feedbackItems.id,
@@ -138,4 +139,5 @@ export const actions = {
         await tx.delete(feedbackItems).where(eq(feedbackItems.id, id))
       }),
   }),
+  ...contactActions,
 }

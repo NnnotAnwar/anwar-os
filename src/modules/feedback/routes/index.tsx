@@ -7,6 +7,7 @@ import { requireViewer } from "@/core/auth"
 import { cn } from "@/lib/utils"
 import { actions } from "../actions"
 import { FeedbackList } from "../components/feedback-list"
+import { FeedbackTabs } from "../components/feedback-tabs"
 import { inboxFilters, statusLabels, type FeedbackStatus, type InboxFilter } from "../schema"
 
 const filterLabel = (f: InboxFilter) => (f === "inbox" ? "Inbox" : statusLabels[f])
@@ -18,7 +19,7 @@ export default function FeedbackPage({ searchParams }: PageProps<"/app/feedback"
       <PageHeader
         eyebrow="Inbox"
         title="Feedback"
-        description="What visitors send through the public form. Opening a message marks it read."
+        description="What visitors send through the public forms. Opening feedback marks it read."
         actions={
           <NextLink
             href="/feedback"
@@ -51,6 +52,7 @@ async function InboxBody({ searchParams }: Pick<PageProps<"/app/feedback">, "sea
 
   return (
     <div className="grid gap-3">
+      <FeedbackTabs current="feedback" />
       <nav aria-label="Filter by status" className="segmented max-w-full self-start overflow-x-auto">
         {shown.map((f) => (
           <NextLink

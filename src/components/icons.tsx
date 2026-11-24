@@ -209,3 +209,7 @@ export const ImageSquare = bold(P.ImageSquare)
 export const CloudSlash = bold(P.CloudSlash)
 export const CloudArrowUp = bold(P.CloudArrowUp)
 export const WarningCircle = bold(P.WarningCircle)
+// contact form
+export const Envelope = bold(P.Envelope)
+export const Archive = bold(P.Archive)
+export const ArrowBendUpLeft = bold(P.ArrowBendUpLeft)

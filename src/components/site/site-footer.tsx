@@ -11,6 +11,13 @@ export function SiteFooter() {
     <footer className="glass mx-3 mb-[calc(0.75rem+env(safe-area-inset-bottom))] grid gap-4 rounded-xl p-4 md:mx-6 md:mb-6 md:grid-cols-[minmax(0,1fr)_auto] md:p-5 print:hidden">
       <div className="grid gap-2">
         <p className="text-heading">Get in touch</p>
+        <p className="text-meta text-muted-foreground">
+          Job offer or project?{" "}
+          <Link href="/contact" className="text-text-accent underline-offset-4 hover:underline">
+            Write to me
+          </Link>{" "}
+          — I reply by email.
+        </p>
         <Suspense fallback={<p className="text-meta text-muted-foreground">Loading contacts…</p>}>
           <Contacts />
         </Suspense>
@@ -46,7 +53,7 @@ async function Contacts() {
   if (contacts.length === 0) {
     return (
       <p className="text-meta text-muted-foreground">
-        The quickest way to reach me is the{" "}
+        Anonymous notes go through the{" "}
         <Link href="/feedback" className="text-text-accent underline-offset-4 hover:underline">
           feedback form
         </Link>

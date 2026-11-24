@@ -1,7 +1,7 @@
 import { Suspense, type CSSProperties, type ReactNode } from "react"
 import Link from "next/link"
 import { connection } from "next/server"
-import { ArrowRight, ChatText } from "@/components/icons"
+import { ArrowRight, ChatText, Envelope } from "@/components/icons"
 import { NAV_FORWARD, Page, Reveal, SkeletonExit } from "@/components/motion"
 import { Meridian } from "@/components/site/meridian"
 import { ScrollReveal } from "@/components/site/scroll-reveal"
@@ -73,12 +73,12 @@ export default function HomePage() {
                 See projects
               </Link>
               <Link
-                href="/feedback"
+                href="/contact"
                 transitionTypes={NAV_FORWARD}
                 className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "text-text-accent max-sm:h-11")}
               >
-                <ChatText />
-                Say hello
+                <Envelope />
+                Get in touch
               </Link>
             </div>
           </div>
@@ -143,7 +143,11 @@ export default function HomePage() {
                 Something to say?
               </h2>
               <p className="text-meta text-muted-foreground">
-                An idea, a bug, a job, a complaint — send it. Anonymous is fine.
+                An idea, a bug, a complaint — send it. Anonymous is fine. For a job or a project, use the{" "}
+                <Link href="/contact" className="text-text-accent underline-offset-4 hover:underline">
+                  contact form
+                </Link>
+                .
               </p>
             </div>
             <Link

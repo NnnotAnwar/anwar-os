@@ -517,9 +517,11 @@ stack's internal network.
 5. Check: send `/today` to the bot. **Settings → Telegram** in the app shows
    "Connected" with the last heartbeat.
 
-Feedback alerts: while osbot's heartbeat is fresh (under 3 minutes) it sends
-them; otherwise web sends them itself through the Bot API with the same token,
-so alerts keep working while the bot is down. Each alert is sent once either way.
+Feedback and contact-form alerts: while osbot's heartbeat is fresh (under 3
+minutes) it sends them; otherwise web sends them itself through the Bot API with
+the same token, so alerts keep working while the bot is down. Each alert is sent
+once either way (feedback: `osbot_feedback_alerts`; contact:
+`contact_messages.alerted_at`). Contact cards carry ✓ Replied and 🗄 Archive.
 
 Rotating the secret: change `OSBOT_API_SECRET`, `deploy.sh <current sha>` (web
 and bot restart together). Rotating the token: `/revoke` in @BotFather, update

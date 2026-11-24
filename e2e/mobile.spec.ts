@@ -3,8 +3,8 @@
 import { expect, test } from "@playwright/test"
 import { expectNoHorizontalScroll, OWNER } from "./support"
 
-const publicPages = ["/", "/projects", "/ideas", "/links", "/cv", "/tools", "/tools/calculator", "/feedback", "/login"]
-const privatePages = ["/app", "/app/services", "/app/notes", "/app/notes/new", "/app/links", "/app/ideas", "/app/inbox", "/app/calendar", "/app/feedback", "/app/settings", "/app/capture", "/app/budget/subscriptions"]
+const publicPages = ["/", "/projects", "/ideas", "/links", "/cv", "/tools", "/tools/calculator", "/feedback", "/contact", "/login"]
+const privatePages = ["/app", "/app/services", "/app/notes", "/app/notes/new", "/app/links", "/app/ideas", "/app/inbox", "/app/calendar", "/app/feedback", "/app/feedback/contact", "/app/settings", "/app/capture", "/app/budget/subscriptions"]
 
 for (const path of publicPages) {
   test(`${path} fits 375 px`, async ({ page }) => {
