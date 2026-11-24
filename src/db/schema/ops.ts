@@ -58,7 +58,7 @@ export const opsEvents = pgTable(
 // the owner (osbot calls /api/internal/osbot/ops-alerts/*); RLS and grants in
 // db/modules/ops-alerts.sql.
 
-export const opsAlertKinds = ["disk", "memory", "backup", "cert", "container", "reboot", "agent"] as const
+export const opsAlertKinds = ["disk", "memory", "backup", "cert", "container", "reboot", "agent", "files"] as const
 export type OpsAlertKind = (typeof opsAlertKinds)[number]
 
 export const opsAlertState = pgTable(
@@ -89,7 +89,7 @@ export const opsAlertState = pgTable(
     check("ops_alert_state_key_format", sql`${t.key} ~ '^[a-z][a-z0-9_.:-]{0,199}$'`),
     check(
       "ops_alert_state_kind_valid",
-      sql`${t.kind} in ('disk', 'memory', 'backup', 'cert', 'container', 'reboot', 'agent')`,
+      sql`${t.kind} in ('disk', 'memory', 'backup', 'cert', 'container', 'reboot', 'agent', 'files')`,
     ),
     check("ops_alert_state_title_length", sql`char_length(${t.title}) between 1 and 200`),
     check("ops_alert_state_detail_length", sql`char_length(${t.detail}) <= 1000`),
@@ -111,7 +111,40 @@ export const opsAlertSettings = pgTable(
   (t) => [
     check(
       "ops_alert_settings_kinds_valid",
-      sql`${t.disabledKinds} <@ array['disk', 'memory', 'backup', 'cert', 'container', 'reboot', 'agent']::text[]`,
+      sql`${t.disabledKinds} <@ array['disk', 'memory', 'backup', 'cert', 'container', 'reboot', 'agent', 'files']::text[]`,
     ),
+  ],
+)
+
+// Files storage check (Ops → Server → Files storage): the last comparison of
+// the Files rows with the objects in the bucket, one row per owner, replaced
+// by every run (weekly from osbot, or "Check now"). The findings are capped
+// lists (see src/modules/ops/lib/files-check.ts); RLS, grants and the
+// owner-only inventory function in db/modules/ops-files-check.sql.
+
+export const opsFilesCheckStatuses = ["ok", "problems", "error"] as const
+export type OpsFilesCheckStatus = (typeof opsFilesCheckStatuses)[number]
+
+export const opsFilesCheck = pgTable(
+  "ops_files_check",
+  {
+    ownerId: text("owner_id")
+      .primaryKey()
+      .default(sql`app.current_user_id()`)
+      .references(() => user.id, { onDelete: "cascade" }),
+    status: text("status", { enum: opsFilesCheckStatuses }).notNull(),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull(),
+    durationMs: integer("duration_ms").notNull().default(0),
+    /** Why the run failed (status "error"): storage unreachable, credentials… */
+    error: text("error"),
+    /** FilesCheckFindings; `{}` when the run failed before comparing. */
+    findings: jsonb("findings").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("ops_files_check_status_valid", sql`${t.status} in ('ok', 'problems', 'error')`),
+    check("ops_files_check_error_length", sql`char_length(${t.error}) <= 1000`),
+    check("ops_files_check_findings_size", sql`octet_length(${t.findings}::text) <= 262144`),
   ],
 )

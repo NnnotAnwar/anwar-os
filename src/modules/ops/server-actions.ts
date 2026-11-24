@@ -4,6 +4,7 @@ import { refresh } from "next/cache"
 import type { z } from "zod"
 import { actions, type ControlResult, type DeployResult } from "./actions"
 import { alertSettingsInput, type AlertSettings } from "./alerts"
+import { deleteOrphansInput, type DeleteOrphansResult, type FilesCheckView, type RunResult } from "./files-check"
 import type { TagsResult } from "./ghcr"
 import type { ServerStatus } from "./host"
 import { controlInput, deployInput, eventsInput, logsInput, tagsInput, type LogLine, type OpsEvent, type ServicesResult } from "./schema"
@@ -94,4 +95,33 @@ export async function loadEvents(input: unknown): Promise<OpsEvent[]> {
   const data = await parse(eventsInput, input)
   if (!data) return []
   return actions.events.handler(data)
+}
+
+/** Ops → Server → Files storage → Check now (rate-limited). */
+export async function checkFilesNow(): Promise<RunResult> {
+  try {
+    return await actions.runFilesCheck.handler({})
+  } catch (e) {
+    console.error("ops files check failed", e)
+    return { ok: false, error: OFFLINE }
+  }
+}
+
+export async function loadFilesCheck(): Promise<FilesCheckView | null> {
+  try {
+    return await actions.filesCheck.handler({})
+  } catch {
+    return null
+  }
+}
+
+export async function deleteFileOrphans(input: unknown): Promise<DeleteOrphansResult> {
+  const data = await parse(deleteOrphansInput, input)
+  if (!data) return { ok: false, error: "Pick orphaned objects from the list." }
+  try {
+    return await actions.deleteFileOrphans.handler(data)
+  } catch (e) {
+    console.error("ops delete orphans failed", e)
+    return { ok: false, error: OFFLINE }
+  }
 }

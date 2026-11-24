@@ -58,6 +58,18 @@ describe.skipIf(!configured)("object storage (S3)", async () => {
     expect(res.headers.get("content-disposition")).toContain("filename*=UTF-8''Pozn%C3%A1mky.txt")
   })
 
+  it("lists every object with its size and date, and heads one (the files storage check)", async () => {
+    const { headObject, listObjects } = await import("./s3")
+    const listed = new Map<string, { size: number; lastModified: Date | null }>()
+    for await (const o of listObjects()) listed.set(o.key, o)
+    expect(listed.get(key)).toMatchObject({ size: body.length })
+    expect(listed.get(key)!.lastModified).toBeInstanceOf(Date)
+    const head = await headObject(key)
+    expect(head?.size).toBe(body.length)
+    expect(Math.abs(head!.lastModified!.getTime() - Date.now())).toBeLessThan(10 * 60_000)
+    expect(await headObject(`test-owner/${randomUUID()}`)).toBeNull()
+  })
+
   it("deletes objects and reports missing ones as null", async () => {
     await removeObjects([key])
     expect(await statObject(key)).toBeNull()

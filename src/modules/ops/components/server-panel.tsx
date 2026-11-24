@@ -40,12 +40,15 @@ export function ServerPanel({
   renderedAt,
   timezone,
   locale,
+  children,
 }: {
   initial: ServerStatus
   /** Server clock (ISO) so SSR and hydration agree. */
   renderedAt: string
   timezone: string
   locale: string
+  /** More tiles, after the host's (the files storage check). */
+  children?: ReactNode
 }) {
   const [status, setStatus] = useState(initial)
   const [now, setNow] = useState(() => new Date(renderedAt))
@@ -116,12 +119,13 @@ export function ServerPanel({
           </>
         )}
         <CertTile status={status} now={now} />
+        {children}
       </ul>
     </>
   )
 }
 
-function Tile({
+export function Tile({
   icon: Icon,
   title,
   level,

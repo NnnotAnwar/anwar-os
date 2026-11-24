@@ -4,6 +4,7 @@ import { z } from "zod"
 import { asViewer, requireViewer } from "@/core/auth"
 import { opsAlertKinds, opsAlertSettings, opsAlertState, type OpsAlertKind } from "@/db/schema"
 import { agentRequest } from "./agent"
+import { currentFilesAlerts } from "./files-check"
 import { loadServerStatus } from "./host"
 import { evaluateAlerts, type Alert, type AlertInput } from "./lib/server"
 import type { AgentService } from "./schema"
@@ -187,7 +188,7 @@ export async function recordAlerts(alerts: Alert[], now = new Date()): Promise<A
 export async function checkAlerts(now = new Date()): Promise<AlertCheckResult> {
   await requireOwner()
   const input = await collectAlertInput()
-  return recordAlerts(evaluateAlerts(input, now), now)
+  return recordAlerts([...evaluateAlerts(input, now), ...(await currentFilesAlerts(now))], now)
 }
 
 /** Marks notifications as sent. Only if the state is still what was sent. */

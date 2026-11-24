@@ -6,6 +6,16 @@ import { defineAction } from "@/core/module"
 import { opsEvents } from "@/db/schema"
 import { agentRequest, isAgentError, offlineMessage } from "./agent"
 import { alertSettingsInput, getAlertSettings, saveAlertSettings, type AlertSettings } from "./alerts"
+import {
+  deleteOrphans,
+  deleteOrphansInput,
+  getFilesCheck,
+  runFilesCheck,
+  runFilesCheckInput,
+  type DeleteOrphansResult,
+  type FilesCheckView,
+  type RunResult,
+} from "./files-check"
 import { imageTags, type TagsResult } from "./ghcr"
 import { loadServerStatus, type ServerStatus } from "./host"
 import {
@@ -234,10 +244,33 @@ export const actions = {
 
   updateAlertSettings: defineAction({
     description:
-      "Switch server alert kinds off or on (disk, memory, backup, cert, container, reboot, agent) and mute all of them until a time (null = unmute).",
+      "Switch server alert kinds off or on (disk, memory, backup, cert, container, reboot, agent, files) and mute all of them until a time (null = unmute).",
     kind: "write",
     input: alertSettingsInput,
     handler: async (input): Promise<AlertSettings> => saveAlertSettings(input),
+  }),
+
+  filesCheck: defineAction({
+    description:
+      "The last files storage check: how many objects and bytes the bucket holds, and files whose object is missing or has the wrong size, plus orphaned objects no file points at.",
+    kind: "read",
+    input: z.object({}),
+    handler: async (): Promise<FilesCheckView> => getFilesCheck(),
+  }),
+
+  runFilesCheck: defineAction({
+    description: "Run the files storage check now: compare every file with the objects in the bucket (a few per hour at most).",
+    kind: "write",
+    input: runFilesCheckInput,
+    handler: async (input): Promise<RunResult> => runFilesCheck(input, { limit: true }),
+  }),
+
+  deleteFileOrphans: defineAction({
+    description:
+      "Delete orphaned objects from the files storage (objects no file points at, older than a day), by key from the last check. Each is re-checked first; files are never touched.",
+    kind: "write",
+    input: deleteOrphansInput,
+    handler: async (input): Promise<DeleteOrphansResult> => deleteOrphans(input),
   }),
 
   events: defineAction({

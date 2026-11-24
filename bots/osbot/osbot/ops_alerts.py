@@ -1,5 +1,6 @@
 """Server alerts (Ops → Server in the app): disk, memory, backups, certificates,
-containers, a pending reboot, the agent itself.
+containers, a pending reboot, the agent itself, and the weekly files storage
+check (files_check.py runs it; its findings arrive here as kind "files").
 
 Every 5 minutes the bot asks the web app to evaluate the server
 (POST ops-alerts/check, src/modules/ops/alerts.ts). The app keeps the state in
@@ -48,6 +49,7 @@ KIND_ICONS = {
     "container": "📦",
     "reboot": "🔁",
     "agent": "🔌",
+    "files": "🗂",
 }
 
 
