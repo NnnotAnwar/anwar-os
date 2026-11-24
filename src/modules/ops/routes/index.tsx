@@ -10,6 +10,7 @@ import { osbotStatus } from "@/modules/osbot/service"
 import { actions } from "../actions"
 import { ActivityList } from "../components/activity-list"
 import { AlertSettingsCard } from "../components/alert-settings"
+import { FilesStorageTile } from "../components/files-storage-tile"
 import { NotConnected } from "../components/not-connected"
 import { OpsPanel } from "../components/ops-panel"
 import { ServerPanel } from "../components/server-panel"
@@ -76,11 +77,18 @@ function ServerSuspense() {
 async function ServerSection() {
   const viewer = await requireViewer()
   if (viewer.role !== "owner") notFound()
-  const [status, settings, bot] = await Promise.all([actions.server.handler({}), actions.alertSettings.handler({}), osbotStatus()])
+  const [status, settings, bot, files] = await Promise.all([
+    actions.server.handler({}),
+    actions.alertSettings.handler({}),
+    osbotStatus(),
+    actions.filesCheck.handler({}),
+  ])
   const renderedAt = new Date().toISOString()
   return (
     <section aria-labelledby="server-title" id="server" className="grid scroll-mt-24 gap-3">
-      <ServerPanel initial={status} renderedAt={renderedAt} timezone={viewer.timezone} locale={viewer.locale} />
+      <ServerPanel initial={status} renderedAt={renderedAt} timezone={viewer.timezone} locale={viewer.locale}>
+        <FilesStorageTile initial={files} renderedAt={renderedAt} timezone={viewer.timezone} locale={viewer.locale} />
+      </ServerPanel>
       <AlertSettingsCard
         initial={settings}
         osbot={{ configured: bot.configured, connected: bot.connected }}
