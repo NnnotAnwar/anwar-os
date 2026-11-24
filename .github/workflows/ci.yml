@@ -37,7 +37,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The expense bot's database tests skip without TEST_DATABASE_URL.
         bot: [expenses, osbot]
     defaults:
       run:
