@@ -19,7 +19,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup
 
 from .. import categories, keyboards, render
-from ..api import BudgetApi, Category, Expense, Totals
+from ..api import BudgetApi, Category, Expense, Limit, Totals
 from ..periods import Period, now_local, today_local
 
 HISTORY_PAGE_SIZE = 8
@@ -99,8 +99,12 @@ def card_text(
     currency: str | None = None,
     title: str | None = None,
     prompt: str | None = None,
+    limit: Limit | None = None,
 ) -> str:
-    """The card for one expense. Right after saving ("s") it carries today's and this month's totals."""
+    """The card for one expense. Right after saving ("s") it carries today's and this month's totals.
+
+    After a save or an edit, `limit` adds what's left of the category's monthly limit.
+    """
     footer = None
     if origin == "s":
         title = title or "✅ <b>Saved</b>"
@@ -108,6 +112,8 @@ def card_text(
             footer = render.running_totals(totals.day, totals.month, Period.current("m"), currency or row["currency"])
     else:
         title = title or "🧾 <b>Expense</b>"
+    if limit is not None:
+        footer = "\n".join(x for x in (render.limit_line(limit), footer) if x)
     return render.expense_card(row, render.CardContext(title=title, footer=footer, prompt=prompt))
 
 

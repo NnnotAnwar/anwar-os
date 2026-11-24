@@ -17,6 +17,9 @@ Send an amount, optionally with a note: `250 coffee`, `89`, `15,50`, `coffee 250
 - The saved card shows amount, category, note, Prague time and the running day/month
   totals, with **Undo · Amount · Category · Note** buttons. Amount and note are edited by
   replying with text; the card is then replaced by an updated one.
+- When the category (or its parent) has a monthly limit in Budget → Limits, the saved and
+  updated cards add what's left of it: `🎯 Food · 800 CZK left of 6 000 CZK`, `⚠️` from
+  90 %, `🔴 … over by …` once used up. osbot sends the 90 % and "used up" alerts.
 
 **Receipt photos.** Send a photo of a receipt (or an image file): the bot sends it to
 anwar.os, which has Claude read the total, shop, date and a fitting category, and answers
@@ -39,6 +42,7 @@ Persistent menu (reply keyboard): **📅 Today · 🗓 Week · 📊 Month · �
 | `/history` | recent expenses, 8 per page; tap a number to edit or delete (delete asks to confirm) |
 | `/export [YYYY-MM]` | a month as CSV (UTF-8 with BOM; date, time, amount, currency, category, note) |
 | `/subscriptions` | what subscriptions cost a month and a year, each with its cadence and next charge; other recurring payments in one line; 🔄 Refresh, ↗ Open in Budget |
+| `/limits` | this month's category limits (Budget → Limits), fullest first: spent of limit, a bar, what's left or how far over, the pace when it heads past the limit; 🔄 Refresh, ↗ Open in Budget |
 | `/cancel` | leaves an edit in progress |
 
 Summaries, history and CSV cover **all** spending in Budget (transfers between own
@@ -82,6 +86,7 @@ bot's own-database days) get a short "expired" answer instead of spinning.
   | `POST heartbeat` | Bots panel + Docker health |
   | `POST import` | the one-time import below |
   | `GET subscriptions` | `/subscriptions`: Budget's recurring expenses with next charge and monthly/yearly cost |
+  | `GET limits` | `/limits`: this month's category limits with spent, left and status |
   | `POST receipt` | a receipt photo (base64) → a draft (`src/modules/budget/receipts`; Claude runs on web, 75 s timeout, `expenses_bot/receipt_api.py`) |
 
 - **Errors** are specific (`expenses_bot/errors.py`): anwar.os not answering, signature

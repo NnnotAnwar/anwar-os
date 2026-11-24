@@ -69,6 +69,8 @@ class FakeBudget:
     unsigned: int = 0
     # GET /subscriptions answers this as is (Budget's recurring expenses; set by tests).
     recurring: dict[str, Any] | None = None
+    # Monthly limits by category name (minor units); writes answer with the limit, GET /limits lists them.
+    limits: dict[str, int] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.categories:
@@ -138,8 +140,33 @@ class FakeBudget:
                     day[t.currency] = day.get(t.currency, 0) - t.amount_minor
         return {"today": today.isoformat(), "month": f"{today:%Y-%m}", "day": day, "monthTotals": month}
 
+    def limit_json(self, category_id: str, month: tuple[int, int]) -> dict[str, Any] | None:
+        name = self.categories.get(category_id)
+        cap = next((v for k, v in self.limits.items() if name and k.casefold() == name.casefold()), None)
+        if cap is None:
+            return None
+        spent = sum(
+            -t.amount_minor
+            for t in self.expenses()
+            if t.category_id == category_id and t.currency == self.currency and (t.occurred_on.year, t.occurred_on.month) == month
+        )
+        status = "over" if spent >= cap else "near" if spent * 100 >= cap * 90 else "ok"
+        return {
+            "categoryId": category_id,
+            "name": name,
+            "limitMinor": cap,
+            "spentMinor": spent,
+            "leftMinor": cap - spent,
+            "percent": min(999, spent * 100 // cap),
+            "status": status,
+            "paceMinor": None,
+            "currency": self.currency,
+            "month": f"{month[0]:04d}-{month[1]:02d}",
+        }
+
     def saved(self, t: Txn) -> dict[str, Any]:
-        return {"expense": self.expense_json(t), "totals": self.totals()}
+        limit = self.limit_json(t.category_id, (t.occurred_on.year, t.occurred_on.month)) if t.category_id and t.currency == self.currency else None
+        return {"expense": self.expense_json(t), "totals": self.totals(), "limit": limit}
 
     def ranked_categories(self) -> list[dict[str, Any]]:
         since = today_local() - timedelta(days=90)
@@ -294,6 +321,11 @@ class FakeBudget:
                     )
                 )
             return {"dryRun": bool(body.get("dryRun")), "accountId": self.account_id, "imported": imported, "existing": existing}
+        if (method, path) == ("GET", "/limits"):
+            today = today_local()
+            items = [x for cid in self.categories if (x := self.limit_json(cid, (today.year, today.month)))]
+            items.sort(key=lambda x: (-x["spentMinor"] / x["limitMinor"], x["name"]))
+            return {"month": f"{today:%Y-%m}", "today": today.isoformat(), "currency": self.currency, "items": items, "url": "http://web:3000/app/budget/limits"}
         if (method, path) == ("GET", "/subscriptions"):
             empty = {"items": [], "subscriptions": [], "allRecurring": [], "url": "http://web:3000/app/budget/subscriptions"}
             return {"today": today_local().isoformat(), "currency": self.currency, **(self.recurring or empty)}

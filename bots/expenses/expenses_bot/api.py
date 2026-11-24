@@ -131,11 +131,47 @@ class Setup:
 
 
 @dataclass(frozen=True)
+class Limit:
+    """The monthly limit an expense counts against (its category's, or the parent's), right after a change.
+
+    Minor units in Budget's base currency; left_minor goes negative once over.
+    status: "ok" under 90 %, "near" from 90 %, "over" at 100 %.
+    """
+
+    name: str
+    limit_minor: int
+    spent_minor: int
+    left_minor: int
+    percent: int
+    status: str
+    currency: str
+
+    @classmethod
+    def parse(cls, data: dict[str, Any] | None) -> Limit | None:
+        if not data:
+            return None
+        return cls(
+            name=data["name"],
+            limit_minor=int(data["limitMinor"]),
+            spent_minor=int(data["spentMinor"]),
+            left_minor=int(data["leftMinor"]),
+            percent=int(data.get("percent") or 0),
+            status=data.get("status") or "ok",
+            currency=data.get("currency") or DEFAULT_CURRENCY,
+        )
+
+
+@dataclass(frozen=True)
 class Saved:
-    """Result of a write: the expense as stored and the running totals."""
+    """Result of a write: the expense as stored, the running totals and, when its category has one, the limit."""
 
     expense: Expense
     totals: Totals
+    limit: Limit | None = None
+
+    @classmethod
+    def parse(cls, data: dict[str, Any]) -> Saved:
+        return cls(parse_expense(data["expense"]), Totals.parse(data.get("totals")), Limit.parse(data.get("limit")))
 
 
 @dataclass(frozen=True)
@@ -225,7 +261,7 @@ class BudgetApi:
         data = await self._request("POST", "/expenses/quick", payload={"text": text, "requireCategory": True})
         if data.get("status") == "created":
             self.forget_setup()
-            return Saved(parse_expense(data["expense"]), Totals.parse(data.get("totals")))
+            return Saved.parse(data)
         draft = data["draft"]
         return Draft(
             amount_minor=int(draft["amountMinor"]),
@@ -240,11 +276,11 @@ class BudgetApi:
             payload["occurredOn"] = occurred_on.isoformat()
         data = await self._request("POST", "/expenses", payload=payload)
         self.forget_setup()
-        return Saved(parse_expense(data["expense"]), Totals.parse(data.get("totals")))
+        return Saved.parse(data)
 
     async def get(self, expense_id: str) -> Saved:
         data = await self._request("GET", "/expense", params={"id": expense_id})
-        return Saved(parse_expense(data["expense"]), Totals.parse(data.get("totals")))
+        return Saved.parse(data)
 
     async def update(
         self,
@@ -265,13 +301,13 @@ class BudgetApi:
         data = await self._request("POST", "/expense/update", payload=payload)
         if category_id is not None:
             self.forget_setup()
-        return Saved(parse_expense(data["expense"]), Totals.parse(data.get("totals")))
+        return Saved.parse(data)
 
     async def delete(self, expense_id: str) -> Saved:
         """Deletes it; returns it as it was."""
         data = await self._request("POST", "/expense/delete", payload={"id": expense_id})
         self.forget_setup()
-        return Saved(parse_expense(data["expense"]), Totals.parse(data.get("totals")))
+        return Saved.parse(data)
 
     # --- reads ----------------------------------------------------------------
 
@@ -286,6 +322,11 @@ class BudgetApi:
         if data.get("truncated"):
             log.warning("range truncated by the web app", extra={"from": first.isoformat(), "to": last.isoformat()})
         return [parse_expense(x) for x in data["items"]]
+
+    async def limits(self) -> dict[str, Any]:
+        """This month's category limits for /limits: {"month", "today", "currency", "items", "url"}; each item
+        has name, limitMinor, spentMinor, leftMinor, percent, status, paceMinor (limits.py renders it)."""
+        return await self._request("GET", "/limits")
 
     async def subscriptions(self) -> dict[str, Any]:
         """Budget's recurring expenses for /subscriptions: {"today", "currency", "items", "subscriptions",

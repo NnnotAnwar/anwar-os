@@ -60,6 +60,7 @@ def help_text(currency: str = DEFAULT_CURRENCY) -> str:
         "use ◀ ▶ to move between periods\n"
         "/history — recent entries; tap one to edit or delete it\n"
         "/subscriptions — what your subscriptions cost a month and a year, and when each charges next\n"
+        "/limits — what's left this month in each category with a limit\n"
         "/export — this month as a CSV file\n\n"
         f"Everything lands in Budget on anwar.os ({currency}, your default account); "
         "categories are Budget's, dates are Prague time. Edits made there show up here too."
@@ -133,6 +134,24 @@ def running_totals(
     day = _currency_list(day_total) or format_amount(0, currency)
     month = _currency_list(month_total) or format_amount(0, currency)
     return f"<i>Today {day} · {period_month.start:%B} {month}</i>"
+
+
+def limit_line(limit: Any) -> str:
+    """The monthly limit the expense counts against (api.Limit):
+
+    🎯 Food · 800 CZK left of 6 000 CZK
+    ⚠️ Food · 300 CZK left of 6 000 CZK · 95 %
+    🔴 Food · over by 1 300 CZK · limit 6 000 CZK
+    """
+    name = escape(limit.name)
+    cap = format_amount(limit.limit_minor, limit.currency)
+    if limit.left_minor < 0 or limit.status == "over":
+        over = format_amount(max(0, -limit.left_minor), limit.currency)
+        return f"🔴 <b>{name}</b> · over by {over} · limit {cap}" if limit.left_minor < 0 else f"🔴 <b>{name}</b> · limit used up ({cap})"
+    left = format_amount(limit.left_minor, limit.currency)
+    if limit.status == "near":
+        return f"⚠️ <b>{name}</b> · {left} left of {cap} · {limit.percent} %"
+    return f"🎯 {name} · {left} left of {cap}"
 
 
 def undone(row: Row) -> str:

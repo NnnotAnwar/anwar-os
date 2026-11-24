@@ -88,7 +88,7 @@ async def _act(callback: types.CallbackQuery, callback_data: EntryCb, state: FSM
             return
         saved = await api.update(expense_id, category_id=category.id)
         title = "✅ <b>Updated</b>" if origin == "s" else None
-        await show(callback, card_text(saved.expense, origin, totals=saved.totals, title=title), keyboards.expense_actions(expense_id, origin))
+        await show(callback, card_text(saved.expense, origin, totals=saved.totals, title=title, limit=saved.limit), keyboards.expense_actions(expense_id, origin))
         await callback.answer(f"Category: {category.name}")
         return
 
@@ -137,7 +137,7 @@ async def _finish_edit(message: types.Message, state: FSMContext, saved: Saved |
     if edit.get("card") and message.bot is not None:
         await delete_quietly(message.bot, message.chat.id, edit["card"])
     await message.answer(
-        card_text(saved.expense, origin, totals=saved.totals, title="✅ <b>Updated</b>"),
+        card_text(saved.expense, origin, totals=saved.totals, title="✅ <b>Updated</b>", limit=saved.limit),
         reply_markup=keyboards.expense_actions(edit["id"], origin),
     )
 

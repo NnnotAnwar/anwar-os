@@ -51,7 +51,7 @@ async def handle_entry(message: types.Message, state: FSMContext, api: BudgetApi
         return
     if not isinstance(result, Draft):
         await message.answer(
-            card_text(result.expense, "s", totals=result.totals),
+            card_text(result.expense, "s", totals=result.totals, limit=result.limit),
             reply_markup=keyboards.expense_actions(result.expense["id"]),
         )
         return
@@ -124,5 +124,5 @@ async def process_category(callback: types.CallbackQuery, callback_data: PickCb,
         await callback.answer(describe(exc, action="save expense").toast(), show_alert=True)
         return
 
-    await show(callback, card_text(saved.expense, "s", totals=saved.totals), keyboards.expense_actions(saved.expense["id"]))
+    await show(callback, card_text(saved.expense, "s", totals=saved.totals, limit=saved.limit), keyboards.expense_actions(saved.expense["id"]))
     await callback.answer("Saved")

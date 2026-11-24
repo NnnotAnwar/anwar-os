@@ -58,7 +58,7 @@ def test_build_dispatcher_wires_api_owner_and_routers():
     assert dp["api"] is api
     (middleware,) = [m for m in dp.update.outer_middleware if isinstance(m, OwnerOnlyMiddleware)]
     assert middleware.owner_id == 7
-    assert [r.name for r in dp.sub_routers] == ["commands", "subscriptions", "entries", "receipt", "expense", "fallback"]
+    assert [r.name for r in dp.sub_routers] == ["commands", "subscriptions", "limits", "entries", "receipt", "expense", "fallback"]
 
 
 async def test_heartbeat_touches_the_health_file_only_when_budget_accepted_it(budget, tmp_path):
