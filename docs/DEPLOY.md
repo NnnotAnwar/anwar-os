@@ -697,7 +697,7 @@ Three layers, each covering what the one before can't see:
 
 | Layer | Runs | Catches | Tells you |
 |---|---|---|---|
-| **Server alerts** | osbot, every 5 min, on the server | disk, memory, backups, certificates, containers, pending reboot, ops-agent | Telegram (osbot), once on trouble and once on recovery |
+| **Server alerts** | osbot, every 5 min, on the server | disk, memory, backups, certificates, containers, pending reboot, ops-agent, and the weekly files storage check | Telegram (osbot), once on trouble and once on recovery |
 | **Uptime** | GitHub Actions, every 10 min (`.github/workflows/uptime.yml`) | the whole server or a site down (from outside) | Telegram, once down and once back |
 | **Backup dead-man's switch** | healthchecks.io (optional) | the nightly backup silently not running at all | e-mail / its integrations |
 
@@ -720,6 +720,7 @@ after sending it).
 | Services | a managed container is down (crashed, OOM-killed), unhealthy or restarting; stopped on purpose doesn't count |
 | Reboot | `/run/reboot-required` older than 2 days (unattended-upgrades should have rebooted at 04:30) |
 | Agent | ops-agent configured but not answering (everything else is paused then) |
+| Files storage | the weekly files storage check (below) found lost, wrong-size or orphaned files, failed, or hasn't run for 9 days |
 
 If web itself doesn't answer two checks in a row (10 min), osbot says
 "anwar.os isn't answering" on its own and "answers again" when it's back.
@@ -729,6 +730,47 @@ tracked at all until switched back on, then a problem still there is announced),
 or **Mute all** for 1, 8 or 24 h (held, not dropped: whatever is still wrong
 when the mute ends is sent then). Nothing to configure on the server beyond
 osbot (§14) and ops-agent (§15).
+
+### Files storage check (weekly)
+
+The nightly backup dumps Postgres only; uploaded files live in the bucket and
+nothing else. Once a week the app checks that the two still agree, so a lost
+file is noticed while there is still a copy somewhere to restore it from.
+
+- **When:** osbot calls `POST /api/internal/osbot/files-check/run` every
+  Monday from 04:00 (`OSBOT_TIMEZONE`), with `maxAgeHours: 20` so a retry or a
+  restart doesn't list the bucket twice. **Ops → Server → Files storage →
+  Check now** runs it by hand (3 per 10 minutes).
+- **What:** web reads every account's `files_files` rows
+  (`app.files_storage_inventory()`, site owner only), lists the bucket
+  (ListObjectsV2, 1000 per page), reads the rows again, and compares
+  (`src/modules/ops/lib/files-check.ts`):
+
+  | Finding | Means | What to do |
+  |---|---|---|
+  | **Missing** | a row whose object is gone (confirmed with a HEAD) | restore the object from a copy, or delete the file in Files |
+  | **Wrong size** | the object's size differs from the row's | same |
+  | **Orphaned** | an object no row points at, older than 24 h: an abandoned upload or a delete that didn't reach storage | **Delete orphans** in the tile |
+  | Uploading | the same, younger than 24 h | nothing: an upload in flight |
+
+  The backups' prefix (`BACKUP_PREFIX/`, `postgres/` by default) is counted
+  apart and never touched. Other prefixes that aren't Files uploads go in
+  `FILES_CHECK_IGNORE_PREFIXES=postgres/,exports/` in `infra/.env` (it replaces
+  the default), then `dc up -d web`.
+- **Telling you (quiet by design):** the result is stored (`ops_files_check`)
+  and the 5-minute server alerts read it as the kind **Files storage**: lost
+  or damaged files (`files:missing`), leftovers (`files:orphans`), and a failed
+  or stale run (`files:check`, no run for 9 days) each come once, and once more
+  when resolved. A clean week sends nothing; the tile shows the last run.
+  Switch the kind off in Telegram alerts like any other.
+- **Delete orphans** deletes only objects that, checked again at the click,
+  have the shape of a Files key (`<owner>/<uuid>`), still have no row, still
+  exist and are older than 24 h; then the check runs again. Other unknown keys
+  are listed for you to remove by hand. Nothing is ever deleted on its own.
+
+The check needs the S3 key to be allowed to list the bucket (`ListBucket`). A
+key without it makes the run fail ("Access Denied (HTTP 403)"), which is
+reported as `files:check`.
 
 ### Uptime from outside (GitHub Actions)
 
