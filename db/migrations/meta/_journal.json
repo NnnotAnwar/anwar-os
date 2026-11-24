@@ -267,6 +267,20 @@
       "when": 1795481027031,
       "tag": "0037_notes_publishing_analytics_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1795482359020,
+      "tag": "0038_assistant",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1795482359552,
+      "tag": "0039_assistant_rls",
+      "breakpoints": true
     }
   ]
 }
