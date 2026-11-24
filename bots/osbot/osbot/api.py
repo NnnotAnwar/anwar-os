@@ -142,3 +142,22 @@ class OsbotApi:
 
     async def heartbeat(self, version: str, started_at: datetime) -> None:
         await self._request("POST", "/heartbeat", payload={"version": version, "startedAt": started_at.isoformat()})
+
+    # --- digests: payment reminders and the weekly review (digest.py) -------------
+
+    async def payments_due(self) -> dict[str, Any]:
+        """{"today", "date": tomorrow, "items": [{"key", "title", "amountMinor", "currency", …}], "url"}"""
+        return await self._request("GET", "/payments/due")
+
+    async def ack_payments(self, keys: list[str]) -> int:
+        data = await self._request("POST", "/payments/ack", payload={"keys": keys})
+        return int(data["acked"])
+
+    async def weekly(self, date: str | None = None) -> dict[str, Any]:
+        """The review of the week containing `date` (YYYY-MM-DD, default today), with "delivered"."""
+        return await self._request("GET", "/weekly", params={"date": date} if date else None)
+
+    async def ack_weekly(self, week: str) -> int:
+        """`week` is the reviewed week's Monday (the review's week.key)."""
+        data = await self._request("POST", "/weekly/ack", payload={"week": week})
+        return int(data["acked"])

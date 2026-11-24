@@ -16,6 +16,7 @@ from aiogram.types import BotCommand
 from . import BOT_NAME, texts
 from .api import OsbotApi
 from .config import DEFAULT_APP_URL, Config
+from .digest import WeeklyMemory, digest_tasks
 from .fmt import set_timezone
 from .handlers import make_routers, on_error
 from .loops import background_tasks
@@ -31,6 +32,7 @@ SHUTDOWN_TIMEOUT_SECONDS = 7
 # The command menu (the "/" button next to the input field), most used first.
 COMMANDS = [
     BotCommand(command="today", description="Today's calendar and due tasks"),
+    BotCommand(command="week", description="This week in review"),
     BotCommand(command="task", description="Add a task"),
     BotCommand(command="note", description="Save a note"),
     BotCommand(command="link", description="Save a link"),
@@ -40,13 +42,22 @@ COMMANDS = [
 ]
 
 
-def build_dispatcher(api: OsbotApi, owner_chat_id: int, *, app_url: str = DEFAULT_APP_URL, reminders: ReminderMemory | None = None) -> Dispatcher:
+def build_dispatcher(
+    api: OsbotApi,
+    owner_chat_id: int,
+    *,
+    app_url: str = DEFAULT_APP_URL,
+    reminders: ReminderMemory | None = None,
+    weekly: WeeklyMemory | None = None,
+) -> Dispatcher:
     dp = Dispatcher()
     # Injected into handlers by argument name.
     dp["api"] = api
     dp["targets"] = CaptureTargets(api)
     dp["app_url"] = app_url
     dp["reminders"] = reminders if reminders is not None else ReminderMemory()
+    # The weekly review's snooze, shared with its loop (digest.py).
+    dp["weekly"] = weekly if weekly is not None else WeeklyMemory()
     dp.update.outer_middleware(OwnerOnlyMiddleware(owner_chat_id))
     for router in make_routers():
         dp.include_router(router)
@@ -129,6 +140,7 @@ async def _poll_until_stopped(
         name="polling",
     )
     loops = background_tasks(bot, api, config.owner_chat_id, config.version, started_at, reminders)
+    loops += digest_tasks(bot, api, config.owner_chat_id, dp.get("weekly") or WeeklyMemory())
     stopper = asyncio.create_task(stop.wait(), name="stop-signal")
     tasks = [polling, *loops, stopper]
     try:

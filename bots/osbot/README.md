@@ -15,6 +15,9 @@ private bot."
 | after saving | ↗ Open and ↩ Undo (for 2 hours; Undo offers the other destinations) |
 | reminders | `⏰ Dentist in 30 min · 14:00` with 💤 10 min / 1 h, ✓ Got it, ↗ Open in calendar |
 | feedback alerts | the message quoted, ↗ Open, ✓ Mark read, 🚫 Spam, ↩ Undo |
+| `/week` | the week in review (below), with ↗ Open in app and 🔄 Refresh |
+| payment reminders | from 10:00 the day before a recurring expense charges: `💳 Tomorrow: Netflix · 299 CZK` (several: one list with the total), ↗ Subscriptions |
+| weekly review | Sundays from 19:00, once: tasks done / added / overdue, 🎯 focus (top 3 due or overdue), next week's calendar, spending vs last week with top categories and the Budget plan, payments next week, new ideas / notes / links / feedback; ↗ Open in app, 💤 1 h, ⏭ Skip |
 
 Messages are HTML (`texts.py`), edited in place where a button changes them,
 and every button press gets an answer (a toast) even when it has expired.
@@ -51,9 +54,13 @@ any mismatch, then acts as the site owner with row-level security on.
 | `GET feedback/new`, `POST feedback/ack` | feedback alerts, same pattern |
 | `POST feedback/status` | `{ id, status }`, returns the previous status (for Undo) |
 | `POST heartbeat` | every minute; Settings → Telegram shows it |
+| `GET payments/due` | recurring expenses charging tomorrow (owner's timezone) not reminded yet, each with a `key` |
+| `POST payments/ack` | `{ keys }` (`<recurring id>:<date>`) once sent: idempotent |
+| `GET weekly?date=` | the review of the week (Mon–Sun) containing `date`, default today, with `delivered` |
+| `POST weekly/ack` | `{ week }` (its Monday) once the Sunday review is sent: idempotent |
 
 Loops run once a minute, just after the minute turns: heartbeat, reminders,
-feedback. Each item is sent first and acknowledged after, so a crash can repeat
+feedback, payments, weekly (`digest.py`). Each item is sent first and acknowledged after, so a crash can repeat
 one message but never lose one. While the heartbeat is fresh, the web app stops
 sending its own direct feedback alerts and leaves them to osbot.
 
