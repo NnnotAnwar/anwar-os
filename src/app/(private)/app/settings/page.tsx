@@ -5,6 +5,8 @@ import { PageHeader } from "@/components/shell/page-header"
 import { requireViewer } from "@/core/auth"
 import { isSessionFresh, listApiTokens } from "@/core/api-tokens/server"
 import { getSignInMethods } from "@/core/sign-in-methods"
+import { getTheme } from "@/core/preferences"
+import { AppearanceSettings } from "./appearance-settings"
 import { TelegramStatus } from "@/modules/osbot/components/telegram-status"
 import { ApiTokens } from "./api-tokens"
 import { AssistantUsageSection } from "@/modules/assistant/components/usage-section"
@@ -32,6 +34,25 @@ export default function SettingsPage() {
             </Suspense>
           </div>
         </section>
+        <section
+          id="appearance"
+          aria-labelledby="appearance-heading"
+          className="grid scroll-mt-20 gap-4 md:grid-cols-[14rem_1fr] md:gap-8"
+        >
+          <div className="grid content-start gap-1">
+            <h2 id="appearance-heading" className="font-medium">
+              Appearance
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Light, dark, or dark at night on a schedule. Saved for you, so every device and the public site follow it.
+            </p>
+          </div>
+          <div className="glass rounded-xl p-5">
+            <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+              <Appearance />
+            </Suspense>
+          </div>
+        </section>
         <Suspense fallback={null}>
           <TelegramSection />
         </Suspense>
@@ -50,6 +71,11 @@ async function Methods() {
   const methods = await getSignInMethods()
   // Routes keep their client state across navigations: start over per session.
   return <SignInMethods key={methods.sessionKey} methods={methods} />
+}
+
+async function Appearance() {
+  const [viewer, { place }] = await Promise.all([requireViewer(), getTheme()])
+  return <AppearanceSettings place={place} timeZone={viewer.timezone} locale={viewer.locale} />
 }
 
 /** The owner's Telegram bot (osbot); other users have none. */

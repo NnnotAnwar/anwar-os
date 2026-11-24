@@ -5,7 +5,7 @@
  * Scripts: only those carrying the nonce, plus whatever they load
  * ('strict-dynamic'), so an injected <script> or inline handler never runs.
  * Next.js reads the nonce from the request's CSP header and stamps it on its own
- * scripts; the root layout passes it to next-themes. That only works for HTML
+ * scripts; the root layout stamps it on the theme's pre-paint script. That only works for HTML
  * rendered per request, which is why the root layout reads headers() (see the
  * note there): a prerendered static shell has no nonce.
  *

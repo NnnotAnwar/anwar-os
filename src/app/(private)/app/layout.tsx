@@ -9,6 +9,7 @@ import { OfflineBanner } from "@/components/offline/offline-banner"
 import { OfflineSync } from "@/components/offline/offline-sync"
 import { OutboxStatus } from "@/components/offline/outbox-status"
 import { ServiceWorker } from "@/components/pwa/service-worker"
+import { ThemeSync } from "@/components/theme/theme-sync"
 import { NavLink, TabLink } from "@/components/shell/nav-link"
 import { SearchIconTrigger, SearchTrigger } from "@/components/shell/search-trigger"
 import { UserMenu } from "@/components/shell/user-menu"
@@ -16,6 +17,7 @@ import { Wordmark } from "@/components/shell/wordmark"
 import { requireViewer, type Viewer } from "@/core/auth"
 import { modulesFor } from "@/core/module"
 import { getServices } from "@/core/services"
+import { getTheme } from "@/core/preferences"
 import { modules } from "@/modules/_registry"
 import { CaptureSheet } from "@/modules/inbox/components/capture-sheet"
 
@@ -100,6 +102,9 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
       <Suspense fallback={null}>
         <Offline />
       </Suspense>
+      <Suspense fallback={null}>
+        <SavedTheme />
+      </Suspense>
     </div>
   )
 }
@@ -133,6 +138,12 @@ function displayName(viewer: Viewer) {
 async function Offline() {
   const viewer = await requireViewer()
   return <OfflineSync userId={viewer.id} />
+}
+
+/** The appearance saved for this user wins over this browser's cookie (a new device catches up). */
+async function SavedTheme() {
+  const { theme } = await getTheme()
+  return <ThemeSync saved={theme} />
 }
 
 async function ViewerMenu({ variant }: { variant: "full" | "compact" }) {

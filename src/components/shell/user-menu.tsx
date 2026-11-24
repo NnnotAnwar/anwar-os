@@ -2,8 +2,9 @@
 
 import { useTransition } from "react"
 import Link from "next/link"
-import { House, LogOut, Monitor, Moon, Settings, Sun } from "@/components/icons"
-import { useTheme } from "next-themes"
+import { Clock, House, LogOut, Monitor, Moon, Settings, Sun } from "@/components/icons"
+import { useTheme } from "@/components/theme/theme-provider"
+import { THEME_MODES, type ThemeMode } from "@/lib/theme"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,7 +28,7 @@ type Props = {
 }
 
 export function UserMenu({ name, email, role, variant }: Props) {
-  const { theme, setTheme } = useTheme()
+  const { theme, config, setTheme } = useTheme()
   const [pending, startTransition] = useTransition()
   const initial = name.trim().charAt(0).toUpperCase() || "?"
 
@@ -69,7 +70,10 @@ export function UserMenu({ name, email, role, variant }: Props) {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuLabel>Appearance</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={(v) => setTheme(String(v))}>
+          <DropdownMenuRadioGroup
+            value={theme}
+            onValueChange={(v) => THEME_MODES.includes(v as ThemeMode) && setTheme(v as ThemeMode)}
+          >
             <DropdownMenuRadioItem value="light">
               <Sun />
               Light
@@ -82,7 +86,19 @@ export function UserMenu({ name, email, role, variant }: Props) {
               <Monitor />
               Match system
             </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="scheduled">
+              <Clock />
+              <span className="grid">
+                Scheduled
+                <span className="text-xs text-muted-foreground">
+                  {config.schedule === "sun" ? "Sunset to sunrise" : `Dark ${config.from}–${config.until}`}
+                </span>
+              </span>
+            </DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
+          <DropdownMenuItem render={<Link href="/app/settings#appearance" />} className="text-muted-foreground">
+            Schedule settings…
+          </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={pending} onClick={() => startTransition(() => signOutSafely())}>
