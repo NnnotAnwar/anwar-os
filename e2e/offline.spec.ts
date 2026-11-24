@@ -4,9 +4,27 @@
 // worker isn't registered by `next dev`).
 import { randomBytes } from "node:crypto"
 import { expect, test, type Page } from "@playwright/test"
-import { adminDb, OWNER } from "./support"
+import { adminDb, OWNER, ownerCredentials } from "./support"
 
 test.use({ storageState: OWNER })
+
+// Its own account: Budget's quick add is disabled without one, and other specs
+// create and delete theirs.
+const account = `Offline ${randomBytes(3).toString("hex")}`
+
+test.beforeAll(async () => {
+  const admin = adminDb()
+  const [owner] = await admin`select id from auth."user" where email = ${ownerCredentials().email}`
+  await admin`insert into budget_accounts (owner_id, name) values (${owner!.id as string}, ${account})`
+  await admin.end()
+})
+
+test.afterAll(async () => {
+  const admin = adminDb()
+  await admin`delete from budget_transactions where account_id in (select id from budget_accounts where name = ${account})`
+  await admin`delete from budget_accounts where name = ${account}`
+  await admin.end()
+})
 
 async function productionOnly(page: Page) {
   const response = await page.goto("/app")
