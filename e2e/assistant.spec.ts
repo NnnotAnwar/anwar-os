@@ -31,7 +31,7 @@ test("assistant is reachable from ⌘K and Settings shows its usage line", async
     await page.keyboard.press("ControlOrMeta+k")
     await expect(palette).toBeVisible({ timeout: 1000 })
   }).toPass()
-  await palette.getByPlaceholder("Search notes, pages, commands…").fill("Assistant")
+  await palette.getByPlaceholder("Search everything or jump to…").fill("Assistant")
   await palette.getByRole("option", { name: "Assistant" }).first().click()
   await expect(page).toHaveURL(/\/app\/assistant$/)
 
