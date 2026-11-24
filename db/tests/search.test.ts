@@ -1,5 +1,5 @@
 // Global search end to end against Postgres: `pnpm test:db`.
-//  - db/modules/search.sql applies cleanly (and again: it's idempotent) and its
+//  - the search migration (0031) applies cleanly (and again: it's idempotent) and its
 //    trigram indexes serve infix ILIKE;
 //  - runSearch() finds the viewer's rows in every module, amounts included,
 //    within the per-module limits;
@@ -39,7 +39,7 @@ function as<T>(viewer: string, fn: (sql: postgres.TransactionSql) => Promise<T>)
 }
 
 async function applySearchSql() {
-  const text = await readFile(new URL("../modules/search.sql", import.meta.url), "utf8")
+  const text = await readFile(new URL("../migrations/0031_search_trgm_indexes.sql", import.meta.url), "utf8")
   for (const statement of text.split("--> statement-breakpoint")) {
     if (statement.replace(/--.*$/gm, "").trim()) await admin.unsafe(statement)
   }
@@ -110,7 +110,7 @@ afterAll(async () => {
   await Promise.all([admin.end(), app.end()])
 })
 
-describe("db/modules/search.sql", () => {
+describe("search migration 0031", () => {
   it("is idempotent", async () => {
     await expect(applySearchSql()).resolves.toBeUndefined()
   })
