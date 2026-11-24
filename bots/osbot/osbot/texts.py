@@ -49,12 +49,14 @@ HELP = (
     "<i>Any of these without text asks for it.</i>\n\n"
     "<b>Plan</b>\n"
     "/today · calendar, due tasks and new feedback, with Done and Tomorrow buttons\n"
-    "/week · the week in review: tasks, next week's calendar, spending, payments\n\n"
+    "/week · the week in review: tasks, next week's calendar, spending, payments\n"
+    "/habits · today's habits; tap one to tick it off\n\n"
     "<b>Notifications</b>\n"
     "⏰ Calendar reminders, with snooze\n"
     "💬 New feedback from the site, with Mark read\n"
     "💳 Recurring payments, the day before they charge\n"
-    "🗓 The week in review, Sundays at 19:00"
+    "🗓 The week in review, Sundays at 19:00\n"
+    "🌱 Habit reminders and the evening nudge, when set in the app"
 )
 
 UNKNOWN_COMMAND = "<b>I don't know that command.</b>\n/help lists what I can do."
