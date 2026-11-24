@@ -28,7 +28,7 @@ export function optedOut(headers: Headers) {
 }
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/
-const SECTIONS = new Set(["/", "/cv", "/projects", "/ideas", "/links", "/tools", "/feedback", "/writing"])
+const SECTIONS = new Set(["/", "/cv", "/projects", "/ideas", "/links", "/tools", "/feedback", "/writing", "/contact"])
 
 /**
  * The public route a beacon reports, or null when it isn't one we count:
