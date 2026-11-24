@@ -344,6 +344,20 @@
       "when": 1795523357428,
       "tag": "0048_goals_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1795523367043,
+      "tag": "0049_contact",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795523367640,
+      "tag": "0050_contact_rls",
+      "breakpoints": true
     }
   ]
 }
