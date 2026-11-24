@@ -24,6 +24,8 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   const admin = adminDb()
   await admin`delete from budget_recurring where note like ${`% ${run}`}`
+  // Transactions block an account delete (on delete restrict): charges recorded here go first.
+  await admin`delete from budget_transactions where account_id in (select id from budget_accounts where name = ${account})`
   await admin`delete from budget_accounts where name = ${account}`
   await admin.end()
 })
