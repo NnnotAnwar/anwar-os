@@ -1,4 +1,4 @@
-"""Background loops: heartbeat, calendar reminders and feedback alerts.
+"""Background loops: heartbeat, calendar reminders, feedback and contact alerts.
 
 Each runs once a minute, just after the minute turns (so a reminder due at 13:30
 goes out at ~13:30:02). Each step is "send, then ack": the web app only stops
@@ -20,9 +20,9 @@ from typing import Any
 
 from .api import OsbotApi
 from .config import HEARTBEAT_FILE, POLL_INTERVAL_SECONDS
-from .keyboards import feedback_keyboard, reminder_keyboard
+from .keyboards import contact_keyboard, feedback_keyboard, reminder_keyboard
 from .snooze import ReminderMemory, snooze_options
-from .texts import feedback_text, reminder_text
+from .texts import contact_text, feedback_text, reminder_text
 from .tg import send_card
 
 log = logging.getLogger(__name__)
@@ -118,6 +118,28 @@ async def feedback_once(bot: Any, api: OsbotApi, chat_id: int, now: datetime | N
     return sent
 
 
+async def contact_once(bot: Any, api: OsbotApi, chat_id: int, now: datetime | None = None) -> int:
+    """Sends new contact-form messages; returns how many were sent and acknowledged."""
+    try:
+        items = await api.new_contact()
+    except Exception:
+        log.warning("could not fetch new contact messages", exc_info=True)
+        return 0
+    sent = 0
+    for item in items:
+        try:
+            await send_card(bot, chat_id, contact_text(item, now or utcnow()), contact_keyboard(item["id"], item.get("url")))
+        except Exception:
+            log.warning("could not send a contact alert", exc_info=True, extra={"contact_id": item.get("id")})
+            continue
+        try:
+            await api.ack_contact([item["id"]])
+            sent += 1
+        except Exception:
+            log.warning("could not ack a contact alert", exc_info=True, extra={"contact_id": item.get("id")})
+    return sent
+
+
 def seconds_to_next_minute(now: float | None = None, interval: float = POLL_INTERVAL_SECONDS) -> float:
     now = time.time() if now is None else now
     return interval - (now % interval) + 1.0
@@ -145,4 +167,5 @@ def background_tasks(
             every_minute(lambda: reminders_once(bot, api, chat_id, memory=memory), name="reminders"), name="reminders"
         ),
         asyncio.create_task(every_minute(lambda: feedback_once(bot, api, chat_id), name="feedback"), name="feedback"),
+        asyncio.create_task(every_minute(lambda: contact_once(bot, api, chat_id), name="contact"), name="contact"),
     ]

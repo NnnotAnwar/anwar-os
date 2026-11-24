@@ -138,6 +138,20 @@ class OsbotApi:
         """{"id", "status", "previous"}"""
         return await self._request("POST", "/feedback/status", payload={"id": feedback_id, "status": status})
 
+    # --- contact (the public /contact form) -------------------------------------
+
+    async def new_contact(self) -> list[dict[str, Any]]:
+        data = await self._request("GET", "/contact/new")
+        return data["items"]
+
+    async def ack_contact(self, ids: list[str]) -> int:
+        data = await self._request("POST", "/contact/ack", payload={"ids": ids})
+        return int(data["acked"])
+
+    async def contact_status(self, contact_id: str, status: str) -> dict[str, Any]:
+        """{"id", "status", "previous"}"""
+        return await self._request("POST", "/contact/status", payload={"id": contact_id, "status": status})
+
     # --- heartbeat ------------------------------------------------------------
 
     async def heartbeat(self, version: str, started_at: datetime) -> None:

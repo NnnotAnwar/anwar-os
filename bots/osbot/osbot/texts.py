@@ -53,6 +53,7 @@ HELP = (
     "<b>Notifications</b>\n"
     "⏰ Calendar reminders, with snooze\n"
     "💬 New feedback from the site, with Mark read\n"
+    "✉️ Job offers and projects from the contact form, with Replied and Archive\n"
     "💳 Recurring payments, the day before they charge\n"
     "🗓 The week in review, Sundays at 19:00"
 )
@@ -283,4 +284,37 @@ def with_feedback_footer(html_text: str, status: str) -> str:
     """The card with its status footer replaced (none for "new")."""
     base = _FOOTER_RE.sub("", html_text)
     footer = FEEDBACK_FOOTERS.get(status)
+    return f"{base}\n\n<i>{esc(footer)}</i>" if footer else base
+
+
+# --- contact (job offers and projects from the public /contact form) ---------------
+
+CONTACT_FOOTERS = {
+    "replied": "✓ Marked replied",
+    "archived": "🗄 Archived",
+}
+_CONTACT_FOOTER_RE = re.compile(r"\n\n<i>(?:" + "|".join(re.escape(f) for f in CONTACT_FOOTERS.values()) + r")</i>$")
+
+
+def contact_text(item: dict[str, Any], now: datetime | None = None) -> str:
+    """✉️ New contact · Job offer, who (and company) with their email, the message quoted, when."""
+    message = str(item["message"])
+    quote = "<blockquote expandable>" if len(message) > 400 or message.count("\n") > 6 else "<blockquote>"
+    sender = " · ".join(esc(part) for part in (item.get("name"), item.get("company")) if part)
+    when = ""
+    if item.get("createdAt"):
+        when = f" · <i>{esc(stamp(parse_instant(item['createdAt']), now or datetime.now(UTC)))}</i>"
+    return (
+        f"✉️ <b>New contact</b> · {esc(item['topicLabel'])}\n"
+        f"<b>{sender}</b>\n"
+        f"{esc(item.get('email') or '')}\n"
+        f"{quote}{esc(message)}</blockquote>\n"
+        f"<i>Reply by email</i>{when}"
+    )
+
+
+def with_contact_footer(html_text: str, status: str) -> str:
+    """The card with its status footer replaced (none for "new")."""
+    base = _CONTACT_FOOTER_RE.sub("", html_text)
+    footer = CONTACT_FOOTERS.get(status)
     return f"{base}\n\n<i>{esc(footer)}</i>" if footer else base

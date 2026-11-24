@@ -110,6 +110,26 @@ async def test_button_endpoints(fake_web):
     ]
 
 
+async def test_contact_endpoints(fake_web):
+    server, calls, replies = fake_web
+    replies.update(
+        {
+            "/api/internal/osbot/contact/new": (200, {"items": [{"id": "c1"}]}),
+            "/api/internal/osbot/contact/ack": (200, {"acked": 1}),
+            "/api/internal/osbot/contact/status": (200, {"id": "c1", "status": "replied", "previous": "new"}),
+        }
+    )
+    async with OsbotApi(str(server.make_url("")), SECRET) as api:
+        assert await api.new_contact() == [{"id": "c1"}]
+        assert await api.ack_contact(["c1"]) == 1
+        assert (await api.contact_status("c1", "replied"))["previous"] == "new"
+    assert all(c["signed"] for c in calls)
+    assert [(c["path"], c["body"]) for c in calls][1:] == [
+        ("/api/internal/osbot/contact/ack", {"ids": ["c1"]}),
+        ("/api/internal/osbot/contact/status", {"id": "c1", "status": "replied"}),
+    ]
+
+
 async def test_no_answer_at_all_is_unreachable():
     # Nothing listens on port 9 (discard) locally: connection refused.
     async with OsbotApi("http://127.0.0.1:9", SECRET) as api:

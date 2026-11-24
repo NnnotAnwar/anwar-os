@@ -130,6 +130,44 @@ async def test_feedback_alerts_are_sent_as_cards_then_acked():
     api.ack_feedback.assert_not_awaited()
 
 
+async def test_contact_alerts_are_sent_as_cards_then_acked():
+    item = {
+        "id": "c1",
+        "topicLabel": "Job offer",
+        "name": "Jana Nováková",
+        "company": "Studio Nová",
+        "email": "jana@studio.example",
+        "message": "We're hiring",
+        "createdAt": "2026-11-16T12:00:00.000Z",
+        "url": "https://os.example/app/feedback/contact/c1",
+    }
+    api = SimpleNamespace(new_contact=AsyncMock(return_value=[item]), ack_contact=AsyncMock(return_value=1))
+    bot = fake_bot()
+    assert await loops.contact_once(bot, api, CHAT, NOW) == 1
+    call = bot.send_message.call_args
+    assert call.args == (
+        CHAT,
+        "✉️ <b>New contact</b> · Job offer\n<b>Jana Nováková · Studio Nová</b>\njana@studio.example\n"
+        "<blockquote>We're hiring</blockquote>\n<i>Reply by email</i> · <i>13:00</i>",
+    )
+    assert buttons(call.kwargs["reply_markup"]) == [
+        ("↗ Open", "https://os.example/app/feedback/contact/c1"),
+        ("✓ Replied", "ct:c1:replied"),
+        ("🗄 Archive", "ct:c1:archived"),
+    ]
+    api.ack_contact.assert_awaited_once_with(["c1"])
+
+    # Telegram refused the card: not acked, so it's tried again next minute.
+    failing = fake_bot(fail_on="hiring")
+    api.ack_contact.reset_mock()
+    assert await loops.contact_once(failing, api, CHAT, NOW) == 0
+    api.ack_contact.assert_not_awaited()
+
+    # The web app is down: nothing sent, the loop carries on.
+    down = SimpleNamespace(new_contact=AsyncMock(side_effect=OSError("refused")), ack_contact=AsyncMock())
+    assert await loops.contact_once(bot, down, CHAT, NOW) == 0
+
+
 async def test_heartbeat_touches_the_health_file_only_on_success(tmp_path):
     health = tmp_path / "hb"
     api = SimpleNamespace(heartbeat=AsyncMock())
