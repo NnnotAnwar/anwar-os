@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { z } from "zod"
 import { Page, Reveal, SkeletonExit } from "@/components/motion"
+import { PendingItems } from "@/components/offline/pending-items"
 import { PageHeader } from "@/components/shell/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { requireViewer } from "@/core/auth"
@@ -18,6 +19,7 @@ export default function InboxPage({ searchParams }: PageProps<"/app/inbox">) {
           title="Inbox"
           description="Everything you jot down lands here. Sort it one at a time into a task, note, link, idea or event."
         />
+        <PendingItems kinds={["inbox"]} />
         <Suspense
           fallback={
             <SkeletonExit>

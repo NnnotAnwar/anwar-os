@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import Link from "next/link"
 import { ArrowUpRight, Bank, PiggyBank, TrendingUp, Wallet } from "@/components/icons"
 import { NAV_FORWARD, Reveal, SkeletonExit } from "@/components/motion"
+import { PendingItems } from "@/components/offline/pending-items"
 import { Skeleton } from "@/components/ui/skeleton"
 import { requireViewer } from "@/core/auth"
 import { cn } from "@/lib/utils"
@@ -19,6 +20,7 @@ type Props = PageProps<"/app/budget">
 export default function BudgetOverviewPage({ searchParams }: Props) {
   return (
     <BudgetPage title="Overview" description="This month at a glance: what came in, what went out, where it went.">
+      <PendingItems kinds={["expense"]} />
       <Suspense fallback={<OverviewSkeleton />}>
         <Reveal>
           <Body searchParams={searchParams} />

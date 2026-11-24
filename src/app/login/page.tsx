@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
+import { ForgetSavedPages } from "@/components/offline/forget-saved-pages"
 import { getViewer } from "@/core/auth"
 import { googleSignInEnabled } from "@/lib/auth"
 import { safeNext } from "@/lib/safe-next"
@@ -53,5 +54,10 @@ async function SignInWithParams({ searchParams }: Pick<PageProps<"/login">, "sea
   const next = raw ? safeNext(raw) : undefined
   // Already signed in (a valid session, not just a cookie): go straight to the app.
   if (await getViewer()) redirect(next ?? "/app")
-  return <SignInOptions next={next} googleEnabled={googleSignInEnabled} errorCode={param(params.error)} />
+  return (
+    <>
+      <ForgetSavedPages />
+      <SignInOptions next={next} googleEnabled={googleSignInEnabled} errorCode={param(params.error)} />
+    </>
+  )
 }

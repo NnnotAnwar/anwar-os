@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { saveCapture } from "@/core/capture-actions"
-import { captureDestinations, type CaptureDestinationId, type CaptureDraft } from "@/core/capture"
+import { bodyFor, captureDestinations, inboxText, titleFor, type CaptureDestinationId, type CaptureDraft } from "@/core/capture"
+import { captureOrQueue } from "@/lib/offline/client"
 import { cn } from "@/lib/utils"
 
 const icons: Record<CaptureDestinationId, ComponentType<{ className?: string }>> = {
@@ -46,12 +47,43 @@ export function CaptureForm({ initial, shared }: { initial: CaptureDraft; shared
   }
 
   function save() {
+    if (!draft.title.trim() && !draft.text.trim() && !draft.url.trim()) return setError("Write something or paste a link first.")
     startTransition(async () => {
-      const result = await saveCapture(destination, draft, shared)
-      if (!result.ok) return setError(result.error)
-      toast.success(result.message)
-      router.push(result.href, { transitionTypes: NAV_FORWARD })
+      if (destination === "inbox" || destination === "note") return saveOrQueue(destination)
+      try {
+        if (!navigator.onLine) throw new Error("offline")
+        const result = await saveCapture(destination, draft, shared)
+        if (!result.ok) return setError(result.error)
+        toast.success(result.message)
+        router.push(result.href, { transitionTypes: NAV_FORWARD })
+      } catch {
+        setError(`${current.label}s need a connection. Save it to Inbox for now and sort it later.`)
+      }
     })
+  }
+
+  /** Inbox and Note also work offline: the capture waits on this device (src/lib/offline). */
+  async function saveOrQueue(to: "inbox" | "note") {
+    const outcome = await captureOrQueue({
+      kind: to,
+      payload:
+        to === "inbox"
+          ? { text: inboxText(draft), url: draft.url.trim() || null, source: shared ? "share" : "app" }
+          : { title: titleFor(draft), body: bodyFor(draft) },
+      save: async (id) => {
+        const result = await saveCapture(to, draft, shared, id)
+        return result.ok ? { ok: true as const, value: result } : result
+      },
+    })
+    if (outcome.status === "error") return setError(outcome.error)
+    if (outcome.status === "queued") {
+      toast.success("Saved on this device", { description: `It goes to ${current.label} when you're back online.` })
+      setDraft({ title: "", text: "", url: "" })
+      return
+    }
+    toast.success(outcome.value?.message ?? `Saved to ${current.label}.`)
+    const href = outcome.value?.href ?? (to === "note" ? `/app/notes/${outcome.id}` : "/app/inbox")
+    router.push(href, { transitionTypes: NAV_FORWARD })
   }
 
   return (

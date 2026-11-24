@@ -6,6 +6,7 @@ import { Plus, Trash2 } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { isTyping, useAfterG } from "@/lib/keys"
+import { captureOrQueue } from "@/lib/offline/client"
 import { formatTags, parseTags } from "@/lib/tags"
 import { formatDay } from "../lib/dates"
 import { amountToInput, formatMoney, parseAmount } from "../lib/money"
@@ -65,15 +66,25 @@ export function QuickAdd({
       return
     }
     start(async () => {
-      const result = await quickAdd({ text: value })
-      if (!result.ok) {
-        setError(result.error)
+      // Offline (or the request doesn't get through) it waits on this device: src/lib/offline.
+      const outcome = await captureOrQueue<Transaction>({
+        kind: "expense",
+        payload: { text: value },
+        save: (id) => quickAdd({ id, text: value }),
+      })
+      if (outcome.status === "error") {
+        setError(outcome.error)
         return
       }
-      const tx = result.value
       setText("")
       setError(null)
       input.current?.focus()
+      if (outcome.status === "queued") {
+        toast.success(`Saved on this device: ${value}`, { description: "It's added to Budget when you're back online." })
+        return
+      }
+      const tx = outcome.value
+      if (!tx) return void toast.success("Added")
       const what = [tx.categoryName ?? "Uncategorised", tx.note].filter(Boolean).join(" · ")
       toast.success(`${formatMoney(tx.amountMinor, tx.currency, locale, { signed: true })} ${what}`, {
         description: `${tx.accountName} · ${formatDay(tx.occurredOn, locale)}`,

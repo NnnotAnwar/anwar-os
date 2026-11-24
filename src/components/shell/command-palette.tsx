@@ -26,7 +26,7 @@ import {
   type SearchModule,
 } from "@/components/search/search-parts"
 import { useGlobalSearch } from "@/components/search/use-global-search"
-import { signOut } from "@/core/auth-actions"
+import { signOutSafely } from "@/components/offline/sign-out"
 import { cn } from "@/lib/utils"
 import { listenFor, OPEN_PALETTE_EVENT } from "./command-events"
 
@@ -242,7 +242,7 @@ export function CommandPalette({
 
           {showSignOut && (
             <CommandGroup heading="Account">
-              <CommandItem value="sign out log out" onSelect={() => run(() => void signOut())}>
+              <CommandItem value="sign out log out" onSelect={() => run(() => void signOutSafely())}>
                 <LogOut />
                 Sign out
               </CommandItem>

@@ -220,7 +220,11 @@ function Processor({
 
   return (
     <div className="grid gap-4">
-      <CaptureForm compact autoFocus={autoCapture} onDone={() => toast.success("Captured")} />
+      <CaptureForm
+        compact
+        autoFocus={autoCapture}
+        onDone={(queued) => toast.success(queued ? "Saved on this device · syncs when you're online" : "Captured")}
+      />
 
       {!current ? (
         <div className="glass grid justify-items-center gap-2 rounded-xl px-6 py-10 text-center">

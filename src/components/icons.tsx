@@ -205,4 +205,7 @@ export const ChartBar = bold(P.ChartBar)
 export const Sparkle = bold(P.Sparkle)
 export const Camera = bold(P.Camera)
 export const ImageSquare = bold(P.ImageSquare)
+// offline mode
+export const CloudSlash = bold(P.CloudSlash)
+export const CloudArrowUp = bold(P.CloudArrowUp)
 export const WarningCircle = bold(P.WarningCircle)

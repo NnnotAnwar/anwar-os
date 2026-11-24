@@ -321,9 +321,20 @@ external service (health URL + Vercel or server deploy state); on Today it gets 
   the iPhone Shortcuts API (`/api/v1/today`, `capture`, `expense`). See
   [API.md](API.md) and [SHORTCUTS.md](SHORTCUTS.md).
 - **PWA**: installable (`src/app/manifest.ts`, icons from `pnpm icons`, a small
-  hand-written `public/sw.js`: offline page, immutable assets only), share target
-  → `/app/capture` (Inbox by default, or Note / Link / Idea). Still to do: push
-  for reminders.
+  hand-written `public/sw.js`), share target → `/app/capture` (Inbox by default,
+  or Note / Link / Idea). Still to do: push for reminders.
+- **Offline mode**: the worker saves the key app pages (Today, Inbox, Tasks,
+  Notes, new note, Budget, Capture) as they load and serves that copy, with an
+  "Offline · showing saved copy from 14:02" banner, when the network fails;
+  other pages get `/offline.html`. Saved pages are dropped on sign-out. Inbox
+  capture, quick task, new note and quick expense work offline: they wait in an
+  IndexedDB outbox (`src/lib/offline`) under an id made on the device and are
+  sent oldest first to `POST /api/sync/<kind>` (`src/core/offline-sync.ts`; a
+  route, not Server Actions, whose ids change per deploy) on app open, `online`,
+  foregrounding, a back-off timer and Background Sync where it exists (not iOS).
+  The id becomes the row's id, and the module actions return the existing row
+  when they see it again, so a retry never duplicates. One syncer at a time
+  (Web Locks); same-origin JSON only; relative dates count from the capture day.
 - **Public sign-up** for tools/products, using the multi-user schema already in place.
 
 ---

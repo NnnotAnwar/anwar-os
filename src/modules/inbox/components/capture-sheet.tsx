@@ -8,6 +8,7 @@ import { Sheet } from "@/components/sheet"
 import { Button } from "@/components/ui/button"
 import { Kbd } from "@/components/ui/kbd"
 import { isTyping, useAfterG } from "@/lib/keys"
+import { captureOrQueue } from "@/lib/offline/client"
 import { CAPTURE_EVENT } from "../schema"
 import { captureToInbox } from "../server-actions"
 
@@ -51,8 +52,9 @@ export function CaptureSheet() {
     >
       {open && (
         <CaptureForm
-          onDone={() => {
+          onDone={(queued) => {
             setOpen(false)
+            if (queued) return void toast.success("Saved on this device", { description: "It goes to your inbox when you're back online." })
             toast.success("Captured to inbox", {
               // Read at save time: usePathname() would make the shell dynamic.
               action: window.location.pathname.startsWith("/app/inbox") ? undefined : { label: "Open inbox", onClick: () => router.push("/app/inbox") },
@@ -64,7 +66,16 @@ export function CaptureSheet() {
   )
 }
 
-export function CaptureForm({ onDone, compact = false, autoFocus = true }: { onDone: () => void; compact?: boolean; autoFocus?: boolean }) {
+export function CaptureForm({
+  onDone,
+  compact = false,
+  autoFocus = true,
+}: {
+  /** `queued`: saved on this device (offline), synced later. */
+  onDone: (queued: boolean) => void
+  compact?: boolean
+  autoFocus?: boolean
+}) {
   const [text, setText] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -84,11 +95,12 @@ export function CaptureForm({ onDone, compact = false, autoFocus = true }: { onD
       return
     }
     startTransition(async () => {
-      const result = await captureToInbox({ text })
-      if (!result.ok) return setError(result.error)
+      // Offline (or the request doesn't get through) it waits on this device: src/lib/offline.
+      const outcome = await captureOrQueue({ kind: "inbox", payload: { text }, save: (id) => captureToInbox({ id, text }) })
+      if (outcome.status === "error") return setError(outcome.error)
       setText("")
       setError(null)
-      onDone()
+      onDone(outcome.status === "queued")
       ref.current?.focus()
     })
   }

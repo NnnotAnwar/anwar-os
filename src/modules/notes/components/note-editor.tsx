@@ -10,12 +10,14 @@ import { pendingRemovals } from "@/components/list/pending"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Kbd } from "@/components/ui/kbd"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { amendQueued, onItemSynced, queueCapture } from "@/lib/offline/client"
 import { removeWithUndo } from "@/lib/undo-toast"
 import { cn } from "@/lib/utils"
 import { continueList, countWords, taskProgress, toggleTask, wrapSelection } from "../lib/checklist"
 import { createNote, deleteNotes, pinNotes, saveNote } from "../server-actions"
 import { NotePreview } from "./note-preview"
 import { NotePublishing, type Publishing } from "./note-publishing"
+import { useOutbox } from "@/components/offline/use-outbox"
 
 type Props = {
   timezone: string
@@ -40,6 +42,8 @@ type Status =
   | { kind: "dirty" }
   | { kind: "saving" }
   | { kind: "saved"; at: string }
+  /** Created offline: waiting in the outbox (src/lib/offline) under its future id. */
+  | { kind: "local" }
   | { kind: "error"; message: string }
 
 const AUTOSAVE_MS = 800
@@ -51,6 +55,10 @@ const AUTOSAVE_MS = 800
  *
  * Write / Preview: the preview renders markdown and makes "- [ ]" checklists
  * tappable; tapping anywhere else in it goes back to writing.
+ *
+ * Offline, a new note waits on this device (the offline outbox) under an id
+ * made here, and later edits update that waiting copy. Once it syncs, the
+ * note has that same id on the server, so the editor carries on as usual.
  */
 export function NoteEditor(props: Props) {
   const router = useRouter()
@@ -79,6 +87,18 @@ export function NoteEditor(props: Props) {
   const idRef = useRef<string | null>(initial.id)
   const inFlight = useRef<Promise<void> | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  /** A new note's id, made here so a retry (or the outbox) can't create it twice. */
+  const newId = useRef<string | null>(null)
+  /** The new note is waiting in the outbox. */
+  const queued = useRef(false)
+
+  /** The queued note reached the server: from now on it's an ordinary note with this id. */
+  const adopt = useCallback((noteId: string) => {
+    queued.current = false
+    idRef.current = noteId
+    setId(noteId)
+    window.history.replaceState(null, "", `/app/notes/${noteId}`)
+  }, [setId])
 
   /** Sends the latest text if it differs from what the server has. Serialized. */
   const persist = useCallback(async (): Promise<void> => {
@@ -92,10 +112,44 @@ export function NoteEditor(props: Props) {
     }
 
     setStatus({ kind: "saving" })
+    const keepOnDevice = async (noteId: string) => {
+      try {
+        if (queued.current) {
+          if (!(await amendQueued(noteId, snapshot))) return false
+        } else {
+          await queueCapture("note", snapshot, noteId)
+          queued.current = true
+        }
+      } catch (error) {
+        setStatus({ kind: "error", message: error instanceof Error ? error.message : "The note couldn't be kept offline." })
+        return true
+      }
+      saved.current = snapshot
+      const upToDate = latest.current.title === snapshot.title && latest.current.body === snapshot.body
+      setStatus(upToDate ? { kind: "local" } : { kind: "dirty" })
+      return true
+    }
     const run = async () => {
-      const result = idRef.current
-        ? await saveNote({ id: idRef.current, ...snapshot })
-        : await createNote(snapshot)
+      if (!idRef.current) {
+        const noteId = (newId.current ??= crypto.randomUUID())
+        if (queued.current || !navigator.onLine) {
+          if (await keepOnDevice(noteId)) return
+          // Already sent from the outbox: it exists under noteId now.
+          adopt(noteId)
+        }
+      }
+      let result
+      try {
+        result = idRef.current
+          ? await saveNote({ id: idRef.current, ...snapshot })
+          : await createNote({ id: newId.current!, ...snapshot })
+      } catch (error) {
+        // Didn't get through (offline, or a deploy changed the action): a new note waits on the device.
+        if (!idRef.current && (await keepOnDevice(newId.current!))) return
+        console.warn("note save failed", error)
+        setStatus({ kind: "error", message: "Changes weren't saved. Check your connection; they retry on the next edit." })
+        return
+      }
       if (!result.ok) {
         setStatus({ kind: "error", message: result.error })
         return
@@ -113,7 +167,28 @@ export function NoteEditor(props: Props) {
       inFlight.current = null
     })
     return inFlight.current
-  }, [setId])
+  }, [adopt, setId])
+
+  // The waiting note was sent (by this tab, another one or the service worker):
+  // carry on as an ordinary note, and send once more whatever was typed while
+  // it was on its way (the outbox may have sent an earlier version).
+  const outbox = useOutbox()
+  const synced = useCallback(
+    (noteId: string) => {
+      if (!queued.current || noteId !== newId.current) return
+      adopt(noteId)
+      saved.current = { title: "", body: "" }
+      void persist()
+    },
+    [adopt, persist],
+  )
+  useEffect(() => onItemSynced((noteId) => synced(noteId)), [synced])
+  useEffect(() => {
+    const noteId = newId.current
+    if (!queued.current || !noteId || !outbox.ready) return
+    const item = outbox.items.find((i) => i.id === noteId)
+    if (!item) synced(noteId)
+  }, [outbox, synced])
 
   function edit(next: { title?: string; body?: string }) {
     latest.current = { ...latest.current, ...next }
@@ -402,6 +477,8 @@ function SaveStatus({ status, timezone, locale }: { status: Status; timezone: st
           hour: "2-digit",
           minute: "2-digit",
         }).format(new Date(status.at))}`
+      case "local":
+        return "Saved on this device · syncs when you're online"
       case "error":
         return status.message
     }
@@ -411,7 +488,7 @@ function SaveStatus({ status, timezone, locale }: { status: Status; timezone: st
     <p
       role="status"
       aria-live="polite"
-      className={cn("text-caption truncate text-muted-foreground max-sm:hidden", status.kind === "error" && "text-destructive max-sm:block")}
+      className={cn("text-caption truncate text-muted-foreground max-sm:hidden", status.kind === "error" && "text-destructive max-sm:block", status.kind === "local" && "max-sm:block")}
     >
       {text}
     </p>

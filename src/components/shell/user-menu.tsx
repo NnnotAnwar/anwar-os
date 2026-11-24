@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { signOut } from "@/core/auth-actions"
+import { signOutSafely } from "@/components/offline/sign-out"
 import { cn } from "@/lib/utils"
 
 type Props = {
@@ -85,7 +85,7 @@ export function UserMenu({ name, email, role, variant }: Props) {
           </DropdownMenuRadioGroup>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={pending} onClick={() => startTransition(() => signOut())}>
+        <DropdownMenuItem disabled={pending} onClick={() => startTransition(() => signOutSafely())}>
           <LogOut />
           Sign out
         </DropdownMenuItem>

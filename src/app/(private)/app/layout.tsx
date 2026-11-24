@@ -5,6 +5,9 @@ import { CommandPalette } from "@/components/shell/command-palette"
 import { SearchSheet } from "@/components/search/search-sheet"
 import { CreateMenu } from "@/components/shell/create-menu"
 import { KeyboardShortcuts } from "@/components/shell/keyboard-shortcuts"
+import { OfflineBanner } from "@/components/offline/offline-banner"
+import { OfflineSync } from "@/components/offline/offline-sync"
+import { OutboxStatus } from "@/components/offline/outbox-status"
 import { ServiceWorker } from "@/components/pwa/service-worker"
 import { NavLink, TabLink } from "@/components/shell/nav-link"
 import { SearchIconTrigger, SearchTrigger } from "@/components/shell/search-trigger"
@@ -63,6 +66,7 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
             <div className="md:hidden">
               <SearchIconTrigger />
             </div>
+            <OutboxStatus />
             <Suspense fallback={null}>
               <CreateButton />
             </Suspense>
@@ -73,7 +77,10 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
             </div>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-3 pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:px-6 md:pt-6 md:pb-12">{children}</main>
+        <main className="mx-auto w-full max-w-6xl flex-1 px-3 pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:px-6 md:pt-6 md:pb-12">
+          <OfflineBanner />
+          {children}
+        </main>
       </div>
 
       <Suspense fallback={null}>
@@ -90,6 +97,9 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
       </Suspense>
       <CaptureSheet />
       <ServiceWorker />
+      <Suspense fallback={null}>
+        <Offline />
+      </Suspense>
     </div>
   )
 }
@@ -117,6 +127,12 @@ function NavSkeleton() {
 
 function displayName(viewer: Viewer) {
   return viewer.displayName ?? viewer.email?.split("@")[0] ?? "You"
+}
+
+/** The offline outbox's syncer, for the signed-in user (src/lib/offline). */
+async function Offline() {
+  const viewer = await requireViewer()
+  return <OfflineSync userId={viewer.id} />
 }
 
 async function ViewerMenu({ variant }: { variant: "full" | "compact" }) {

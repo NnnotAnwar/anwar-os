@@ -1,8 +1,10 @@
 "use client"
 
 import { forwardRef, useMemo, useState, useTransition } from "react"
+import { toast } from "sonner"
 import { CalendarDays, Clock, ListBullets, Plus, Repeat } from "@/components/icons"
 import { Button } from "@/components/ui/button"
+import { captureOrQueue } from "@/lib/offline/client"
 import { cn } from "@/lib/utils"
 import { parseIsoDate } from "@/modules/calendar/lib/zoned"
 import { dueLabel, isoFromLocal, repeatLabel } from "../lib/format"
@@ -44,14 +46,25 @@ export const QuickAdd = forwardRef<
       return
     }
     startTransition(async () => {
-      const result = await quickAddTask({ text: value, listId, dueToday })
-      if (!result.ok) {
-        setError(result.error)
+      // Offline (or the request doesn't get through) it waits on this device: src/lib/offline.
+      const outcome = await captureOrQueue<Task>({
+        kind: "task",
+        payload: { text: value, listId, dueToday },
+        save: (id) => quickAddTask({ id, text: value, listId, dueToday }),
+      })
+      if (outcome.status === "error") {
+        setError(outcome.error)
         return
       }
       setText("")
       setError(null)
-      onAdded(result.value)
+      if (outcome.status === "queued") {
+        toast.success("Saved on this device", { description: "The task is added when you're back online." })
+      } else if (outcome.value) {
+        onAdded(outcome.value)
+      } else {
+        toast.success("Added")
+      }
     })
   }
 

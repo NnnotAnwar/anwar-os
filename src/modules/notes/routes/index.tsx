@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import Link from "next/link"
 import { NotePencilDuo, Plus } from "@/components/icons"
 import { Page, Reveal, SkeletonExit } from "@/components/motion"
+import { PendingItems } from "@/components/offline/pending-items"
 import { EmptyState } from "@/components/list/shortcut-hint"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -23,6 +24,7 @@ export default function NotesPage({ searchParams }: PageProps<"/app/notes">) {
             </Link>
           }
         />
+        <PendingItems kinds={["note"]} />
         <Suspense
           fallback={
             <SkeletonExit>

@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { z } from "zod"
 import { Page, Reveal, SkeletonExit } from "@/components/motion"
+import { PendingItems } from "@/components/offline/pending-items"
 import { PageHeader } from "@/components/shell/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { requireViewer } from "@/core/auth"
@@ -20,6 +21,7 @@ export default function TasksPage({ searchParams }: PageProps<"/app/tasks">) {
           title="Tasks"
           description="Type it the way you'd say it: “Call the bank tomorrow 10:00 !high #University”."
         />
+        <PendingItems kinds={["task"]} />
         <Suspense
           fallback={
             <SkeletonExit>
