@@ -9,9 +9,12 @@ import { GetStarted } from "@/components/shell/get-started"
 import { InstallHint } from "@/components/pwa/install-hint"
 import { getSetup } from "@/core/onboarding"
 import { requireViewer } from "@/core/auth"
-import { modulesFor, type ViewerContext, type WidgetDef } from "@/core/module"
+import type { ViewerContext, WidgetDef } from "@/core/module"
+import { getTodayLayout } from "@/core/preferences"
+import { arrangeWidgets } from "@/core/today-layout"
+import { todayWidgets } from "@/core/today-widgets"
+import { EditToday } from "@/components/today/edit-today"
 import { calendarDate } from "@/lib/time"
-import { modules } from "@/modules/_registry"
 
 export default function TodayPage() {
   return (
@@ -84,35 +87,68 @@ async function TodayHeader() {
   )
 }
 
+/**
+ * Module widgets in the owner's order (Edit Today). Any widget a module's
+ * manifest declares shows up here; src/core/today-layout.ts decides how a saved
+ * layout meets new and removed widgets. Hidden widgets aren't loaded at all.
+ */
 async function Widgets() {
   const viewer = await requireViewer()
   const ctx = { timezone: viewer.timezone, locale: viewer.locale }
-  const widgets = modulesFor(modules, viewer.role).flatMap((m) =>
-    (m.widgets ?? []).map((w) => ({ ...w, key: `${m.id}:${w.id}`, href: m.nav[0].href, moduleName: m.name })),
-  )
+  const all = todayWidgets(viewer.role)
+  if (all.length === 0) return null
+  const byKey = new Map(all.map((w) => [w.key, w]))
+  const defaultOrder = all.map((w) => w.key)
+  const { ordered, visible, hidden } = arrangeWidgets(defaultOrder, await getTodayLayout())
+  const editable = ordered.map((key) => {
+    const w = byKey.get(key)!
+    return { key, title: w.title, moduleName: w.moduleName, hidden: hidden.includes(key) }
+  })
 
   return (
-    <div className="grid gap-3 md:grid-cols-2 md:gap-4">
-      {widgets.map((w) => (
-        <section key={w.key} aria-labelledby={`${w.key}-title`} className="glass grid content-start gap-3 rounded-xl p-4">
-          <header className="flex items-center justify-between gap-2">
-            <h2 id={`${w.key}-title`} className="text-card-title">
-              {w.title}
-            </h2>
-            <Link
-              href={w.href}
-              className="text-caption -my-3 flex items-center gap-0.5 rounded py-3 text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              {w.moduleName}
-              <ArrowUpRight className="size-3" aria-hidden />
-            </Link>
-          </header>
-          <Suspense fallback={<RowsSkeleton />}>
-            <WidgetBody load={w.load} ctx={ctx} />
-          </Suspense>
-        </section>
-      ))}
-    </div>
+    <section aria-labelledby="widgets-heading" className="grid gap-2.5">
+      <div className="flex items-center justify-between">
+        <h2 id="widgets-heading" className="text-eyebrow text-text-accent">
+          At a glance
+        </h2>
+        <EditToday items={editable} defaultOrder={defaultOrder} />
+      </div>
+      {visible.length === 0 ? (
+        <p className="glass rounded-xl p-4 text-meta text-muted-foreground">
+          Every widget is hidden. Edit Today to bring some back.
+        </p>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 md:gap-4">
+          {visible.map((key) => {
+            const w = byKey.get(key)!
+            return (
+              <section
+                key={w.key}
+                aria-labelledby={`${w.key}-title`}
+                data-widget={w.key}
+                className="glass grid content-start gap-3 rounded-xl p-4"
+              >
+                <header className="flex items-center justify-between gap-2">
+                  <h2 id={`${w.key}-title`} className="text-card-title">
+                    {w.title}
+                  </h2>
+                  <Link
+                    href={w.href}
+                    className="text-caption -my-3 flex items-center gap-0.5 rounded py-3 text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    {w.moduleName}
+                    <ArrowUpRight className="size-3" aria-hidden />
+                  </Link>
+                </header>
+                <Suspense fallback={<RowsSkeleton />}>
+                  <WidgetBody load={w.load} ctx={ctx} />
+                </Suspense>
+              </section>
+            )
+          })}
+        </div>
+      )}
+    </section>
   )
 }
 
