@@ -225,6 +225,20 @@
       "when": 1795480952288,
       "tag": "0031_search_trgm_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1795480968863,
+      "tag": "0032_budget_subscriptions_osbot_deliveries",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1795480969416,
+      "tag": "0033_budget_subscriptions_osbot_deliveries_rls",
+      "breakpoints": true
     }
   ]
 }
