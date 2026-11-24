@@ -126,6 +126,8 @@ test("captures made offline survive a reload and land once when back online", as
 test("a capture whose Server Action can't get through goes through the sync API instead", async ({ page }) => {
   await productionOnly(page)
   await page.goto("/app/inbox")
+  // Before hydration Enter submits the form natively (no Next-Action header), so wait.
+  await page.waitForLoadState("networkidle")
   const tag = randomBytes(4).toString("hex")
   // A deploy changed the action ids, or the request died on the way: the action call fails.
   await page.route("**/app/inbox**", (route) =>
