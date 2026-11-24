@@ -330,6 +330,20 @@
       "when": 1795523347118,
       "tag": "0046_habits_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795523356806,
+      "tag": "0047_goals",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795523357428,
+      "tag": "0048_goals_rls",
+      "breakpoints": true
     }
   ]
 }
