@@ -25,7 +25,7 @@ export async function getSetup(): Promise<{ steps: SetupStep[]; dismissed: boole
       tx.execute<{ dismissed_hints: string[] }>(sql`select dismissed_hints from core_preferences limit 1`),
     ).catch(() => []),
     exists(sql`select 1 from tasks_tasks limit 1`),
-    exists(sql`select 1 from notes_notes limit 1`),
+    exists(sql`select 1 from notes_notes where owner_id = app.current_user_id() limit 1`),
     exists(sql`select 1 from calendar_events limit 1`),
     exists(sql`select 1 from cv_profile where is_public limit 1`),
   ])

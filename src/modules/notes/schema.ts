@@ -26,12 +26,56 @@ export const listNotesInput = z.object({
   pinned: z.boolean().optional(),
 })
 
+/** Publishing a note on /writing: one toggle plus its address, summary and date. */
+export const notePublishingInput = z.object({
+  id: z.uuid(),
+  isPublic: z.boolean(),
+  /** Empty: derived from the title (and made unique). */
+  slug: z
+    .string()
+    .trim()
+    .max(80, "Keep the address under 80 characters.")
+    .refine((v) => v === "" || /^[a-z0-9]+(-[a-z0-9]+)*$/.test(v), "Use lowercase letters, digits and single dashes in the address."),
+  excerpt: z.string().trim().max(300, "Keep the summary under 300 characters."),
+  /** YYYY-MM-DD, or empty for "now" on the first publish. */
+  publishedOn: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || (/^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T12:00:00Z`))), "Pick a valid date."),
+})
+export type NotePublishingInput = z.infer<typeof notePublishingInput>
+
 export type Note = {
   id: string
   title: string
   body: string
   pinned: boolean
   updated_at: string
+  isPublic: boolean
+  slug: string | null
+  excerpt: string
+  /** ISO timestamp, set on the first publish. */
+  publishedAt: string | null
+}
+
+/** What visitors see on /writing: no private flags. */
+export type PublicNote = {
+  id: string
+  title: string
+  slug: string
+  excerpt: string
+  body: string
+  publishedAt: string
+  updatedAt: string
+}
+
+/** Cache tag for every public read of notes (/writing, the feeds, the sitemap). */
+export const PUBLIC_NOTES_TAG = "notes:public"
+
+/** The summary shown on /writing and in the feeds: the excerpt, or the body's start. */
+export function summaryOf(note: Pick<PublicNote, "excerpt" | "body">, length = 220) {
+  if (note.excerpt.trim()) return note.excerpt.trim()
+  return excerpt(note.body, undefined, length)
 }
 
 /** A one-line preview of the body, centered on `query` when it matches. */

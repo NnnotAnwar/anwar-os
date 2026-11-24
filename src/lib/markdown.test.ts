@@ -54,6 +54,40 @@ describe("markdownToText", () => {
   it("strips syntax for previews", () => {
     expect(markdownToText("## Hi\n- **bold** [link](https://x.y)")).toBe("Hi bold link")
   })
+
+  it("keeps an image's alt text only", () => {
+    expect(markdownToText("![The login screen](https://x.y/a.png) after")).toBe("The login screen after")
+  })
+})
+
+describe("images", () => {
+  it("turns a line of images into a figure, and consecutive lines into one gallery", () => {
+    const blocks = parseBlocks("![One](https://x.y/1.png)\n![Two](https://x.y/2.png) ![Three](/3.png)\n\n![Solo](https://x.y/4.png)")
+    expect(blocks).toEqual([
+      {
+        kind: "images",
+        items: [
+          { alt: "One", src: "https://x.y/1.png" },
+          { alt: "Two", src: "https://x.y/2.png" },
+          { alt: "Three", src: "/3.png" },
+        ],
+      },
+      { kind: "images", items: [{ alt: "Solo", src: "https://x.y/4.png" }] },
+    ])
+  })
+
+  it("renders lazy images with captions, a gallery grid for several, and drops unsafe sources", () => {
+    const single = html("![Landing page](https://x.y/1.png)")
+    expect(single).toContain('<img src="https://x.y/1.png" alt="Landing page" loading="lazy"')
+    expect(single).toContain("<figcaption")
+    expect(single).not.toContain("data-gallery")
+    expect(html("![a](https://x.y/1.png)\n![b](https://x.y/2.png)")).toContain('data-gallery="true"')
+    expect(html("![x](javascript:alert(1))")).not.toContain("<img")
+  })
+
+  it("links an image that sits inside a sentence", () => {
+    expect(html("See ![the chart](https://x.y/c.png) here")).toContain('<a href="https://x.y/c.png"')
+  })
 })
 
 describe("outline", () => {

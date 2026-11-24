@@ -115,6 +115,7 @@ data layer under `actions.ts` and the auth layer change.
 | `/` | landing: who Anwar is, featured projects, latest public ideas |
 | `/cv` | résumé from structured data; print stylesheet = clean PDF |
 | `/projects`, `/projects/[slug]` | showcase and case studies; links to live demos |
+| `/writing`, `/writing/[slug]` | notes the owner published from Notes; RSS `/writing/feed.xml` (also `/feed.xml`), Atom `/writing/atom.xml` |
 | `/ideas` | ideas he chose to publish, with status |
 | `/links` | curated public bookmarks |
 | `/tools/*` | calculators: calories, basic, statistics, compound growth |
@@ -190,11 +191,18 @@ module prefix (`notes_*`, `links_*`). Money is integer minor units + ISO currenc
 
 ### Public writes
 
-The feedback form is the only anonymous write. It goes through
+The feedback form is one of the two anonymous writes. It goes through
 `app.submit_feedback(...)`, a `security definer` function in a non-exposed schema
 that validates lengths, checks the rate-limit table, and inserts with
 `owner_id` = the site owner. `os_app` can execute it without a viewer; it cannot
 insert into `feedback_items` directly.
+
+Page views are the other one: the public layout's beacon posts to `/api/a`,
+which drops Do-Not-Track/GPC, bots, unknown paths and the signed-in owner, and
+calls `app.record_page_view(path, referrer_host, device, country)` (security
+definer: path allowlist incl. "slug is published", hostname/device/country
+checks, a global 600-a-minute budget). It only increments a daily counter in
+`analytics_daily`; no IP, user agent, cookie or visitor id is stored anywhere.
 
 ### Search
 
@@ -208,7 +216,7 @@ config because content mixes EN/CS/RU) kept in sync by triggers; ⌘K queries it
 
 | Module | Zone | What it does | Phase |
 |---|---|---|---|
-| **notes** | private | autosaving notes, pin, filter, search | ✅ 0 |
+| **notes** | private, opt-in public | autosaving notes, pin, filter, search; one-tap publish to `/writing` + RSS/Atom | ✅ 0 |
 | **cv** | public + editor | experience, education, skills, languages as structured rows; `/cv` page, print/PDF | 3 |
 | **projects** | public + private | showcase with case studies; private side links each project to its services in ops | 3 |
 | **ideas** | private, opt-in public | backlog with status (raw → exploring → building → shipped / dropped), tags, publish toggle | 3 |
@@ -219,6 +227,7 @@ config because content mixes EN/CS/RU) kept in sync by triggers; ⌘K queries it
 | **calendar** | private | events with recurrence and reminders, important dates; private ICS feed; Google Calendar import later | 4 |
 | **bots** | private | registry of Telegram bots; per-bot stats from each bot's schema (users, messages, domain data such as expenses) | 5 |
 | **ops** | private | control panel for every managed service (§8) | 5 |
+| **analytics** | private | cookie-free page views of the public site: per day, top pages, referrers, devices; Today widget | 3 |
 | **budget** | private | accounts, transactions, goals, capital-growth plan (from v1) | 6 |
 
 Each row is one folder, one manifest line, one migration set. Modules that have a

@@ -5,7 +5,7 @@ import { SiteFooter } from "@/components/site/site-footer"
 import { SiteMenu, SiteNav } from "@/components/site/site-nav"
 import type { Metadata } from "next"
 import { connection } from "next/server"
-import { getSiteUrl, siteDescription, siteName, siteTitle } from "@/lib/site"
+import { feedAlternates, getSiteUrl, siteDescription, siteName, siteTitle } from "@/lib/site"
 import "@/components/site/site.css"
 
 /**
@@ -20,6 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: getSiteUrl(),
     title: { default: siteTitle, template: "%s · Anwar" },
     description: siteDescription,
+    alternates: { types: feedAlternates },
     openGraph: { type: "website", siteName, locale: "en_US" },
     twitter: { card: "summary_large_image" },
   }

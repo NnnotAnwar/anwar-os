@@ -5,7 +5,9 @@ import type { ReactNode } from "react"
  * studies, idea notes). It builds React elements, never HTML strings, so
  * nothing in the source can inject markup or script. Supported: headings
  * (#, ##, ###), paragraphs, - / 1. lists, > quotes, ``` code blocks, `code`,
- * **bold**, *italic*, [links](https://…) and bare https:// links.
+ * **bold**, *italic*, [links](https://…), bare https:// links and images:
+ * a line of only ![alt](https://…) is a figure (the alt text is its caption),
+ * and two or more of them in a row become a screenshot gallery.
  */
 export function Markdown({
   source,
@@ -71,6 +73,16 @@ type Block =
   | { kind: "list"; ordered: boolean; items: string[] }
   | { kind: "quote"; text: string }
   | { kind: "code"; text: string }
+  | { kind: "images"; items: MarkdownImage[] }
+
+export type MarkdownImage = { alt: string; src: string }
+
+const IMAGE = /!\[([^\]]*)\]\(([^)\s]+)\)/g
+const IMAGE_LINE = /^(?:!\[[^\]]*\]\([^)\s]+\)\s*)+$/
+
+function imagesOf(line: string): MarkdownImage[] {
+  return [...line.matchAll(IMAGE)].map((m) => ({ alt: m[1]!.trim(), src: m[2]! }))
+}
 
 export function parseBlocks(source: string): Block[] {
   const lines = source.replace(/\r\n?/g, "\n").split("\n")
@@ -96,6 +108,14 @@ export function parseBlocks(source: string): Block[] {
     }
     if (!trimmed) {
       flush()
+      continue
+    }
+    if (IMAGE_LINE.test(trimmed)) {
+      flush()
+      const last = blocks.at(-1)
+      // Image lines with no blank line between them form one gallery.
+      if (last?.kind === "images" && lines[i - 1]?.trim()) last.items.push(...imagesOf(trimmed))
+      else blocks.push({ kind: "images", items: imagesOf(trimmed) })
       continue
     }
     const heading = /^(#{1,3})\s+(.*)$/.exec(trimmed)
@@ -146,8 +166,14 @@ export function safeHref(url: string): string | null {
   }
 }
 
+/** Images: absolute http(s) or same-site paths only. */
+export function safeImageSrc(url: string): string | null {
+  const href = safeHref(url)
+  return href && !href.startsWith("mailto:") ? href : null
+}
+
 const INLINE =
-  /(`[^`]+`)|\*\*(.+?)\*\*|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])|\*([^*\s][^*]*?)\*|(?<![\w])_([^_\s][^_]*?)_(?![\w])/g
+  /(`[^`]+`)|!\[([^\]]*)\]\(([^)\s]+)\)|\*\*(.+?)\*\*|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])|\*([^*\s][^*]*?)\*|(?<![\w])_([^_\s][^_]*?)_(?![\w])/g
 
 export function renderInline(text: string, keyPrefix = "i"): ReactNode[] {
   const out: ReactNode[] = []
@@ -157,8 +183,21 @@ export function renderInline(text: string, keyPrefix = "i"): ReactNode[] {
     const at = match.index
     if (at > last) out.push(text.slice(last, at))
     const key = `${keyPrefix}-${n++}`
-    const [whole, code, bold, linkText, linkUrl, bare, italic, italicUnderscore] = match
-    if (code) {
+    const [whole, code, imageAlt, imageUrl, bold, linkText, linkUrl, bare, italic, italicUnderscore] = match
+    if (imageUrl !== undefined) {
+      // An image in the middle of a sentence becomes a link to it.
+      const href = safeImageSrc(imageUrl)
+      const label = imageAlt?.trim() || "image"
+      out.push(
+        href ? (
+          <a key={key} href={href} className={linkClass} {...externalProps(href)}>
+            {label}
+          </a>
+        ) : (
+          label
+        ),
+      )
+    } else if (code) {
       out.push(
         <code key={key} className="rounded-md bg-muted px-1 py-0.5 font-mono text-[0.85em]">
           {code.slice(1, -1)}
@@ -247,6 +286,8 @@ export function renderMarkdown(source: string, options?: RenderOptions): ReactNo
             {renderInline(block.text, key)}
           </blockquote>
         )
+      case "images":
+        return <Figures key={key} items={block.items} />
       case "code":
         return (
           <pre key={key} className="my-4 overflow-x-auto rounded-xl border bg-muted p-3 font-mono text-[13px] leading-6">
@@ -257,10 +298,47 @@ export function renderMarkdown(source: string, options?: RenderOptions): ReactNo
   })
 }
 
+/**
+ * One image is a figure; several in a row are a two-column gallery. Each opens
+ * full size in a new tab; the alt text doubles as the caption.
+ */
+function Figures({ items }: { items: MarkdownImage[] }) {
+  const safe = items.flatMap((item) => {
+    const src = safeImageSrc(item.src)
+    return src ? [{ ...item, src }] : []
+  })
+  if (safe.length === 0) return null
+  const gallery = safe.length > 1
+  return (
+    <div className={gallery ? "my-6 grid gap-3 sm:grid-cols-2" : "my-6"} data-gallery={gallery || undefined}>
+      {safe.map((item, j) => (
+        <figure key={j} className="grid gap-1.5">
+          <a
+            href={item.src}
+            {...externalProps(item.src)}
+            className="block overflow-hidden rounded-xl border border-hairline bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- owner-supplied hosts */}
+            <img
+              src={item.src}
+              alt={item.alt}
+              loading="lazy"
+              decoding="async"
+              className={gallery ? "aspect-[4/3] w-full object-cover object-top" : "h-auto w-full"}
+            />
+          </a>
+          {item.alt && <figcaption className="text-caption text-muted-foreground">{item.alt}</figcaption>}
+        </figure>
+      ))}
+    </div>
+  )
+}
+
 /** Plain text for previews and search snippets: markdown syntax stripped. */
 export function markdownToText(source: string) {
   return source
     .replace(/```[\s\S]*?```/g, " ")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/^#{1,3}\s+|^[-*]\s+|^\d+[.)]\s+|^>\s?/gm, "")
     .replace(/[*_`]/g, "")

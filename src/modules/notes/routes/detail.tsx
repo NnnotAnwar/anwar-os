@@ -40,6 +40,7 @@ async function NoteLoader({ params }: Pick<PageProps<"/app/notes/[id]">, "params
       initialBody={note.body}
       initialPinned={note.pinned}
       initialUpdatedAt={note.updated_at}
+      initialPublishing={{ isPublic: note.isPublic, slug: note.slug, excerpt: note.excerpt, publishedAt: note.publishedAt }}
       timezone={viewer.timezone}
       locale={viewer.locale}
     />

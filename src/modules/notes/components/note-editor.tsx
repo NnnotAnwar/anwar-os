@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils"
 import { continueList, countWords, taskProgress, toggleTask, wrapSelection } from "../lib/checklist"
 import { createNote, deleteNotes, pinNotes, saveNote } from "../server-actions"
 import { NotePreview } from "./note-preview"
+import { NotePublishing, type Publishing } from "./note-publishing"
 
 type Props = {
   timezone: string
@@ -28,8 +29,11 @@ type Props = {
       initialBody: string
       initialPinned: boolean
       initialUpdatedAt: string
+      initialPublishing: Publishing
     }
 )
+
+const unpublished: Publishing = { isPublic: false, slug: null, excerpt: "", publishedAt: null }
 
 type Status =
   | { kind: "draft" }
@@ -369,6 +373,14 @@ export function NoteEditor(props: Props) {
           </span>
         )}
       </footer>
+
+      {id && (
+        <NotePublishing
+          noteId={id}
+          initial={props.mode === "edit" ? props.initialPublishing : unpublished}
+          timezone={props.timezone}
+        />
+      )}
     </article>
   )
 }

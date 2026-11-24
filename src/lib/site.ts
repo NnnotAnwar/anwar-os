@@ -23,6 +23,12 @@ export function getSiteUrl(env: Record<string, string | undefined> = process.env
 /** Absolute URL for a path on this site. Request time only, see getSiteUrl. */
 export const absoluteUrl = (path: string) => new URL(path, getSiteUrl()).toString()
 
+/** <link rel="alternate"> for the /writing feeds, in the head of every public page. Relative, like canonical. */
+export const feedAlternates = {
+  "application/rss+xml": [{ url: "/writing/feed.xml", title: "Anwar — Writing (RSS)" }],
+  "application/atom+xml": [{ url: "/writing/atom.xml", title: "Anwar — Writing (Atom)" }],
+}
+
 /**
  * Metadata for one public page: title, description, canonical URL and the
  * matching Open Graph fields (a page's openGraph replaces the layout's, so the
@@ -50,7 +56,8 @@ export function pageMetadata({
   return {
     title: title ?? { absolute: siteTitle },
     description,
-    alternates: { canonical: path },
+    // A page's alternates replace the layout's, so the feed link is repeated here.
+    alternates: { canonical: path, types: feedAlternates },
     openGraph: { type, siteName, locale: "en_US", url: path, title: social, description },
     twitter: { card: "summary_large_image", title: social, description },
   }

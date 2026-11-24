@@ -6,7 +6,8 @@ import { ArrowLeft, ArrowRight, ArrowUpRight, Code, Globe, PlayCircle } from "@/
 import { Morph, NAV_BACK, NAV_FORWARD, Page } from "@/components/motion"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Markdown, markdownOutline, markdownToText } from "@/lib/markdown"
+import { Markdown, markdownOutline } from "@/lib/markdown"
+import { readingMinutes } from "@/lib/reading"
 import { pageMetadata } from "@/lib/site"
 import { cn } from "@/lib/utils"
 import { CaseStudyToc } from "../components/case-study-toc"
@@ -37,12 +38,6 @@ export default function PublicProjectPage({ params }: Props) {
   )
 }
 
-/** About 220 words a minute, never "0 min". */
-function readingMinutes(text: string) {
-  const words = markdownToText(text).split(/\s+/).filter(Boolean).length
-  return Math.max(1, Math.round(words / 220))
-}
-
 async function CaseStudy({ params }: Pick<Props, "params">) {
   const { slug } = await params
   // No connection(): params already keep this out of the build, and both reads are
@@ -55,7 +50,7 @@ async function CaseStudy({ params }: Pick<Props, "params">) {
   const outline = markdownOutline(project.body)
   // A table of contents earns its place only when there's something to skip between.
   const toc = outline.filter((h) => h.level === 2).length >= 3 ? outline.filter((h) => h.level <= 3) : []
-  const minutes = project.body.trim() ? readingMinutes(project.body) : 0
+  const minutes = readingMinutes(project.body)
   const index = all.findIndex((p) => p.id === project.id)
   const previous = index > 0 ? all[index - 1] : undefined
   const next = index >= 0 && index < all.length - 1 ? all[index + 1] : undefined

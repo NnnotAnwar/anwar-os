@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ChevronDown, FolderOpen, ListChecks, Pin, PinOff, Plus, SearchDuo, Trash2, CheckSquare } from "@/components/icons"
+import { ChevronDown, FolderOpen, ListChecks, Pin, PinOff, Plus, SearchDuo, Trash2, CheckSquare, Globe } from "@/components/icons"
 import { NAV_FORWARD } from "@/components/motion"
 import { pendingRemovals, usePendingRemovals } from "@/components/list/pending"
 import { RowContextMenu } from "@/components/list/row-menu"
@@ -337,6 +337,9 @@ function NoteRows({
                     <span className="text-body-strong flex items-center gap-1.5">
                       {note.pinned && <Pin className="size-3.5 shrink-0 text-text-accent" aria-label="Pinned" />}
                       <span className="truncate">{note.title}</span>
+                      {note.isPublic && (
+                        <Globe className="size-3.5 shrink-0 text-muted-foreground" aria-label="Published on /writing" />
+                      )}
                     </span>
                     {preview && <span className="text-meta truncate text-muted-foreground">{preview}</span>}
                   </span>
