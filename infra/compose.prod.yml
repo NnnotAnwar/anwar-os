@@ -88,6 +88,15 @@ services:
       # Optional token (read:packages) for private packages / higher rate limits.
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_REPO: ${GITHUB_REPO:-NnnotAnwar/anwar-os}
+      # Claude (AI assistant at /app/assistant, receipt photos in Budget and the
+      # expense bot). Web only: the bots never get the key. Empty key = AI off
+      # ("Add ANTHROPIC_API_KEY on the server"). Outbound HTTPS to api.anthropic.com.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ASSISTANT_MODEL: ${ASSISTANT_MODEL:-}
+      ASSISTANT_EFFORT: ${ASSISTANT_EFFORT:-}
+      ASSISTANT_MAX_TOKENS: ${ASSISTANT_MAX_TOKENS:-}
+      ASSISTANT_MONTHLY_LIMIT_USD: ${ASSISTANT_MONTHLY_LIMIT_USD:-}
+      RECEIPT_MODEL: ${RECEIPT_MODEL:-}
     expose:
       - "3000"
     networks:

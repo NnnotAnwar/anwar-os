@@ -309,7 +309,11 @@ external service (health URL + Vercel or server deploy state); on Today it gets 
 
 ## 9. Long-term
 
-- **AI assistant** over module actions + `search_documents` embeddings (Claude API).
+- **AI assistant** ✅ (`src/modules/assistant`, `/app/assistant`): Claude chat over the
+  module actions as tools (zod → JSON Schema; reads run as the viewer, writes wait for a
+  confirm card), conversations in Postgres, token log + monthly line in Settings. Receipt
+  photos → Budget (quick add and the expense bot) use the same server-side Claude client
+  (`src/lib/claude.ts`). Next: `search_documents` embeddings.
 - **MCP server** at `/api/mcp` exposing module actions as tools (read actions
   always, write actions with a write-scoped token; never ops/bots). Auth is a
   personal API token (Settings → API tokens, stored as SHA-256, Bearer

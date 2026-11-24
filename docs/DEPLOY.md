@@ -773,3 +773,61 @@ healthchecks.io notices a backup that stopped even when everything is down:
 3. `sudo systemctl start anwar-os-backup.service`; the check turns green.
 4. In healthchecks.io → Integrations, add e-mail (default) and, if you like,
    Telegram.
+
+## 20. AI assistant (Claude)
+
+One Anthropic API key on **web** switches on two features:
+
+- **Assistant** (`/app/assistant`, also in ⌘K and More): a chat that reads your tasks,
+  calendar, budget, notes, inbox, files… through the modules' own actions, as you (RLS).
+  Anything that would change data (create/complete/reschedule a task, add an event or an
+  expense, delete…) shows a confirm card first; nothing runs until you tap it. Chats are
+  stored in Postgres (`assistant_*` tables, private to you); delete them from History.
+- **Receipt photos**: Budget quick add → 📷, and sending a photo to the expense bot. Claude
+  reads total, shop, date and a category; you check the card, then save. The photo is
+  read once and never stored. The bot never sees the key: it sends the photo to web.
+
+Without the key both are off and say "Add ANTHROPIC_API_KEY on the server".
+
+### Switch it on
+
+1. In the [Anthropic Console](https://console.anthropic.com): **Settings → Billing**, add
+   credit (and optionally a monthly spend limit there too); then **API keys → Create key**,
+   name it `anwar-os`. Copy it (`sk-ant-…`), it is shown once.
+2. On the server:
+   ```sh
+   nano /opt/anwar-os/repo/infra/.env
+   # ANTHROPIC_API_KEY=sk-ant-...
+   # optional: ASSISTANT_MONTHLY_LIMIT_USD=10   (the app stops new chat turns at this estimate)
+   dc up -d web            # recreate web with the new environment (no new image needed)
+   ```
+   Or simply `./deploy.sh <current sha>`. Only `web` gets these variables
+   (`infra/compose.prod.yml`); web needs outbound HTTPS to `api.anthropic.com` (it has it).
+3. Check: open **Assistant**, ask "What's on today?". Tool chips ("Searched tasks · 3
+   found") show what it looked up. Ask "Add a task: test the assistant" → a confirm card →
+   Confirm → the task appears in Tasks. **Settings → AI assistant** shows the models and
+   this month's requests, tokens and estimated cost.
+4. Receipts: Budget → 📷 next to Add, or send a receipt photo to the expense bot.
+
+### Models and cost
+
+| Use | Default | Override |
+|---|---|---|
+| Chat with tools | `claude-sonnet-5-5` (fast, strong tool use; $2 / $10 per M tokens) | `ASSISTANT_MODEL` (e.g. `claude-opus-5-5` for harder questions) |
+| Receipt photos | `claude-haiku-5-5` (vision, cheapest; well under a cent per receipt) | `RECEIPT_MODEL=claude-sonnet-5-5` if it misreads receipts |
+
+- Chat runs at low thinking effort (`ASSISTANT_EFFORT`, default `low`), replies are capped
+  at `ASSISTANT_MAX_TOKENS` (default 8192), and the system prompt + tool list are cached
+  (prompt caching), so follow-up turns mostly pay cache-read prices. A typical turn costs
+  around a cent; the Settings line estimates from list prices (the Console has the real bill).
+- Limits per user: 30 chat messages per 10 minutes and 300 per day; 60 receipt photos per
+  hour. Optional hard stop: `ASSISTANT_MONTHLY_LIMIT_USD`.
+- Server-side fallback is on (`server-side-fallback-2026-07-01`, `fallbacks: "default"`):
+  if a model declines for policy reasons, the API may retry on another model.
+
+Rotating the key: create a new one, replace it in `.env`, `dc up -d web`, then delete the
+old key in the Console. Turning AI off: empty `ANTHROPIC_API_KEY`, `dc up -d web`; stored
+chats stay and come back when the key does.
+
+New tables (migration from `db/modules/assistant.sql` + the generated table migration):
+`assistant_conversations`, `assistant_messages` (append-only), `assistant_usage` (token log).
