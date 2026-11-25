@@ -2,7 +2,7 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { actions } from "../actions"
 import { Bar } from "../components/bits"
-import { formatMoney } from "../lib/money"
+import { approxMoney } from "../components/fx-note"
 
 /** Today: this month's spending against income, in the base currency. */
 export async function ThisMonth({ ctx }: { ctx: { locale: string } }) {
@@ -17,7 +17,7 @@ export async function ThisMonth({ ctx }: { ctx: { locale: string } }) {
       </p>
     )
   }
-  const money = (m: number, signed = false) => formatMoney(m, o.baseCurrency, ctx.locale, { signed })
+  const money = (m: number, signed = false) => approxMoney(m, o.baseCurrency, ctx.locale, o.fx, { signed })
   const over = o.expenseMinor > o.incomeMinor
   const top = o.spending[0]
   return (

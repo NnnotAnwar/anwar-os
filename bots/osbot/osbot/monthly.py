@@ -19,7 +19,7 @@ from typing import Any
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from .digest import money
+from .digest import fx_parts, money
 from .fmt import esc, local, plural, truncate
 from .keyboards import url_button
 from .loops import every_minute
@@ -71,10 +71,11 @@ def monthly_text(data: dict[str, Any]) -> str:
         currency = spending["currency"]
         spent, before = int(spending["expenseMinor"]), int(spending["previousExpenseMinor"])
         change = _pct(spent, before)
-        lines += ["", f"💸 <b>Spent</b> {money(spent, currency)}{change}{f' vs {esc(prev)}' if change and prev else ''}"]
+        ish, rates = fx_parts(spending)
+        lines += ["", f"💸 <b>Spent</b> {ish}{money(spent, currency)}{change}{f' vs {esc(prev)}' if change and prev else ''}"]
         income, net = int(spending["incomeMinor"]), int(spending["netMinor"])
         if income or net:
-            lines.append(f"Income {money(income, currency)} · Net {money(net, currency, signed=True)}")
+            lines.append(f"Income {ish}{money(income, currency)} · Net {ish}{money(net, currency, signed=True)}")
         top = [c for c in spending.get("categories") or [] if int(c["amountMinor"]) > 0][:CATEGORIES_SHOWN]
         if top:
             lines.append(" · ".join(f"{esc(truncate(c['name'], 24))} {money(c['amountMinor'], currency)}" for c in top))
@@ -85,8 +86,10 @@ def monthly_text(data: dict[str, Any]) -> str:
                 for c in changes
             ]
             lines.append("📈 <b>Biggest changes</b>: " + " · ".join(moves))
+        if rates:
+            lines.append(rates)
         for other in spending.get("otherCurrencies") or []:
-            lines.append(f"<i>Also {money(other['expenseMinor'], other['currency'])} spent in {esc(other['currency'])}</i>")
+            lines.append(f"<i>Also {money(other['expenseMinor'], other['currency'])} spent in {esc(other['currency'])}, not in the total</i>")
 
     subscriptions = data.get("subscriptions")
     if subscriptions is not None and subscriptions.get("totals"):

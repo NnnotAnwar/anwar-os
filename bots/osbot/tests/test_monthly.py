@@ -90,7 +90,7 @@ def test_monthly_card():
     # Top three with money spent, escaped; Travel (nothing this month) isn't among them.
     assert f"Groceries 8{NBSP}000{NBSP}CZK · Eating &lt;out&gt; 3{NBSP}000{NBSP}CZK · Transport 1{NBSP}400{NBSP}CZK" in text
     assert f"📈 <b>Biggest changes</b>: Travel −2{NBSP}000{NBSP}CZK · Groceries +2{NBSP}000{NBSP}CZK" in text
-    assert f"Also 12.99{NBSP}EUR spent in EUR" in text
+    assert f"Also 12.99{NBSP}EUR spent in EUR, not in the total" in text
     assert f"💳 <b>Subscriptions</b> 1{NBSP}547{NBSP}CZK a month · 6 active" in text
     assert "✅ <b>Tasks</b> 31 done · ▲ 55 % · 28 added" in text
     assert "📥 <b>New</b> · 12 notes · 1 idea" in text
@@ -105,6 +105,16 @@ def test_a_month_in_progress_and_a_quiet_one():
         {**REPORT, "spending": None, "subscriptions": None, "tasks": None, "site": None, "captured": {"notes": 0, "ideas": None}}
     )
     assert quiet.endswith("<i>Nothing recorded this month yet.</i>")
+
+
+def test_monthly_card_marks_converted_totals():
+    fx = {"source": "ČNB", "rateOn": "2026-11-30", "approximate": False, "converted": ["EUR", "KZT"], "unavailable": ["XTS"]}
+    text = monthly_text({**REPORT, "spending": {**REPORT["spending"], "fx": fx, "otherCurrencies": []}})
+    assert f"💸 <b>Spent</b> ≈ 12{NBSP}400{NBSP}CZK · ▲ 24 %" in text
+    assert f"Income ≈ 50{NBSP}000{NBSP}CZK · Net ≈ +37{NBSP}600{NBSP}CZK" in text
+    assert "<i>EUR, KZT converted · rates: ČNB, 30 Nov · XTS not counted (no rate)</i>" in text
+    # Without fx (or nothing converted) the card reads as before.
+    assert "≈" not in monthly_text(REPORT)
 
 
 def test_monthly_keyboards():

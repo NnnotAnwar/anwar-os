@@ -281,8 +281,15 @@ export function TransactionRow({
           {tx.recurringId && <Repeat className="size-3 shrink-0" aria-label="From a recurring payment" />}
         </span>
       </span>
-      <span className={cn("text-body-strong shrink-0 tabular-nums", tx.amountMinor > 0 && !tx.transferId && "text-text-accent")}>
-        {formatMoney(tx.amountMinor, tx.currency, locale, { signed: true, fixed: true })}
+      <span className="grid shrink-0 justify-items-end gap-0.5">
+        <span className={cn("text-body-strong tabular-nums", tx.amountMinor > 0 && !tx.transferId && "text-text-accent")}>
+          {formatMoney(tx.amountMinor, tx.currency, locale, { signed: true, fixed: true })}
+        </span>
+        {tx.baseAmount && (
+          <span className="text-caption text-muted-foreground tabular-nums" title={`At the ČNB rate of ${tx.baseAmount.rateOn}`}>
+            ≈ {formatMoney(tx.baseAmount.minor, tx.baseAmount.currency, locale, { signed: true, fixed: true })}
+          </span>
+        )}
       </span>
     </button>
   )

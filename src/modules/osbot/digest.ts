@@ -4,6 +4,7 @@ import { z } from "zod"
 import { asViewer } from "@/core/auth"
 import { hasModule, runModuleAction } from "@/core/module-actions"
 import { budgetRecurring, feedbackItems, ideasIdeas, linksLinks, notesNotes, tasksTasks } from "@/db/schema"
+import { emptyFxNote, type FxNote } from "@/modules/budget/fx/convert"
 import type { ComparisonRow } from "@/modules/budget/lib/projection"
 import { addDaysIso, monthOf, parseIsoDate, todayIn } from "@/modules/budget/lib/dates"
 import type { Overview, PlanRow, Transaction, UpcomingPayment } from "@/modules/budget/schema"
@@ -123,6 +124,12 @@ export type WeeklyReview = {
     thisWeekMinor: number
     lastWeekMinor: number
     top: CategorySpend[]
+    /**
+     * This week's spending in other currencies is converted at each day's ČNB
+     * rate and included ("≈"); what has no rate is left out and listed in
+     * fx.unavailable.
+     */
+    fx: FxNote
     /** The capital-growth plan's monthly saving against this month's net so far. */
     plan: { monthlyContributionMinor: number; monthNetMinor: number; month: string } | null
     url: string
@@ -248,20 +255,35 @@ async function nextWeekEvents(next: Week, timeZone: string, base: string) {
   }
 }
 
+/** Spending in the base currency: other currencies at their day's ČNB rate (listTransactions' baseAmount). */
 function spendIn(transactions: Transaction[], currency: string) {
   let total = 0
+  const fx = emptyFxNote()
+  const converted = new Set<string>()
+  const unavailable = new Set<string>()
   const byCategory = new Map<string, number>()
   for (const t of transactions) {
-    if (t.amountMinor >= 0 || t.transferId || t.currency !== currency) continue
-    total -= t.amountMinor
+    if (t.amountMinor >= 0 || t.transferId) continue
+    let spent = -t.amountMinor
+    if (t.currency !== currency) {
+      if (!t.baseAmount) {
+        unavailable.add(t.currency)
+        continue
+      }
+      spent = -t.baseAmount.minor
+      converted.add(t.currency)
+      if (!fx.rateOn || t.baseAmount.rateOn > fx.rateOn) fx.rateOn = t.baseAmount.rateOn
+      if (t.baseAmount.approximate) fx.approximate = true
+    }
+    total += spent
     const name = t.categoryName ?? "Uncategorised"
-    byCategory.set(name, (byCategory.get(name) ?? 0) - t.amountMinor)
+    byCategory.set(name, (byCategory.get(name) ?? 0) + spent)
   }
   const top = [...byCategory]
     .map(([name, amountMinor]) => ({ name, amountMinor }))
     .sort((a, b) => b.amountMinor - a.amountMinor)
     .slice(0, TOP_CATEGORIES)
-  return { total, top }
+  return { total, top, fx: { ...fx, converted: [...converted].sort(), unavailable: [...unavailable].sort() } }
 }
 
 async function spendingOf(week: Week, last: Week, today: string, base: string): Promise<WeeklyReview["spending"]> {
@@ -279,6 +301,7 @@ async function spendingOf(week: Week, last: Week, today: string, base: string): 
     thisWeekMinor: current.total,
     lastWeekMinor: spendIn(lastWeek, currency).total,
     top: current.top,
+    fx: current.fx,
     plan:
       plan.plan && plan.plan.currency === currency && plan.plan.monthlyContributionMinor > 0
         ? { monthlyContributionMinor: plan.plan.monthlyContributionMinor, monthNetMinor: overview.netMinor, month }

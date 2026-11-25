@@ -9,10 +9,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { removeWithUndo } from "@/lib/undo-toast"
 import { cn } from "@/lib/utils"
+import { FX_SOURCE, type FxNote } from "../fx/convert"
 import { amountToInput, CURRENCIES, formatMoney, parseAmount } from "../lib/money"
 import { accountKindLabels, accountKinds, type Account, type AccountKind } from "../schema"
 import { archiveAccount, createAccount, deleteAccount, updateAccount } from "../server-actions"
 import { Field, FormError, Sheet, selectClass } from "./bits"
+import { FxNoteLine } from "./fx-note"
 
 const kindIcon: Record<AccountKind, typeof Bank> = { cash: Wallet, bank: Bank, savings: PiggyBank, investment: TrendingUp }
 
@@ -69,8 +71,15 @@ export function AccountsBoard({ accounts, locale, today, openNew }: { accounts: 
             {accountKindLabels[a.kind]} · {a.currency} · {a.transactionCount} {a.transactionCount === 1 ? "transaction" : "transactions"}
           </span>
         </button>
-        <span className={cn("text-body-strong ml-auto tabular-nums", a.balanceMinor < 0 && "text-destructive")}>
-          {formatMoney(a.balanceMinor, a.currency, locale, { fixed: true })}
+        <span className="ml-auto grid justify-items-end gap-0.5">
+          <span className={cn("text-body-strong tabular-nums", a.balanceMinor < 0 && "text-destructive")}>
+            {formatMoney(a.balanceMinor, a.currency, locale, { fixed: true })}
+          </span>
+          {a.baseBalance && (
+            <span className="text-caption text-muted-foreground tabular-nums" title={`At the ČNB rate of ${a.baseBalance.rateOn}`}>
+              ≈ {formatMoney(a.baseBalance.minor, a.baseBalance.currency, locale, { fixed: true })}
+            </span>
+          )}
         </span>
         <div className="flex items-center gap-1 max-sm:basis-full max-sm:justify-end">
           <Link
@@ -105,6 +114,7 @@ export function AccountsBoard({ accounts, locale, today, openNew }: { accounts: 
       ) : (
         <ul className="glass divide-y divide-hairline overflow-hidden rounded-xl">{open.map(row)}</ul>
       )}
+      <RatesFootnote accounts={accounts} today={today} locale={locale} />
       {archived.length > 0 && (
         <section aria-labelledby="archived-title" className="grid gap-2">
           <h2 id="archived-title" className="text-eyebrow px-1 text-muted-foreground">
@@ -126,6 +136,21 @@ export function AccountsBoard({ accounts, locale, today, openNew }: { accounts: 
       </Sheet>
     </div>
   )
+}
+
+/** "≈ at ČNB rates · Rates: ČNB, 25 Nov" under accounts in other currencies, or why one has no equivalent. */
+function RatesFootnote({ accounts, today, locale }: { accounts: Account[]; today: string; locale: string }) {
+  const converted = accounts.flatMap((a) => (a.baseBalance ? [a.baseBalance] : []))
+  const missing = [...new Set(accounts.filter((a) => a.baseBalance === null).map((a) => a.currency))]
+  if (!converted.length && !missing.length) return null
+  const note: FxNote = {
+    source: FX_SOURCE,
+    rateOn: converted.reduce<string | null>((d, c) => (!d || c.rateOn > d ? c.rateOn : d), null),
+    approximate: converted.some((c) => c.approximate),
+    converted: [...new Set(accounts.filter((a) => a.baseBalance).map((a) => a.currency))].sort(),
+    unavailable: missing.sort(),
+  }
+  return <FxNoteLine note={note} today={today} locale={locale} className="px-1" unavailableText="balances have no rate right now" />
 }
 
 function AccountForm({

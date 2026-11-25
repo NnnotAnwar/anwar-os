@@ -7,6 +7,7 @@
 import fontkit from "@pdf-lib/fontkit"
 import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib"
 import { INTER_BOLD, INTER_REGULAR } from "../fonts/inter"
+import { ratesLabel } from "@/modules/budget/fx/convert"
 import { formatMoney } from "@/modules/budget/lib/money"
 import { percentChange } from "./compare"
 import type { MonthlyReport } from "../schema"
@@ -166,12 +167,19 @@ export async function renderReportPdf(report: MonthlyReport, generatedAt = new D
   const s = report.spending
   if (s) {
     const money = (minor: number) => formatMoney(minor, s.currency)
+    const ish = s.fx.converted.length ? "≈ " : ""
     w.section("Money")
-    w.row("Spent", money(s.expenseMinor), { bold: true, hint: vs(s.expenseMinor, s.previousExpenseMinor, prev, money) })
-    w.row("Income", money(s.incomeMinor), { hint: vs(s.incomeMinor, s.previousIncomeMinor, prev, money) })
-    w.row("Net", formatMoney(s.netMinor, s.currency, "en", { signed: true }))
+    w.row("Spent", ish + money(s.expenseMinor), { bold: true, hint: vs(s.expenseMinor, s.previousExpenseMinor, prev, money) })
+    w.row("Income", ish + money(s.incomeMinor), { hint: vs(s.incomeMinor, s.previousIncomeMinor, prev, money) })
+    w.row("Net", ish + formatMoney(s.netMinor, s.currency, "en", { signed: true }))
     for (const c of s.otherCurrencies) {
-      w.row(`In ${c.currency}`, `${formatMoney(c.expenseMinor, c.currency)} spent · ${formatMoney(c.incomeMinor, c.currency)} in`)
+      w.row(`In ${c.currency} (no rate)`, `${formatMoney(c.expenseMinor, c.currency)} spent · ${formatMoney(c.incomeMinor, c.currency)} in`)
+    }
+    const rates = ratesLabel(s.fx, report.today)
+    if (rates) {
+      w.need(16)
+      w.text(`${s.fx.converted.join(", ")} converted into ${s.currency}, each at its day's rate. ${rates}`, { size: 9, color: MUTED })
+      w.line(14)
     }
     if (s.categories.length) {
       w.line(6)

@@ -28,6 +28,7 @@ const { quickPOST, createPOST } = await import("@/modules/budget/bot-api/routes"
 const { actAs, loadViewer } = await import("@/core/auth")
 const { actions } = await import("@/modules/budget/actions")
 const { monthOf, monthRange, shiftMonth, todayIn } = await import("@/modules/budget/lib/dates")
+const { setFxFetcher } = await import("@/modules/budget/fx/rates")
 
 const admin = postgres(process.env.MIGRATION_DATABASE_URL!, { max: 1, onnotice: () => {} })
 const app = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} })
@@ -38,7 +39,7 @@ const marker = `lim${run}`
 let owner = ""
 let createdOwner = false
 let account = ""
-let eurAccount = ""
+let xtsAccount = ""
 let today = ""
 let month = ""
 const cat: Record<string, string> = {}
@@ -98,6 +99,10 @@ async function spend(categoryId: string | null, amount: number, day = today, acc
 const mine = <T extends { name: string }>(items: T[]) => items.filter((x) => x.name.includes(marker))
 
 beforeAll(async () => {
+  // Never the real ČNB from tests.
+  setFxFetcher(async () => {
+    throw new Error("offline in tests")
+  })
   const [row] = await admin`select app.site_owner_id() as id`
   if (row?.id) {
     owner = row.id
@@ -119,8 +124,8 @@ beforeAll(async () => {
 
   const [acc] = await admin`insert into budget_accounts (owner_id, name, currency) values (${owner}, ${`Bank ${marker}`}, 'CZK') returning id`
   account = acc!.id
-  const [eur] = await admin`insert into budget_accounts (owner_id, name, currency) values (${owner}, ${`Euro ${marker}`}, 'EUR') returning id`
-  eurAccount = eur!.id
+  const [eur] = await admin`insert into budget_accounts (owner_id, name, currency) values (${owner}, ${`Test currency ${marker}`}, 'XTS') returning id`
+  xtsAccount = eur!.id
   const category = async (name: string, kind = "expense", parent: string | null = null) => {
     const [c] = await admin`
       insert into budget_categories (owner_id, name, kind, parent_id) values (${owner}, ${`${name} ${marker}`}, ${kind}, ${parent}) returning id`
@@ -138,8 +143,8 @@ beforeAll(async () => {
   await spend(cat.food, 300000)
   await spend(cat.groceries, 200000)
   await spend(cat.fun, 95000)
-  // Not counted: another currency, and a transfer leg.
-  await spend(cat.food, 999900, today, eurAccount)
+  // Not counted: a currency ČNB has no rate for (XTS, the ISO test code), and a transfer leg.
+  await spend(cat.food, 999900, today, xtsAccount)
   await admin`
     insert into budget_transactions (owner_id, account_id, category_id, amount_minor, occurred_on, note, transfer_id)
     values (${owner}, ${account}, ${cat.food}, -777700, ${today}, ${`transfer ${marker}`}, gen_random_uuid())`
@@ -153,12 +158,13 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  setFxFetcher(null)
   await admin`delete from osbot_deliveries where owner_id in (${owner}, ${bob}) and kind = 'budget-limit'`
   await admin`delete from budget_limits where owner_id in (${owner}, ${bob})`
-  await admin`delete from budget_transactions where account_id in (${account}, ${eurAccount})`
+  await admin`delete from budget_transactions where account_id in (${account}, ${xtsAccount})`
   await admin`delete from budget_categories where owner_id = ${owner} and name like ${`%${marker}`} and parent_id is not null`
   await admin`delete from budget_categories where owner_id = ${owner} and name like ${`%${marker}`}`
-  await admin`delete from budget_accounts where id in (${account}, ${eurAccount})`
+  await admin`delete from budget_accounts where id in (${account}, ${xtsAccount})`
   await admin`delete from auth."user" where id = ${bob}`
   if (createdOwner) await admin`delete from auth."user" where id = ${owner}`
   await Promise.all([admin.end(), app.end()])

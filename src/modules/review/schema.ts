@@ -1,4 +1,5 @@
 import { z } from "zod"
+import type { FxNote } from "@/modules/budget/fx/convert"
 
 // The monthly report: one month of money, tasks, captures and site views next
 // to the month before. Built once (report.ts) for the page, the PDF, osbot's
@@ -47,8 +48,14 @@ export type MonthlyReport = {
     categories: CategoryChange[]
     /** Up to three categories that moved the most against the month before. */
     changes: CategoryChange[]
-    /** Spending in other currencies, not converted. */
+    /** Spending in currencies that couldn't be converted (no ČNB rate): not in the totals. */
     otherCurrencies: { currency: string; expenseMinor: number; incomeMinor: number }[]
+    /**
+     * How other currencies were converted into `currency` (each transaction at
+     * its own day's ČNB rate): the totals above include them when
+     * fx.converted isn't empty ("≈", "Rates: ČNB, 25 Nov").
+     */
+    fx: FxNote
     transactionCount: number
     url: string
   } | null

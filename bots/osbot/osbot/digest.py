@@ -52,6 +52,24 @@ def money(minor: int, currency: str, *, signed: bool = False) -> str:
     return f"{sign}{number}{NBSP}{currency}"
 
 
+def fx_parts(spending: dict[str, Any]) -> tuple[str, str | None]:
+    """How other currencies went into a spending total (the web converts them at
+    each day's ČNB rate): ("≈ ", "<i>EUR converted · rates: ČNB, 25 Nov</i>"),
+    or ("", None) when everything was in the base currency already."""
+    fx = spending.get("fx") or {}
+    converted = [str(c) for c in fx.get("converted") or []]
+    unavailable = [str(c) for c in fx.get("unavailable") or []]
+    notes = []
+    if converted:
+        day = iso_day(fx.get("rateOn"))
+        when = f", {day.day} {MONTHS[day.month - 1][:3]}" if day else ""
+        older = " (some older)" if fx.get("approximate") else ""
+        notes.append(f"{esc(', '.join(converted))} converted · rates: ČNB{when}{older}")
+    if unavailable:
+        notes.append(f"{esc(', '.join(unavailable))} not counted (no rate)")
+    return ("≈ " if converted else "", f"<i>{' · '.join(notes)}</i>" if notes else None)
+
+
 def _totals(items: list[dict[str, Any]]) -> str:
     """Sum per currency, in order of appearance: "1 547 CZK + 9.99 EUR"."""
     sums: dict[str, int] = {}
@@ -170,10 +188,13 @@ def weekly_text(data: dict[str, Any], *, footer: str | None = None) -> str:
     if spending is not None:
         currency = spending["currency"]
         this, last = int(spending["thisWeekMinor"]), int(spending["lastWeekMinor"])
-        lines += ["", f"💸 <b>Spent</b> {money(this, currency)}{_change(this, last)}"]
+        ish, rates = fx_parts(spending)
+        lines += ["", f"💸 <b>Spent</b> {ish}{money(this, currency)}{_change(this, last)}"]
         top = spending.get("top") or []
         if top:
             lines.append(" · ".join(f"{esc(truncate(c['name'], 24))} {money(c['amountMinor'], currency)}" for c in top))
+        if rates:
+            lines.append(rates)
         plan = spending.get("plan")
         if plan:
             month = MONTHS[int(plan["month"][5:7]) - 1]

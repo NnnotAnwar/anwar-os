@@ -35,8 +35,9 @@ const toBot = (item: CategoryLimit, currency: string, month: string): BotLimit =
 /**
  * The limit an expense counts against, as it stands after the expense: its
  * category's, or its parent's for a subcategory, in the expense's month. Null
- * without a category or a limit, or when the expense isn't in the base
- * currency (limits only count that).
+ * without a category or a limit, or when the expense is in a currency that
+ * has no ČNB rate (so the limit doesn't count it). Other currencies count at
+ * the rate of their day.
  */
 export async function limitForExpense(expense: { categoryId: string | null; currency: string; occurredOn: string }): Promise<BotLimit | null> {
   if (!expense.categoryId) return null
@@ -45,7 +46,7 @@ export async function limitForExpense(expense: { categoryId: string | null; curr
   const top = cat.parentId ?? expense.categoryId
   const month = monthOf(expense.occurredOn)
   const data = await actions.limits.handler({ month })
-  if (data.baseCurrency !== expense.currency) return null
+  if (data.fx.unavailable.includes(expense.currency)) return null
   const item = data.items.find((x) => x.categoryId === top)
   return item ? toBot(item, data.baseCurrency, month) : null
 }

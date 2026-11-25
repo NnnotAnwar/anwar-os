@@ -81,6 +81,7 @@ async function spendingOf(month: string, previous: string, base: string): Promis
     categories,
     changes,
     otherCurrencies: now.otherCurrencies.filter((c) => c.expenseMinor || c.incomeMinor),
+    fx: now.fx,
     transactionCount: now.transactionCount,
     url: `${base}/app/budget?month=${month}`,
   }

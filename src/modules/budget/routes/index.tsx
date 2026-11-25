@@ -8,9 +8,11 @@ import { requireViewer } from "@/core/auth"
 import { cn } from "@/lib/utils"
 import { actions } from "../actions"
 import { Bar, CategoryDot } from "../components/bits"
+import { approxMoney, FxNoteLine, leftOutText } from "../components/fx-note"
 import { GenerateDueButton } from "../components/generate-due"
 import { OverviewQuickAdd } from "../components/overview-quick-add"
 import { formatMonth, monthOf, todayIn } from "../lib/dates"
+import { ratesLabel } from "../fx/convert"
 import { formatMoney } from "../lib/money"
 import { accountKindLabels, type AccountKind, type Overview } from "../schema"
 import { BudgetPage, ensureSetup, MonthSwitcher, monthParam } from "./shell"
@@ -41,7 +43,7 @@ async function Body({ searchParams }: Pick<Props, "searchParams">) {
   const month = monthParam(params.month, current)
   const [overview, due] = await Promise.all([actions.overview.handler({ month }), actions.dueCount.handler({})])
   const locale = viewer.locale
-  const money = (minor: number, opts?: { signed?: boolean }) => formatMoney(minor, overview.baseCurrency, locale, opts)
+  const money = (minor: number, opts?: { signed?: boolean }) => approxMoney(minor, overview.baseCurrency, locale, overview.fx, opts)
 
   return (
     <div className="grid gap-4">
@@ -70,14 +72,9 @@ async function Body({ searchParams }: Pick<Props, "searchParams">) {
             </p>
           </div>
         )}
+        <FxNoteLine note={overview.fx} today={overview.today} locale={locale} unavailableText={null} />
         {overview.otherCurrencies.length > 0 && (
-          <p className="text-caption text-muted-foreground tabular-nums">
-            Also:{" "}
-            {overview.otherCurrencies
-              .map((c) => `${formatMoney(c.incomeMinor, c.currency, locale)} in, ${formatMoney(c.expenseMinor, c.currency, locale)} out`)
-              .join(" · ")}{" "}
-            (not converted)
-          </p>
+          <p className="text-caption text-muted-foreground tabular-nums">{leftOutText(overview.otherCurrencies, locale)}</p>
         )}
       </section>
 
@@ -166,8 +163,20 @@ function SpendingCard({ overview, locale, month }: { overview: Overview; locale:
 }
 
 function AccountsCard({ overview, locale }: { overview: Overview; locale: string }) {
-  const byCurrency = new Map<string, number>()
-  for (const a of overview.accounts) byCurrency.set(a.currency, (byCurrency.get(a.currency) ?? 0) + a.balanceMinor)
+  // The total in the base currency (other currencies at the latest rate); what has no rate stays apart.
+  const base = overview.baseCurrency
+  let total = 0
+  let converted = false
+  const apart = new Map<string, number>()
+  for (const a of overview.accounts) {
+    if (a.currency === base) total += a.balanceMinor
+    else if (a.baseBalance) {
+      total += a.baseBalance.minor
+      converted = true
+    } else apart.set(a.currency, (apart.get(a.currency) ?? 0) + a.balanceMinor)
+  }
+  const rateOn = overview.accounts.reduce<string | null>((d, a) => (a.baseBalance && (!d || a.baseBalance.rateOn > d) ? a.baseBalance.rateOn : d), null)
+  const approximate = overview.accounts.some((a) => a.baseBalance?.approximate)
   return (
     <section aria-labelledby="accounts-title" className="glass grid content-start gap-3 rounded-xl p-4">
       <header className="flex items-baseline justify-between gap-2">
@@ -195,19 +204,38 @@ function AccountsCard({ overview, locale }: { overview: Overview; locale: string
               >
                 <Icon className="size-4 shrink-0 text-muted-foreground" aria-label={accountKindLabels[a.kind]} />
                 <span className="text-body min-w-0 flex-1 truncate">{a.name}</span>
-                <span className={cn("text-body-strong tabular-nums", a.balanceMinor < 0 && "text-destructive")}>
-                  {formatMoney(a.balanceMinor, a.currency, locale)}
+                <span className="grid justify-items-end">
+                  <span className={cn("text-body-strong tabular-nums", a.balanceMinor < 0 && "text-destructive")}>
+                    {formatMoney(a.balanceMinor, a.currency, locale)}
+                  </span>
+                  {a.baseBalance && (
+                    <span className="text-caption text-muted-foreground tabular-nums">≈ {formatMoney(a.baseBalance.minor, a.baseBalance.currency, locale)}</span>
+                  )}
                 </span>
               </Link>
             </li>
           )
         })}
       </ul>
-      {byCurrency.size > 0 && (
-        <p className="text-meta flex flex-wrap justify-between gap-2 border-t border-hairline pt-2 tabular-nums">
-          <span className="text-muted-foreground">Total</span>
-          <span className="text-body-strong">{[...byCurrency.entries()].map(([c, v]) => formatMoney(v, c, locale)).join(" · ")}</span>
-        </p>
+      {overview.accounts.length > 0 && (
+        <div className="grid gap-1 border-t border-hairline pt-2">
+          <p className="text-meta flex flex-wrap justify-between gap-2 tabular-nums">
+            <span className="text-muted-foreground">Total</span>
+            <span className="text-body-strong">
+              {[`${converted ? "≈ " : ""}${formatMoney(total, base, locale)}`, ...[...apart].map(([c, v]) => formatMoney(v, c, locale))].join(" · ")}
+            </span>
+          </p>
+          {(rateOn || apart.size > 0) && (
+            <p className="text-caption text-right text-muted-foreground">
+              {[
+                rateOn && ratesLabel({ source: "ČNB", rateOn, approximate, converted: [], unavailable: [] }, overview.today, locale),
+                apart.size > 0 && `${[...apart.keys()].join(", ")} not converted (no rate)`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
+        </div>
       )}
     </section>
   )
