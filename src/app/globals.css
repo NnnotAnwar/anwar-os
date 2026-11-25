@@ -560,6 +560,46 @@
   animation-duration: var(--duration-move);
 }
 
+/*
+ * The app header, sidebar and phone tab bar are their own layers, above the
+ * page. Without names they were part of the root snapshot, and the moving page
+ * (its own group, drawn on top) covered them: on a scrolled phone screen the
+ * old page slid over the header and the new one over the tab bar for a moment.
+ * They do not animate; the new state (the active tab) shows at once.
+ */
+.app-header {
+  view-transition-name: app-header;
+}
+.app-sidebar {
+  view-transition-name: app-sidebar;
+}
+.tab-bar {
+  view-transition-name: tab-bar;
+}
+::view-transition-group(app-header),
+::view-transition-group(app-sidebar),
+::view-transition-group(tab-bar) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(app-header),
+::view-transition-old(app-sidebar),
+::view-transition-old(tab-bar) {
+  display: none;
+}
+::view-transition-new(app-header),
+::view-transition-new(app-sidebar),
+::view-transition-new(tab-bar) {
+  animation: none;
+}
+/* A snapshot has no backdrop to blur: the phone header (70% canvas over a
+   blur) would show the moving page through it, so it is solid for the moment. */
+@media (width < 48rem) {
+  ::view-transition-group(app-header) {
+    background-color: var(--background);
+  }
+}
+
 /* Press feedback for cards and tiles (buttons already scale to 98%). */
 .press {
   transition:
