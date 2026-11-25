@@ -87,6 +87,12 @@ describe("MCP tools from module actions", () => {
     expect(list!.inputSchema.$schema).toBeUndefined()
     const range = generateTools([calendar], { write: false })[0]!
     expect(range.inputSchema.type).toBe("object")
+    // JSON can't carry a Date: the range takes ISO strings.
+    const parsed = range.parse({ from: "2026-11-01", to: "2026-12-31T23:00:00Z" })
+    expect(parsed).toEqual({
+      success: true,
+      data: { from: new Date("2026-11-01T00:00:00Z"), to: new Date("2026-12-31T23:00:00Z") },
+    })
   })
 
   it("marks deletes as destructive and reads as read-only", () => {

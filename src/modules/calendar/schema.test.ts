@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { eventFields, toEventFields, toEventRow, type EventFields } from "./schema"
+import { eventFields, rangeInput, toEventFields, toEventRow, type EventFields } from "./schema"
 
 const base = eventFields.parse({
   title: "Standup",
@@ -74,5 +74,22 @@ describe("toEventFields", () => {
     const fields = { ...base, startDate: "2026-07-01", endDate: "2026-07-01" }
     expect(toEventRow(fields).startAt.toISOString()).toBe("2026-07-01T07:00:00.000Z")
     expect(roundTrip(fields).startTime).toBe("09:00")
+  })
+})
+
+describe("rangeInput", () => {
+  it("takes Dates in-process and ISO strings over JSON (MCP, HTTP API)", () => {
+    const from = new Date("2026-11-01T00:00:00Z")
+    expect(rangeInput.parse({ from, to: from })).toEqual({ from, to: from })
+    expect(rangeInput.parse({ from: "2026-11-01", to: "2026-12-01T09:30:00+01:00" })).toEqual({
+      from,
+      to: new Date("2026-12-01T08:30:00Z"),
+    })
+  })
+
+  it("rejects what isn't an instant", () => {
+    expect(rangeInput.safeParse({ from: "tomorrow", to: "2026-12-01" }).success).toBe(false)
+    expect(rangeInput.safeParse({ from: "2026-13-01", to: "2026-12-01" }).success).toBe(false)
+    expect(rangeInput.safeParse({ from: 1764547200000, to: "2026-12-01" }).success).toBe(false)
   })
 })

@@ -56,7 +56,14 @@ export type EventFields = z.infer<typeof eventFields>
 export const createEventInput = eventFields
 export const updateEventInput = eventFields.extend({ id: z.uuid() })
 export const eventIdInput = z.object({ id: z.uuid() })
-export const rangeInput = z.object({ from: z.date(), to: z.date() })
+/**
+ * An instant from any caller: a Date in-process, an ISO 8601 string over JSON
+ * (MCP, the HTTP API). A bare date ("2026-11-01") is midnight UTC.
+ */
+const instant = z
+  .union([z.date(), z.iso.datetime({ offset: true }), z.iso.date()])
+  .transform((v) => (v instanceof Date ? v : new Date(v)))
+export const rangeInput = z.object({ from: instant, to: instant })
 export const searchEventsInput = z.object({
   query: z.string().trim().min(1).max(100),
   limit: z.number().int().min(1).max(50).default(10),
