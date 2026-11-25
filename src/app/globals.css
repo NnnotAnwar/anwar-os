@@ -662,4 +662,10 @@
   ::view-transition-new(*) {
     animation: none !important;
   }
+  /* The sheet rules above are !important and more specific than the global
+     reduced-motion rule, so phone sheets kept sliding. */
+  .sheet[data-open],
+  .sheet[data-closed] {
+    animation-duration: 0.01ms !important;
+  }
 }
