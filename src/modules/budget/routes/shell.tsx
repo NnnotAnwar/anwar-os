@@ -22,7 +22,7 @@ export function BudgetPage({
 }) {
   return (
     <Page>
-      <div className="mx-auto grid w-full max-w-4xl gap-4">
+      <div className="mx-auto grid w-full max-w-4xl grid-cols-1 gap-4">
         <PageHeader eyebrow="Budget" title={title} description={description} actions={headerActions} />
         <BudgetNav />
         {children}
