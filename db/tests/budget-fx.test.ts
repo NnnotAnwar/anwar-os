@@ -247,7 +247,10 @@ describe("budget fx: converted amounts in the actions", () => {
     // Balances at today's rate; the XTS account has none.
     const eur = o.accounts.find((a) => a.id === accounts.EUR)!
     expect(eur.balanceMinor).toBe(1000)
-    expect(eur.baseBalance).toMatchObject({ minor: 25000, currency: "CZK", approximate: false })
+    // Today's rate may already be cached for real (first write wins): read it back.
+    expect(eur.baseBalance).toMatchObject({ currency: "CZK", approximate: false })
+    const [today] = await admin`select rate::float8 as rate, units from budget_fx_rates where source = 'daily' and currency = 'EUR' and valid_on = ${eur.baseBalance!.rateOn}`
+    expect(eur.baseBalance!.minor).toBe(Math.round((1000 * today!.rate) / today!.units))
     expect(o.accounts.find((a) => a.id === accounts.XTS)!.baseBalance).toBeNull()
     expect(o.accounts.find((a) => a.id === accounts.CZK)!.baseBalance).toBeUndefined()
   })
