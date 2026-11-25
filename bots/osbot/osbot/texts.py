@@ -63,7 +63,8 @@ HELP = (
     "📊 Last month's report with its PDF, on the 1st at 10:00\n"
     "☀️ The morning brief, at 08:00 unless changed in Settings → Telegram\n"
     "🌙 How was today? in the evening, until the day has a mood (set in Journal)\n"
-    "🌱 Habit reminders and the evening nudge, when set in the app"
+    "🌱 Habit reminders and the evening nudge, when set in the app\n"
+    "🪪 Documents about to expire (passport, residence permit…), at 10:00 on their reminder days"
 )
 
 UNKNOWN_COMMAND = "<b>I don't know that command.</b>\n/help lists what I can do."

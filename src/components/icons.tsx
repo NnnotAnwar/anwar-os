@@ -219,3 +219,11 @@ export const Envelope = bold(P.Envelope)
 export const ArrowBendUpLeft = bold(P.ArrowBendUpLeft)
 // journal
 export const BookOpenText = bold(P.BookOpenText)
+// documents
+export const Stamp = bold(P.Stamp)
+export const IdentificationBadge = bold(P.IdentificationBadge)
+export const AirplaneTilt = bold(P.AirplaneTilt)
+export const Car = bold(P.Car)
+export const FirstAid = bold(P.FirstAid)
+export const Paperclip = bold(P.Paperclip)
+export const ArrowsClockwise = bold(P.ArrowsClockwise)

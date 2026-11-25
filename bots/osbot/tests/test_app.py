@@ -111,10 +111,10 @@ def test_build_dispatcher_wires_api_targets_and_routers():
     assert isinstance(dp["journal"], JournalMemory)
     # The journal comes before capture: a reply to its prompt is a line, not something to save.
     assert [r.name for r in dp.sub_routers] == [
-        "menu", "today", "weekly", "monthly", "habits", "brief", "journal", "alerts", "capture", "fallback",
+        "menu", "today", "weekly", "monthly", "habits", "brief", "journal", "documents", "alerts", "capture", "fallback",
     ]
     # Routers are built per dispatcher, so a second one works too.
-    assert len(app.build_dispatcher(api, OWNER).sub_routers) == 10
+    assert len(app.build_dispatcher(api, OWNER).sub_routers) == 11
 
 
 async def test_profile_is_only_written_when_it_differs():

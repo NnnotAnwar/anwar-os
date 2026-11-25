@@ -80,6 +80,7 @@ export const osbotDeliveryKinds = [
   "monthly",
   "brief",
   "journal",
+  "document",
 ] as const
 export type OsbotDeliveryKind = (typeof osbotDeliveryKinds)[number]
 
@@ -92,7 +93,8 @@ export type OsbotDeliveryKind = (typeof osbotDeliveryKinds)[number]
  * "monthly" = the report on the 1st (key = the reported month, `2026-10`),
  * "brief" = the morning brief (key = the owner's day, `2026-11-25`),
  * "journal" = the evening "How was today?" question (key = the day it asks about).
- * Pruned after 60 days.
+ * "document" = a document expiry reminder (key `<document id>:<expires on>:<90|…|0|expired|snooze-<date>>`).
+ * Pruned after 60 days ("document" rows after 800, longer than any reminder offset).
  */
 export const osbotDeliveries = pgTable(
   "osbot_deliveries",
@@ -106,6 +108,7 @@ export const osbotDeliveries = pgTable(
   (t) => [
     unique("osbot_deliveries_key").on(t.ownerId, t.kind, t.key),
     index("osbot_deliveries_owner_delivered_idx").on(t.ownerId, t.deliveredAt),
+    // Derived from the list above, so adding a kind is a one-line change.
     check("osbot_deliveries_kind_valid", sql`${t.kind} in (${sql.raw(osbotDeliveryKinds.map((k) => `'${k}'`).join(", "))})`),
     check("osbot_deliveries_key_length", sql`char_length(${t.key}) between 1 and 120`),
   ],
