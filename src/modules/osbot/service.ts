@@ -173,7 +173,10 @@ export async function ackReminders({ keys }: z.infer<typeof ackRemindersInput>):
 export type TodayItem = { title: string; location: string; allDay: boolean; start: string; end: string; time: string }
 export type TodayTask = { id: string; title: string; overdue: boolean; dueDate: string; time: string | null; url: string }
 export type Today = {
+  /** "Monday 16 Nov". */
   date: string
+  /** The same day as YYYY-MM-DD. */
+  day: string
   timezone: string
   events: TodayItem[]
   tasks: TodayTask[]
@@ -197,6 +200,7 @@ export async function today(ownerTimezone: string, now = new Date()): Promise<To
   ])
   return {
     date: `${formatWeekdayLong(now, "en", ownerTimezone)} ${formatDayMonth(now, "en", ownerTimezone)}`,
+    day: formatIsoDate(local),
     timezone: ownerTimezone,
     events: occurrences.map((o) => ({
       title: o.title,

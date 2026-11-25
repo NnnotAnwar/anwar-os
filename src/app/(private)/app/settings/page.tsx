@@ -2,12 +2,14 @@ import { Suspense } from "react"
 import { Page } from "@/components/motion"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shell/page-header"
-import { requireViewer } from "@/core/auth"
+import { asViewer, requireViewer } from "@/core/auth"
 import { isSessionFresh, listApiTokens } from "@/core/api-tokens/server"
 import { getSignInMethods } from "@/core/sign-in-methods"
 import { getTheme } from "@/core/preferences"
 import { AppearanceSettings } from "./appearance-settings"
 import { TelegramStatus } from "@/modules/osbot/components/telegram-status"
+import { BriefSettings } from "@/modules/osbot/components/brief-settings"
+import { readBriefSettings } from "@/modules/osbot/brief"
 import { ApiTokens } from "./api-tokens"
 import { AssistantUsageSection } from "@/modules/assistant/components/usage-section"
 import { SignInMethods } from "./sign-in-methods"
@@ -89,11 +91,14 @@ async function TelegramSection() {
           Telegram
         </h2>
         <p className="text-sm text-muted-foreground">
-          osbot sends reminders and feedback alerts, and saves what you forward to it.
+          osbot sends reminders, alerts and a morning brief, and saves what you forward to it.
         </p>
       </div>
-      <div className="glass rounded-xl p-5">
+      <div className="glass grid gap-5 rounded-xl p-5">
         <TelegramStatus />
+        <div className="border-t border-border/60 pt-5">
+          <BriefSettings settings={await asViewer(readBriefSettings)} timezone={viewer.timezone} />
+        </div>
       </div>
     </section>
   )

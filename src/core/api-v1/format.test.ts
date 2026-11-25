@@ -5,6 +5,7 @@ import { captureText, expenseText, list, todayText, totalsText } from "./format"
 
 const day = (over: Partial<Today> = {}): Today => ({
   date: "Tuesday 24 Nov",
+  day: "2026-11-24",
   timezone: "Europe/Prague",
   events: [],
   tasks: [],
