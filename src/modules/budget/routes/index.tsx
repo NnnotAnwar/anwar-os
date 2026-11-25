@@ -8,7 +8,7 @@ import { requireViewer } from "@/core/auth"
 import { cn } from "@/lib/utils"
 import { actions } from "../actions"
 import { Bar, CategoryDot } from "../components/bits"
-import { approx, FxNoteLine } from "../components/fx-note"
+import { approxMoney, FxNoteLine, leftOutText } from "../components/fx-note"
 import { GenerateDueButton } from "../components/generate-due"
 import { OverviewQuickAdd } from "../components/overview-quick-add"
 import { formatMonth, monthOf, todayIn } from "../lib/dates"
@@ -43,7 +43,7 @@ async function Body({ searchParams }: Pick<Props, "searchParams">) {
   const month = monthParam(params.month, current)
   const [overview, due] = await Promise.all([actions.overview.handler({ month }), actions.dueCount.handler({})])
   const locale = viewer.locale
-  const money = (minor: number, opts?: { signed?: boolean }) => approx(overview.fx) + formatMoney(minor, overview.baseCurrency, locale, opts)
+  const money = (minor: number, opts?: { signed?: boolean }) => approxMoney(minor, overview.baseCurrency, locale, overview.fx, opts)
 
   return (
     <div className="grid gap-4">
@@ -72,14 +72,9 @@ async function Body({ searchParams }: Pick<Props, "searchParams">) {
             </p>
           </div>
         )}
-        <FxNoteLine note={overview.fx} today={overview.today} locale={locale} unavailableText="have no rate, so they're left out of the totals" />
+        <FxNoteLine note={overview.fx} today={overview.today} locale={locale} unavailableText={null} />
         {overview.otherCurrencies.length > 0 && (
-          <p className="text-caption text-muted-foreground tabular-nums">
-            Not in the totals:{" "}
-            {overview.otherCurrencies
-              .map((c) => `${formatMoney(c.incomeMinor, c.currency, locale)} in, ${formatMoney(c.expenseMinor, c.currency, locale)} out`)
-              .join(" · ")}
-          </p>
+          <p className="text-caption text-muted-foreground tabular-nums">{leftOutText(overview.otherCurrencies, locale)}</p>
         )}
       </section>
 

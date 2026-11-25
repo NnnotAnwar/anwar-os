@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/shell/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { requireViewer } from "@/core/auth"
 import { formatMonth, isMonth, monthOf, shiftMonth, todayIn } from "@/modules/budget/lib/dates"
-import { approx, FxNoteLine } from "@/modules/budget/components/fx-note"
+import { approx, FxNoteLine, leftOutText } from "@/modules/budget/components/fx-note"
 import { formatMoney } from "@/modules/budget/lib/money"
 import { cn } from "@/lib/utils"
 import { actions } from "../actions"
@@ -178,12 +178,8 @@ function Sections({ report }: { report: MonthlyReport }) {
               })}
             </p>
           )}
-          <FxNoteLine note={s.fx} today={report.today} locale="en" unavailableText="have no rate, so they're left out of the totals" />
-          {s.otherCurrencies.map((c) => (
-            <p key={c.currency} className="text-caption text-muted-foreground tabular-nums">
-              Not in the totals, in {c.currency}: {formatMoney(c.expenseMinor, c.currency)} spent, {formatMoney(c.incomeMinor, c.currency)} received
-            </p>
-          ))}
+          <FxNoteLine note={s.fx} today={report.today} locale="en" unavailableText={null} />
+          {s.otherCurrencies.length > 0 && <p className="text-caption text-muted-foreground tabular-nums">{leftOutText(s.otherCurrencies, "en")}</p>}
         </section>
       )}
 
