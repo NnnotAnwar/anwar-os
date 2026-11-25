@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { SheetHandle } from "@/components/services/service-card"
 import { cn } from "@/lib/utils"
 import { calendarCategories, categoryInfo } from "../lib/categories"
 import { addDays, compareDates, formatIsoDate, parseIsoDate, parseTime, weekdayOf } from "../lib/zoned"
@@ -62,7 +63,14 @@ export function EventEditor({
 }) {
   return (
     <Dialog open={state !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="glass glass-menu max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-lg">
+      {/* A bottom sheet on phones, like the other editors; a centred panel from 640px. */}
+      <DialogContent
+        className={cn(
+          "glass glass-menu sheet max-h-[calc(100svh-2rem)] overflow-y-auto overscroll-contain sm:max-w-lg",
+          "max-sm:top-auto max-sm:bottom-0 max-sm:max-h-[92svh] max-sm:max-w-full max-sm:translate-y-0 max-sm:rounded-b-none max-sm:pt-0 max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))]",
+        )}
+      >
+        <SheetHandle onDismiss={onClose} />
         {state && (
           <EditorForm
             key={state.mode === "edit" ? state.id : `new:${state.initial.startDate}:${state.initial.title}`}
