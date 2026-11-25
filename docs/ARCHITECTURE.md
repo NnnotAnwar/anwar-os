@@ -98,8 +98,13 @@ data layer under `actions.ts` and the auth layer change.
 - **Secrets:** a root-only `.env` on the server, never in git. CI only gets a
   deploy key scoped to pulling images.
 - **Backups:** nightly `pg_dump` + object-storage sync, encrypted with `age`, kept
-  7 daily / 4 weekly / 6 monthly. A monthly CI job restores the latest dump into a
-  throwaway Postgres and runs the RLS suite against it. Untested backups don't count.
+  7 daily / 4 weekly / 6 monthly. A monthly CI job (`restore-drill.yml`,
+  `infra/backup/drill.sh`) restores the latest dump into a throwaway Postgres,
+  checks migrations, RLS and row counts, runs the RLS suite against it and
+  reports to Ops → Server (osbot alerts on failure). It decrypts with its own age
+  key (a second backup recipient, a GitHub secret); the owner's key stays offline
+  and GitHub holds no storage key (web hands it a 15-minute link). Untested
+  backups don't count.
 - **Deploys:** push to `main` → Actions builds `ghcr.io/nnnotanwar/anwar-os-web:<sha>`
   → SSH step runs `docker compose pull web && docker compose up -d web` with a
   healthcheck gate. Bots deploy the same way, or from the control panel (§8).
@@ -282,9 +287,13 @@ Only labelled services can be touched; `db`, the edge `caddy`, `ops-agent` itsel
 - Projects link to their services, so "Planuj Směny" shows its deploy state.
 - Server section: host vitals from `GET /host`, certificate expiry per edge
   domain (web dials 443 with SNI; the agent has no route out), a problems line
-  and the Telegram alert settings (kinds on/off, mute). External uptime checks
-  run in GitHub Actions (`uptime.yml`), since the server can't report its own
-  outage.
+  and the Telegram alert settings (kinds on/off, mute), plus the last restore
+  drill. External uptime checks run in GitHub Actions (`uptime.yml`), since the
+  server can't report its own outage.
+- Errors: a self-hosted error log (`ops_errors`): server errors of the app
+  (`onRequestError`) and the bots, scrubbed, grouped by fingerprint, with
+  Resolve; written only through `app.record_error()` (rate and row caps,
+  90-day retention); osbot announces new and returning ones (DEPLOY.md §19).
 
 ### Bots
 

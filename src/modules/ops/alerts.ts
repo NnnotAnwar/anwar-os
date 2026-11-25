@@ -4,8 +4,10 @@ import { z } from "zod"
 import { asViewer, requireViewer } from "@/core/auth"
 import { opsAlertKinds, opsAlertSettings, opsAlertState, type OpsAlertKind } from "@/db/schema"
 import { agentRequest } from "./agent"
+import { pendingErrorAlerts, type ErrorAlerts } from "./errors"
 import { currentFilesAlerts } from "./files-check"
 import { loadServerStatus } from "./host"
+import { currentDrillAlerts } from "./restore-drill"
 import { evaluateAlerts, type Alert, type AlertInput } from "./lib/server"
 import type { AgentService } from "./schema"
 
@@ -41,6 +43,8 @@ export type AlertCheckResult = {
   firing: { key: string; kind: OpsAlertKind; title: string; since: string }[]
   mutedUntil: string | null
   notifications: AlertNotification[]
+  /** Errors that are new or came back (kind "errors"), within the hourly budget (errors.ts). */
+  errors: ErrorAlerts
 }
 
 export type AlertSettings = { disabledKinds: OpsAlertKind[]; mutedUntil: string | null }
@@ -105,7 +109,7 @@ export async function saveAlertSettings(input: z.infer<typeof alertSettingsInput
  * Records the current alerts and returns what to send. `alerts` comes from
  * evaluateAlerts(); passing it in keeps this testable without an agent.
  */
-export async function recordAlerts(alerts: Alert[], now = new Date()): Promise<AlertCheckResult> {
+export async function recordAlerts(alerts: Alert[], now = new Date()): Promise<Omit<AlertCheckResult, "errors">> {
   await requireOwner()
   return asViewer(async (tx) => {
     const [settings] = await tx.select().from(opsAlertSettings)
@@ -188,7 +192,9 @@ export async function recordAlerts(alerts: Alert[], now = new Date()): Promise<A
 export async function checkAlerts(now = new Date()): Promise<AlertCheckResult> {
   await requireOwner()
   const input = await collectAlertInput()
-  return recordAlerts([...evaluateAlerts(input, now), ...(await currentFilesAlerts(now))], now)
+  const [files, drill] = await Promise.all([currentFilesAlerts(now), currentDrillAlerts(now)])
+  const result = await recordAlerts([...evaluateAlerts(input, now), ...files, ...drill], now)
+  return { ...result, errors: await pendingErrorAlerts(now) }
 }
 
 /** Marks notifications as sent. Only if the state is still what was sent. */

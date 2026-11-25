@@ -7,6 +7,15 @@ import { opsEvents } from "@/db/schema"
 import { agentRequest, isAgentError, offlineMessage } from "./agent"
 import { alertSettingsInput, getAlertSettings, saveAlertSettings, type AlertSettings } from "./alerts"
 import {
+  errorStatusInput,
+  listErrors,
+  listErrorsInput,
+  openErrorCount,
+  setErrorStatus,
+  type ErrorStatusResult,
+  type ErrorsView,
+} from "./errors"
+import {
   deleteOrphans,
   deleteOrphansInput,
   getFilesCheck,
@@ -18,6 +27,8 @@ import {
 } from "./files-check"
 import { imageTags, type TagsResult } from "./ghcr"
 import { loadServerStatus, type ServerStatus } from "./host"
+import type { DrillState } from "./lib/drill"
+import { getDrillState } from "./restore-drill"
 import {
   controlInput,
   deployInput,
@@ -244,7 +255,7 @@ export const actions = {
 
   updateAlertSettings: defineAction({
     description:
-      "Switch server alert kinds off or on (disk, memory, backup, cert, container, reboot, agent, files) and mute all of them until a time (null = unmute).",
+      "Switch server alert kinds off or on (disk, memory, backup, cert, container, reboot, agent, files, errors, drill) and mute all of them until a time (null = unmute).",
     kind: "write",
     input: alertSettingsInput,
     handler: async (input): Promise<AlertSettings> => saveAlertSettings(input),
@@ -271,6 +282,35 @@ export const actions = {
     kind: "write",
     input: deleteOrphansInput,
     handler: async (input): Promise<DeleteOrphansResult> => deleteOrphans(input),
+  }),
+
+  errors: defineAction({
+    description:
+      "The error log: server errors of the web app and the bots, grouped by cause, with how often and where they happened, the latest stack, open or resolved.",
+    kind: "read",
+    input: listErrorsInput,
+    handler: async (input): Promise<ErrorsView> => listErrors(input),
+  }),
+
+  openErrorCount: defineAction({
+    description: "How many error groups in the error log are unresolved.",
+    kind: "read",
+    input: z.object({}),
+    handler: async (): Promise<number> => openErrorCount(),
+  }),
+
+  setErrorStatus: defineAction({
+    description: "Resolve an error group in the error log, or put it back (open). A resolved error that happens again reopens on its own.",
+    kind: "write",
+    input: errorStatusInput,
+    handler: async (input): Promise<ErrorStatusResult> => setErrorStatus(input),
+  }),
+
+  restoreDrill: defineAction({
+    description: "The monthly restore drill: the latest run and the latest passing one (backup restored, checks, rows, duration).",
+    kind: "read",
+    input: z.object({}),
+    handler: async (): Promise<DrillState> => getDrillState(),
   }),
 
   events: defineAction({

@@ -5,6 +5,7 @@ import { z } from "zod"
 import { actAs, loadViewer, type Viewer } from "@/core/auth"
 import { db } from "@/db"
 import { ReplayCache, verifyRequest, type SignatureHeaderNames } from "@/lib/signed-request"
+import { recordError } from "@/modules/ops/errors"
 
 // The wrapper every internal bot API handler (/api/internal/<bot>/*) goes
 // through. One instance per bot, each with its own secret, headers and replay
@@ -18,7 +19,9 @@ import { ReplayCache, verifyRequest, type SignatureHeaderNames } from "@/lib/sig
 //      applies as usual. A bot never names a user: it can only ever act as
 //      the owner.
 // Edge Caddy answers /api/internal/* with 404 (infra/edge/sites), so these are
-// reachable only from the stack's internal network.
+// reachable only from the stack's internal network. The one exception is the
+// restore drill's API (/api/ops/restore-drill/*, src/modules/ops/
+// restore-drill-api.ts), called from GitHub Actions: same wrapper, own secret.
 
 const MAX_BODY_BYTES = 64 * 1024
 
@@ -118,6 +121,8 @@ export function internalApi({ name, secretEnv, headers, maxBodyBytes = MAX_BODY_
       } catch (error) {
         if (error instanceof InternalApiError) return json({ error: error.code, message: error.message }, error.status)
         console.error(`${name}: ${request.method} ${url.pathname} failed`, error)
+        // Answered here, so Next's onRequestError never sees it: log it ourselves.
+        await recordError(error, { source: "web", route: url.pathname, method: request.method, routeType: "route" })
         return json({ error: "internal" }, 500)
       }
     }
