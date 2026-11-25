@@ -12,6 +12,7 @@ import { ItemIcon } from "../components/file-type-icon"
 import { rawHref } from "../lib/links"
 import { storageConfigured } from "../lib/s3"
 import { formatBytes, previewKind } from "../lib/validation"
+import { Page } from "@/components/motion"
 
 const getFile = cache(async (id: string) => (z.uuid().safeParse(id).success ? actions.getFile.handler({ id }) : null))
 
@@ -22,11 +23,13 @@ export async function generateMetadata({ params }: PageProps<"/app/files/file/[i
 
 export default function FilePage({ params }: PageProps<"/app/files/file/[id]">) {
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-4">
-      <Suspense fallback={<FileSkeleton />}>
-        <FileLoader params={params} />
-      </Suspense>
-    </div>
+    <Page>
+      <div className="mx-auto grid w-full max-w-6xl gap-4">
+        <Suspense fallback={<FileSkeleton />}>
+          <FileLoader params={params} />
+        </Suspense>
+      </div>
+    </Page>
   )
 }
 

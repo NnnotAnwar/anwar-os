@@ -9,33 +9,36 @@ import { actions } from "../actions"
 import { FeedbackList } from "../components/feedback-list"
 import { FeedbackTabs } from "../components/feedback-tabs"
 import { inboxFilters, statusLabels, type FeedbackStatus, type InboxFilter } from "../schema"
+import { Page } from "@/components/motion"
 
 const filterLabel = (f: InboxFilter) => (f === "inbox" ? "Inbox" : statusLabels[f])
 const shown: InboxFilter[] = inboxFilters.filter((f) => f !== "read")
 
 export default function FeedbackPage({ searchParams }: PageProps<"/app/feedback">) {
   return (
-    <div className="grid w-full max-w-3xl gap-4">
-      <PageHeader
-        eyebrow="Inbox"
-        title="Feedback"
-        description="What visitors send through the public forms. Opening feedback marks it read."
-        actions={
-          <NextLink
-            href="/feedback"
-            target="_blank"
-            // -my/py: a finger-sized hit area without moving the header.
-            className="text-meta -my-3 inline-flex items-center gap-1 rounded py-3 text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            Public form
-            <ExternalLink className="size-3.5" />
-          </NextLink>
-        }
-      />
-      <Suspense fallback={<InboxSkeleton />}>
-        <InboxBody searchParams={searchParams} />
-      </Suspense>
-    </div>
+    <Page>
+      <div className="grid w-full max-w-3xl gap-4">
+        <PageHeader
+          eyebrow="Inbox"
+          title="Feedback"
+          description="What visitors send through the public forms. Opening feedback marks it read."
+          actions={
+            <NextLink
+              href="/feedback"
+              target="_blank"
+              // -my/py: a finger-sized hit area without moving the header.
+              className="text-meta -my-3 inline-flex items-center gap-1 rounded py-3 text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              Public form
+              <ExternalLink className="size-3.5" />
+            </NextLink>
+          }
+        />
+        <Suspense fallback={<InboxSkeleton />}>
+          <InboxBody searchParams={searchParams} />
+        </Suspense>
+      </div>
+    </Page>
   )
 }
 

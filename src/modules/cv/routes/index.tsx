@@ -7,25 +7,28 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { requireViewer } from "@/core/auth"
 import { actions } from "../actions"
 import { CvEditor } from "../components/cv-editor"
+import { Page } from "@/components/motion"
 
 export default function CvPage() {
   return (
-    <div className="mx-auto grid w-full max-w-3xl gap-4 xl:max-w-none">
-      <PageHeader
-        eyebrow="Résumé"
-        title="CV"
-        description="Everything saves as you type. Publish it to show it on /cv; the eye hides single entries, the grip reorders them."
-        actions={
-          <Link href="/cv" target="_blank" className={buttonVariants({ variant: "ghost", size: "sm" })}>
-            Public page
-            <ArrowUpRight />
-          </Link>
-        }
-      />
-      <Suspense fallback={<EditorSkeleton />}>
-        <Editor />
-      </Suspense>
-    </div>
+    <Page>
+      <div className="mx-auto grid w-full max-w-3xl gap-4 xl:max-w-none">
+        <PageHeader
+          eyebrow="Résumé"
+          title="CV"
+          description="Everything saves as you type. Publish it to show it on /cv; the eye hides single entries, the grip reorders them."
+          actions={
+            <Link href="/cv" target="_blank" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+              Public page
+              <ArrowUpRight />
+            </Link>
+          }
+        />
+        <Suspense fallback={<EditorSkeleton />}>
+          <Editor />
+        </Suspense>
+      </div>
+    </Page>
   )
 }
 

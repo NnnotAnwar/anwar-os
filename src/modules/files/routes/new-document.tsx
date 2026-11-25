@@ -6,14 +6,17 @@ import { actions } from "../actions"
 import { Breadcrumbs } from "../components/breadcrumbs"
 import { DocumentEditor } from "../components/document-editor"
 import { DocumentSkeleton } from "./document"
+import { Page } from "@/components/motion"
 
 export default function NewDocumentPage({ searchParams }: PageProps<"/app/files/doc/new">) {
   return (
-    <div className="mx-auto grid w-full max-w-3xl gap-3">
-      <Suspense fallback={<DocumentSkeleton />}>
-        <NewDocument searchParams={searchParams} />
-      </Suspense>
-    </div>
+    <Page>
+      <div className="mx-auto grid w-full max-w-3xl gap-3">
+        <Suspense fallback={<DocumentSkeleton />}>
+          <NewDocument searchParams={searchParams} />
+        </Suspense>
+      </div>
+    </Page>
   )
 }
 

@@ -7,6 +7,7 @@ import { requireViewer } from "@/core/auth"
 import { actions } from "../actions"
 import { Breadcrumbs } from "../components/breadcrumbs"
 import { DocumentEditor } from "../components/document-editor"
+import { Page } from "@/components/motion"
 
 const getDocument = cache(async (id: string) =>
   z.uuid().safeParse(id).success ? actions.getDocument.handler({ id }) : null,
@@ -19,11 +20,13 @@ export async function generateMetadata({ params }: PageProps<"/app/files/doc/[id
 
 export default function DocumentPage({ params }: PageProps<"/app/files/doc/[id]">) {
   return (
-    <div className="mx-auto grid w-full max-w-3xl gap-3">
-      <Suspense fallback={<DocumentSkeleton />}>
-        <DocumentLoader params={params} />
-      </Suspense>
-    </div>
+    <Page>
+      <div className="mx-auto grid w-full max-w-3xl gap-3">
+        <Suspense fallback={<DocumentSkeleton />}>
+          <DocumentLoader params={params} />
+        </Suspense>
+      </div>
+    </Page>
   )
 }
 

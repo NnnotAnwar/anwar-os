@@ -9,31 +9,34 @@ import { actions as opsActions } from "@/modules/ops/actions"
 import { serviceStatus, shortTag, statusLabels } from "@/modules/ops/lib/status"
 import { actions } from "../actions"
 import { ProjectList, type DeployState } from "../components/project-list"
+import { Page } from "@/components/motion"
 
 export default function ProjectsPage() {
   return (
-    <div className="mx-auto grid w-full max-w-3xl gap-4">
-      <PageHeader
-        eyebrow="Showcase"
-        title="Projects"
-        description="Published projects appear on /projects in this order. Featured ones also show on the landing page."
-        actions={
-          <>
-            <Link href="/projects" target="_blank" className={buttonVariants({ variant: "ghost", size: "sm" })}>
-              Public page
-              <ArrowUpRight />
-            </Link>
-            <Link href="/app/projects/new" className={buttonVariants({ size: "sm" })}>
-              <Plus />
-              New project
-            </Link>
-          </>
-        }
-      />
-      <Suspense fallback={<ListSkeleton />}>
-        <Projects />
-      </Suspense>
-    </div>
+    <Page>
+      <div className="mx-auto grid w-full max-w-3xl gap-4">
+        <PageHeader
+          eyebrow="Showcase"
+          title="Projects"
+          description="Published projects appear on /projects in this order. Featured ones also show on the landing page."
+          actions={
+            <>
+              <Link href="/projects" target="_blank" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+                Public page
+                <ArrowUpRight />
+              </Link>
+              <Link href="/app/projects/new" className={buttonVariants({ size: "sm" })}>
+                <Plus />
+                New project
+              </Link>
+            </>
+          }
+        />
+        <Suspense fallback={<ListSkeleton />}>
+          <Projects />
+        </Suspense>
+      </div>
+    </Page>
   )
 }
 

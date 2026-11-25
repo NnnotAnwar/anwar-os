@@ -5,6 +5,7 @@ import { z } from "zod"
 import { Skeleton } from "@/components/ui/skeleton"
 import { actions } from "../actions"
 import { LinkEditor } from "../components/link-editor"
+import { Page } from "@/components/motion"
 
 const getLink = cache(async (id: string) => (z.uuid().safeParse(id).success ? actions.get.handler({ id }) : null))
 
@@ -15,9 +16,11 @@ export async function generateMetadata({ params }: PageProps<"/app/links/[id]">)
 
 export default function LinkDetailPage({ params }: PageProps<"/app/links/[id]">) {
   return (
-    <Suspense fallback={<EditorSkeleton />}>
-      <LinkLoader params={params} />
-    </Suspense>
+    <Page>
+      <Suspense fallback={<EditorSkeleton />}>
+        <LinkLoader params={params} />
+      </Suspense>
+    </Page>
   )
 }
 

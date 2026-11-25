@@ -7,6 +7,7 @@ import { requireViewer } from "@/core/auth"
 import { actions } from "../actions"
 import { FeedbackDetail } from "../components/feedback-detail"
 import { kindLabels } from "../schema"
+import { Page } from "@/components/motion"
 
 const getItem = cache(async (id: string) => (z.uuid().safeParse(id).success ? actions.get.handler({ id }) : null))
 
@@ -17,9 +18,11 @@ export async function generateMetadata({ params }: PageProps<"/app/feedback/[id]
 
 export default function FeedbackDetailPage({ params }: PageProps<"/app/feedback/[id]">) {
   return (
-    <Suspense fallback={<DetailSkeleton />}>
-      <Loader params={params} />
-    </Suspense>
+    <Page>
+      <Suspense fallback={<DetailSkeleton />}>
+        <Loader params={params} />
+      </Suspense>
+    </Page>
   )
 }
 

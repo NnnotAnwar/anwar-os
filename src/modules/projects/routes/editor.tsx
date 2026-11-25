@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { requireViewer } from "@/core/auth"
 import { actions } from "../actions"
 import { ProjectEditor } from "../components/project-editor"
+import { Page } from "@/components/motion"
 
 const getProject = cache(async (id: string) =>
   z.uuid().safeParse(id).success ? actions.get.handler({ id }) : null,
@@ -18,9 +19,11 @@ export async function generateMetadata({ params }: PageProps<"/app/projects/[id]
 
 export default function ProjectDetailPage({ params }: PageProps<"/app/projects/[id]">) {
   return (
-    <Suspense fallback={<EditorSkeleton />}>
-      <Loader params={params} />
-    </Suspense>
+    <Page>
+      <Suspense fallback={<EditorSkeleton />}>
+        <Loader params={params} />
+      </Suspense>
+    </Page>
   )
 }
 
@@ -33,9 +36,11 @@ async function Loader({ params }: Pick<PageProps<"/app/projects/[id]">, "params"
 
 export function NewProjectPage() {
   return (
-    <Suspense fallback={<EditorSkeleton />}>
-      <NewProject />
-    </Suspense>
+    <Page>
+      <Suspense fallback={<EditorSkeleton />}>
+        <NewProject />
+      </Suspense>
+    </Page>
   )
 }
 
