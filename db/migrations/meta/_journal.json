@@ -379,6 +379,69 @@
       "when": 1795532923313,
       "tag": "0053_drop_bot_expenses",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1795616088203,
+      "tag": "0054_batch3_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1795616096649,
+      "tag": "0055_budget_fx",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1795616097277,
+      "tag": "0056_journal_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1795616097905,
+      "tag": "0057_osbot_settings_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1795616098609,
+      "tag": "0058_documents_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795616099244,
+      "tag": "0059_now_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1795616099983,
+      "tag": "0060_analytics_now_page",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795616100789,
+      "tag": "0061_ops_errors",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1795616101457,
+      "tag": "0062_ops_restore_drills",
+      "breakpoints": true
     }
   ]
 }
