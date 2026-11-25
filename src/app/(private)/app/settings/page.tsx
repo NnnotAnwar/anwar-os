@@ -121,16 +121,27 @@ async function ApiTokensSection() {
   )
 }
 
+/** Shaped like SignInMethods (password, passkeys, two-factor rows), so the sections below stay put. */
 function MethodsSkeleton() {
+  const rows = [
+    { lines: 1, action: false },
+    { lines: 2, action: true },
+    { lines: 3, action: true },
+  ]
   return (
-    <div className="grid gap-5">
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="flex items-center gap-3">
-          <Skeleton className="size-9 rounded-lg" />
-          <div className="grid flex-1 gap-1.5">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-3 w-48" />
+    <div className="grid" aria-hidden>
+      {rows.map((row, i) => (
+        <div key={i} className="grid gap-3 border-b border-border/60 py-4 first:pt-0 last:border-b-0 last:pb-0">
+          <div className="flex items-start gap-3">
+            <Skeleton className="size-9 shrink-0 rounded-lg" />
+            <div className="grid flex-1 gap-1.5 pt-0.5">
+              <Skeleton className="h-4 w-28" />
+              {Array.from({ length: row.lines }, (_, j) => (
+                <Skeleton key={j} className={j === row.lines - 1 ? "h-3.5 w-2/3" : "h-3.5 w-full"} />
+              ))}
+            </div>
           </div>
+          {row.action && <Skeleton className="h-9 w-36 rounded-lg sm:ml-12" />}
         </div>
       ))}
     </div>
