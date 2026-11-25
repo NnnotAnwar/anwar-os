@@ -15,6 +15,8 @@ import {
   budgetTransactions as t,
 } from "@/db/schema"
 import { likeContains } from "@/lib/sql-like"
+import { convertMinor, convertOn, FxTally, pickRate, unitRate, type RateBook } from "./fx/convert"
+import { rateBookFor, rateDay, type FxNeed } from "./fx/rates"
 import { amountQuery } from "./lib/amount-search"
 import { dedupeKey, markDuplicates } from "./lib/csv"
 import { monthOf, monthRange, shiftMonth, todayIn } from "./lib/dates"
@@ -33,6 +35,7 @@ import {
   createRecurringInput,
   createTransactionInput,
   existingKeysInput,
+  fxRateInput,
   idInput,
   idsInput,
   importInput,
@@ -55,6 +58,7 @@ import {
   type Category,
   type CategoryLimit,
   type CategoryTotal,
+  type FxRateResult,
   type Goal,
   type LimitsData,
   type Overview,
@@ -216,22 +220,30 @@ async function loadTransactions(tx: Tx, input: z.infer<typeof listTransactionsIn
     .limit(input.limit)
 }
 
-async function loadOverview(tx: Tx, month: string, today: string): Promise<Overview> {
+/** A transaction in another currency than the base, for converting it outside the viewer's transaction. */
+type ForeignRow = {
+  currency: string
+  day: string
+  amount: number
+  /** Top-level category (subcategories rolled up), or null. */
+  categoryId: string | null
+  name: string | null
+  color: string | null
+}
+
+async function readOverview(tx: Tx, month: string) {
   const base = await baseCurrency(tx)
   const { from, to } = monthRange(month)
-  const inMonth = and(gte(t.occurredOn, from), lte(t.occurredOn, to), notTransfer)
 
-  const [totals, spending, accounts] = await Promise.all([
+  const [totals, spending, foreign, accounts] = await Promise.all([
     tx
       .select({
-        currency: t.currency,
-        income: sql<string>`coalesce(sum(${t.amountMinor}) filter (where ${t.amountMinor} > 0), 0)`,
-        expense: sql<string>`coalesce(-sum(${t.amountMinor}) filter (where ${t.amountMinor} < 0), 0)`,
+        income: sql<string>`coalesce(sum(${t.amountMinor}) filter (where ${t.amountMinor} > 0 and ${t.currency} = ${base}), 0)`,
+        expense: sql<string>`coalesce(-sum(${t.amountMinor}) filter (where ${t.amountMinor} < 0 and ${t.currency} = ${base}), 0)`,
         count: sql<number>`count(*)::int`,
       })
       .from(t)
-      .where(inMonth)
-      .groupBy(t.currency),
+      .where(and(gte(t.occurredOn, from), lte(t.occurredOn, to), notTransfer)),
     // Spending rolls subcategories up into their parent.
     tx.execute<{ id: string | null; name: string | null; color: string | null; amount: string }>(sql`
       select coalesce(parent.id, cat.id) as id,
@@ -245,20 +257,96 @@ async function loadOverview(tx: Tx, month: string, today: string): Promise<Overv
         and tr.transfer_id is null
         and tr.amount_minor < 0
         and tr.currency = ${base}
-      group by 1, 2, 3
-      order by amount desc`),
+      group by 1, 2, 3`),
+    // Other currencies one by one: each converts at its own day's rate.
+    tx.execute<{ currency: string; day: string; amount: string; id: string | null; name: string | null; color: string | null }>(sql`
+      select tr.currency, tr.occurred_on::text as day, tr.amount_minor as amount,
+             coalesce(parent.id, cat.id) as id,
+             coalesce(parent.name, cat.name) as name,
+             coalesce(parent.color, cat.color) as color
+      from budget_transactions tr
+      left join budget_categories cat on cat.id = tr.category_id
+      left join budget_categories parent on parent.id = cat.parent_id
+      where tr.occurred_on between ${from} and ${to}
+        and tr.transfer_id is null
+        and tr.currency <> ${base}`),
     loadAccounts(tx, false),
   ])
+  const [sum] = totals
+  return {
+    base,
+    incomeMinor: Number(sum?.income ?? 0),
+    expenseMinor: Number(sum?.expense ?? 0),
+    count: sum?.count ?? 0,
+    spending: spending.map((row) => ({ id: row.id, name: row.name, color: row.color, amountMinor: Number(row.amount) })),
+    foreign: foreign.map(
+      (row): ForeignRow => ({ currency: row.currency, day: row.day, amount: Number(row.amount), categoryId: row.id, name: row.name, color: row.color }),
+    ),
+    accounts,
+  }
+}
 
-  const main = totals.find((x) => x.currency === base)
-  const income = Number(main?.income ?? 0)
-  const expense = Number(main?.expense ?? 0)
-  const categoryTotals: CategoryTotal[] = spending.map((row) => ({
-    id: row.id,
-    name: row.name ?? "Uncategorised",
-    color: row.color,
-    amountMinor: Number(row.amount),
-  }))
+/** Accounts with their balance in the base currency at the latest rate (`today`). */
+function withBaseBalances(accounts: Account[], base: string, today: string, book: RateBook): Account[] {
+  return accounts.map((acc) => {
+    if (acc.currency === base) return acc
+    const day = rateDay(today)
+    const result = convertOn(book, acc.balanceMinor, acc.currency, day, base)
+    return { ...acc, baseBalance: result && { minor: result.minor, currency: base, rateOn: result.rateOn, approximate: result.approximate } }
+  })
+}
+
+const accountNeeds = (accounts: Account[], base: string, today: string): FxNeed[] =>
+  accounts.filter((acc) => acc.currency !== base).map((acc) => ({ currency: acc.currency, day: today }))
+
+/**
+ * The month's totals in the base currency. Amounts in other currencies are
+ * converted at the ČNB rate of their own day (fx/convert.ts); what can't be
+ * converted stays apart in otherCurrencies, out of the totals.
+ */
+async function loadOverview(month: string, today: string): Promise<Overview> {
+  const raw = await asViewer((tx) => readOverview(tx, month))
+  const { base } = raw
+  const book = await rateBookFor([...raw.foreign.map((r) => ({ currency: r.currency, day: r.day })), ...accountNeeds(raw.accounts, base, today)], base)
+  const fx = new FxTally(book, base)
+
+  let income = raw.incomeMinor
+  let expense = raw.expenseMinor
+  const categories = new Map<string, CategoryTotal>()
+  const addSpending = (row: { id: string | null; name: string | null; color: string | null }, amountMinor: number) => {
+    const key = row.id ?? "none"
+    const current = categories.get(key)
+    if (current) current.amountMinor += amountMinor
+    else categories.set(key, { id: row.id, name: row.name ?? "Uncategorised", color: row.color, amountMinor })
+  }
+  for (const row of raw.spending) addSpending(row, row.amountMinor)
+
+  const converted = new Map<string, Overview["convertedCurrencies"][number]>()
+  const unconverted = new Map<string, Overview["otherCurrencies"][number]>()
+  for (const row of raw.foreign) {
+    const minor = fx.convert(row.amount, row.currency, row.day)
+    if (minor === null) {
+      const left = unconverted.get(row.currency) ?? { currency: row.currency, incomeMinor: 0, expenseMinor: 0 }
+      if (row.amount > 0) left.incomeMinor += row.amount
+      else left.expenseMinor -= row.amount
+      unconverted.set(row.currency, left)
+      continue
+    }
+    const sum = converted.get(row.currency) ?? { currency: row.currency, incomeMinor: 0, expenseMinor: 0, baseIncomeMinor: 0, baseExpenseMinor: 0 }
+    if (row.amount > 0) {
+      income += minor
+      sum.incomeMinor += row.amount
+      sum.baseIncomeMinor += minor
+    } else {
+      expense -= minor
+      sum.expenseMinor -= row.amount
+      sum.baseExpenseMinor -= minor
+      addSpending({ id: row.categoryId, name: row.name, color: row.color }, -minor)
+    }
+    converted.set(row.currency, sum)
+  }
+
+  const byCurrency = (x: { currency: string }, y: { currency: string }) => x.currency.localeCompare(y.currency)
   return {
     month,
     today,
@@ -267,50 +355,49 @@ async function loadOverview(tx: Tx, month: string, today: string): Promise<Overv
     expenseMinor: expense,
     netMinor: income - expense,
     savingsRate: savingsRate(income, expense),
-    spending: categoryTotals,
-    otherCurrencies: totals
-      .filter((x) => x.currency !== base)
-      .map((x) => ({ currency: x.currency, incomeMinor: Number(x.income), expenseMinor: Number(x.expense) })),
-    accounts,
-    transactionCount: totals.reduce((n, x) => n + x.count, 0),
+    spending: [...categories.values()].filter((c) => c.amountMinor !== 0).sort((x, y) => y.amountMinor - x.amountMinor),
+    otherCurrencies: [...unconverted.values()].sort(byCurrency),
+    convertedCurrencies: [...converted.values()].sort(byCurrency),
+    fx: fx.note(),
+    accounts: withBaseBalances(raw.accounts, base, today, book),
+    transactionCount: raw.count,
   }
 }
 
 /**
  * Every top-level expense category with its limit (if any), this month's
- * spending (subcategories rolled up, base currency, transfers left out, like
- * the overview) and its average over the three full months before `month`.
+ * spending (subcategories rolled up, in the base currency with other
+ * currencies converted at each day's ČNB rate, transfers left out, like the
+ * overview) and its average over the three full months before `month`.
  */
-async function loadLimits(tx: Tx, month: string, today: string): Promise<LimitsData> {
-  const base = await baseCurrency(tx)
+async function loadLimits(month: string, today: string): Promise<LimitsData> {
   const { from, to } = monthRange(month)
   const avgFrom = monthRange(shiftMonth(month, -3)).from
   const avgTo = monthRange(shiftMonth(month, -1)).to
-  const rows = await tx.execute<{ id: string; name: string; color: string; limit_minor: string | null; spent: string; earlier: string }>(sql`
-    with spent as (
-      select coalesce(cat.parent_id, cat.id) as category_id,
-             coalesce(-sum(tr.amount_minor) filter (where tr.occurred_on between ${from} and ${to}), 0) as spent,
-             coalesce(-sum(tr.amount_minor) filter (where tr.occurred_on between ${avgFrom} and ${avgTo}), 0) as earlier
-      from budget_transactions tr
-      join budget_categories cat on cat.id = tr.category_id
-      where tr.occurred_on between ${avgFrom} and ${to}
-        and tr.transfer_id is null
-        and tr.amount_minor < 0
-        and tr.currency = ${base}
-      group by 1
-    )
-    select c.id, c.name, c.color, lim.amount_minor as limit_minor,
-           coalesce(spent.spent, 0) as spent, coalesce(spent.earlier, 0) as earlier
-    from budget_categories c
-    left join budget_limits lim on lim.category_id = c.id
-    left join spent on spent.category_id = c.id
-    where c.kind = 'expense' and c.parent_id is null and not c.archived
-    order by c.name`)
+  const { base, rows, foreign } = await asViewer(async (tx) => {
+    const base = await baseCurrency(tx)
+    const [rows, foreign] = await Promise.all([readLimitRows(tx, base, from, to, avgFrom, avgTo), readForeignSpending(tx, base, avgFrom, to)])
+    return { base, rows, foreign }
+  })
+
+  // Spending in other currencies, converted at each day's ČNB rate.
+  const book = await rateBookFor(foreign.map((r) => ({ currency: r.currency, day: r.day })), base)
+  const fx = new FxTally(book, base)
+  const extra = new Map<string, { spent: number; earlier: number }>()
+  for (const row of foreign) {
+    const minor = fx.convert(-row.amount, row.currency, row.day)
+    if (minor === null) continue
+    const sums = extra.get(row.categoryId) ?? { spent: 0, earlier: 0 }
+    if (row.day >= from) sums.spent += minor
+    else sums.earlier += minor
+    extra.set(row.categoryId, sums)
+  }
+
   const items: CategoryLimit[] = []
   const withoutLimit: LimitsData["withoutLimit"] = []
   for (const row of rows) {
-    const spentMinor = Number(row.spent)
-    const averageMinor = Math.round(Number(row.earlier) / 3)
+    const spentMinor = Number(row.spent) + (extra.get(row.id)?.spent ?? 0)
+    const averageMinor = Math.round((Number(row.earlier) + (extra.get(row.id)?.earlier ?? 0)) / 3)
     if (row.limit_minor === null) {
       withoutLimit.push({ categoryId: row.id, name: row.name, color: row.color, averageMinor })
       continue
@@ -331,7 +418,43 @@ async function loadLimits(tx: Tx, month: string, today: string): Promise<LimitsD
   }
   // Fullest first (by the exact ratio), then by name.
   items.sort((x, y) => y.spentMinor / y.limitMinor - x.spentMinor / x.limitMinor || x.name.localeCompare(y.name))
-  return { month, today, baseCurrency: base, items, withoutLimit }
+  return { month, today, baseCurrency: base, items, withoutLimit, fx: fx.note() }
+}
+
+/** Categorised spending in other currencies between two days, by top-level category. */
+async function readForeignSpending(tx: Tx, base: string, from: string, to: string) {
+  const rows = await tx.execute<{ category_id: string; currency: string; day: string; amount: string }>(sql`
+    select coalesce(cat.parent_id, cat.id) as category_id, tr.currency, tr.occurred_on::text as day, tr.amount_minor as amount
+    from budget_transactions tr
+    join budget_categories cat on cat.id = tr.category_id
+    where tr.occurred_on between ${from} and ${to}
+      and tr.transfer_id is null
+      and tr.amount_minor < 0
+      and tr.currency <> ${base}`)
+  return rows.map((r) => ({ categoryId: r.category_id, currency: r.currency, day: r.day, amount: Number(r.amount) }))
+}
+
+async function readLimitRows(tx: Tx, base: string, from: string, to: string, avgFrom: string, avgTo: string) {
+  return tx.execute<{ id: string; name: string; color: string; limit_minor: string | null; spent: string; earlier: string }>(sql`
+    with spent as (
+      select coalesce(cat.parent_id, cat.id) as category_id,
+             coalesce(-sum(tr.amount_minor) filter (where tr.occurred_on between ${from} and ${to}), 0) as spent,
+             coalesce(-sum(tr.amount_minor) filter (where tr.occurred_on between ${avgFrom} and ${avgTo}), 0) as earlier
+      from budget_transactions tr
+      join budget_categories cat on cat.id = tr.category_id
+      where tr.occurred_on between ${avgFrom} and ${to}
+        and tr.transfer_id is null
+        and tr.amount_minor < 0
+        and tr.currency = ${base}
+      group by 1
+    )
+    select c.id, c.name, c.color, lim.amount_minor as limit_minor,
+           coalesce(spent.spent, 0) as spent, coalesce(spent.earlier, 0) as earlier
+    from budget_categories c
+    left join budget_limits lim on lim.category_id = c.id
+    left join spent on spent.category_id = c.id
+    where c.kind = 'expense' and c.parent_id is null and not c.archived
+    order by c.name`)
 }
 
 async function loadRecurring(tx: Tx, where?: SQL): Promise<Recurring[]> {
@@ -398,21 +521,57 @@ export const actions = {
 
   overview: defineAction({
     description:
-      "Summary of one month (default: the current month in the user's timezone): income, spending and net in the base currency (transfers between own accounts excluded), savings rate in percent, spending per top-level category, totals in other currencies, and every open account with its balance.",
+      "Summary of one month (default: the current month in the user's timezone): income, spending and net in the base currency (transfers between own accounts excluded), savings rate in percent, spending per top-level category, and every open account with its balance (baseBalance: in the base currency at the latest rate). Amounts in other currencies are included, converted at the Czech National Bank (ČNB) rate of each transaction's day (convertedCurrencies lists them; fx tells the newest rate date and whether an older rate had to stand in). otherCurrencies holds only what couldn't be converted (no rate); it is not in the totals.",
     kind: "read",
     input: monthInput,
     handler: async ({ month }): Promise<Overview> => {
       const today = await viewerToday()
-      return asViewer((tx) => loadOverview(tx, month ?? monthOf(today), today))
+      return loadOverview(month ?? monthOf(today), today)
     },
   }),
 
   listTransactions: defineAction({
     description:
-      "List transactions, newest first. Filter by month (YYYY-MM) or from/to dates, account, category (includes its subcategories), uncategorised only, or text in the note, category name or tags. amountMinor is signed: negative = spent, positive = received.",
+      "List transactions, newest first. Filter by month (YYYY-MM) or from/to dates, account, category (includes its subcategories), uncategorised only, or text in the note, category name or tags. amountMinor is signed: negative = spent, positive = received, in the transaction's own currency. A transaction in another currency than the base also has baseAmount: the amount in the base currency at the ČNB rate of its day (null when no rate is known).",
     kind: "read",
     input: listTransactionsInput,
-    handler: (input): Promise<Transaction[]> => asViewer((tx) => loadTransactions(tx, input)),
+    handler: async (input): Promise<Transaction[]> => {
+      const { base, rows } = await asViewer(async (tx) => ({ base: await baseCurrency(tx), rows: await loadTransactions(tx, input) }))
+      const foreign = rows.filter((row) => row.currency !== base)
+      if (!foreign.length) return rows
+      const book = await rateBookFor(foreign.map((row) => ({ currency: row.currency, day: row.occurredOn })), base)
+      return rows.map((row) => {
+        if (row.currency === base) return row
+        const result = convertOn(book, row.amountMinor, row.currency, row.occurredOn, base)
+        return { ...row, baseAmount: result && { minor: result.minor, currency: base, rateOn: result.rateOn, approximate: result.approximate } }
+      })
+    },
+  }),
+
+  fxRate: defineAction({
+    description:
+      "Exchange rate from the Czech National Bank (ČNB): what one unit of `currency` is worth in `to` (default: the budget's base currency) on `date` (default: today in the user's timezone). It is the day's ČNB fixing, or the latest fixing before it (ČNB fixes on working days only); currencies outside the daily fixing (e.g. KZT, UAH) use ČNB's monthly list of other currencies; non-CZK pairs are crossed through CZK. With amountMinor (minor units), also returns convertedMinor, rounded half away from zero. rateOn is the date of the rate used; approximate = an older rate stood in (ČNB unreachable). Null when no rate is known.",
+    kind: "read",
+    input: fxRateInput,
+    handler: async (input): Promise<FxRateResult | null> => {
+      const date = input.date ?? (await viewerToday())
+      const to = input.to ?? (await asViewer(baseCurrency))
+      const book = await rateBookFor([{ currency: input.currency, day: date }], to)
+      const from = pickRate(book, input.currency, date)
+      const target = pickRate(book, to, date)
+      if (!from || !target) return null
+      const dates = [from, target].filter((r) => r.source !== "identity").map((r) => r.rateOn).sort()
+      return {
+        currency: input.currency,
+        to,
+        date,
+        rate: unitRate(from, target),
+        rateOn: dates.at(-1) ?? date,
+        source: from.source === "identity" ? target.source : from.source,
+        approximate: from.approximate || target.approximate,
+        ...(input.amountMinor !== undefined ? { amountMinor: input.amountMinor, convertedMinor: convertMinor(input.amountMinor, from, target) } : {}),
+      }
+    },
   }),
 
   getTransaction: defineAction({
@@ -556,10 +715,16 @@ export const actions = {
 
   listAccounts: defineAction({
     description:
-      "List the user's accounts (cash, bank, savings, investment) with currency, opening balance and current balance (opening + all transactions). Archived accounts only when asked.",
+      "List the user's accounts (cash, bank, savings, investment) with currency, opening balance and current balance (opening + all transactions). An account in another currency than the base also has baseBalance: the balance in the base currency at the latest ČNB rate (null when no rate is known). Archived accounts only when asked.",
     kind: "read",
     input: z.object({ includeArchived: z.boolean().default(false) }),
-    handler: ({ includeArchived }): Promise<Account[]> => asViewer((tx) => loadAccounts(tx, includeArchived)),
+    handler: async ({ includeArchived }): Promise<Account[]> => {
+      const today = await viewerToday()
+      const { base, accounts } = await asViewer(async (tx) => ({ base: await baseCurrency(tx), accounts: await loadAccounts(tx, includeArchived) }))
+      const needs = accountNeeds(accounts, base, today)
+      if (!needs.length) return accounts
+      return withBaseBalances(accounts, base, today, await rateBookFor(needs, base))
+    },
   }),
 
   createAccount: defineAction({
@@ -688,7 +853,7 @@ export const actions = {
     input: monthInput,
     handler: async ({ month }): Promise<LimitsData> => {
       const today = await viewerToday()
-      return asViewer((tx) => loadLimits(tx, month ?? monthOf(today), today))
+      return loadLimits(month ?? monthOf(today), today)
     },
   }),
 

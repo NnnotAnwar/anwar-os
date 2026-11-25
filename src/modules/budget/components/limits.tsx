@@ -14,6 +14,7 @@ import { amountToInput, formatMoney, parseAmount } from "../lib/money"
 import type { CategoryLimit, LimitsData } from "../schema"
 import { removeLimit, setLimit } from "../server-actions"
 import { Bar, CategoryDot, Field, FormError, Sheet, selectClass } from "./bits"
+import { FxNoteLine } from "./fx-note"
 
 type Editing = { mode: "create" } | { mode: "edit"; limit: CategoryLimit } | null
 
@@ -55,6 +56,7 @@ export function LimitsBoard({ data, current, locale }: { data: LimitsData; curre
           </p>
         )}
       </div>
+      <FxNoteLine note={data.fx} today={data.today} locale={locale} className="-mt-2 px-1" unavailableText="spending has no rate, so it isn't counted" />
 
       {visible.length === 0 ? (
         <div className="glass grid gap-1 rounded-xl p-6">

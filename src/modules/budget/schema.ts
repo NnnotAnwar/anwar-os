@@ -1,4 +1,5 @@
 import { z } from "zod"
+import type { FxNote } from "./fx/convert"
 import { MAX_IMPORT_ROWS } from "./lib/csv"
 import { categoryColorNames } from "./lib/colors"
 import { parseIsoDate } from "./lib/dates"
@@ -78,6 +79,14 @@ export const listTransactionsInput = z.object({
   limit: z.number().int().min(1).max(2000).default(500),
 })
 export const monthInput = z.object({ month: month.optional() })
+export const fxRateInput = z.object({
+  currency,
+  /** Default: the budget's base currency. */
+  to: currency.optional(),
+  /** Default: today in the user's timezone. */
+  date: isoDate.optional(),
+  amountMinor: minor.refine((v) => Math.abs(v) < 1e14, "That amount is too large.").optional(),
+})
 
 // Accounts -------------------------------------------------------------------
 
@@ -201,6 +210,19 @@ export const existingKeysInput = z.object({ accountId: z.uuid(), from: isoDate, 
 // Shapes returned to pages
 // ---------------------------------------------------------------------------
 
+/** An amount converted into the base currency at a ČNB rate (fx/convert.ts). */
+export type Converted = {
+  minor: number
+  /** The base currency. */
+  currency: string
+  /** The date of the rate used. */
+  rateOn: string
+  /** An older rate stood in for the right one (ČNB unreachable). */
+  approximate: boolean
+}
+
+export type { FxNote }
+
 export type Account = {
   id: string
   name: string
@@ -211,6 +233,12 @@ export type Account = {
   archived: boolean
   balanceMinor: number
   transactionCount: number
+  /**
+   * The balance in the base currency at the latest ČNB rate, for an account in
+   * another currency; null without a rate. Absent for base-currency accounts
+   * and where balances aren't converted (quick add).
+   */
+  baseBalance?: Converted | null
 }
 
 export type Category = {
@@ -237,6 +265,11 @@ export type Transaction = {
   tags: string[]
   recurringId: string | null
   transferId: string | null
+  /**
+   * In another currency than the base: the amount in the base currency at the
+   * ČNB rate of its day (null without a rate). Set by listTransactions only.
+   */
+  baseAmount?: Converted | null
 }
 
 export type Recurring = {
@@ -325,9 +358,14 @@ export type Overview = {
   expenseMinor: number
   netMinor: number
   savingsRate: number | null
+  /** Base currency; other currencies converted at each transaction's day rate. */
   spending: CategoryTotal[]
-  /** Income and spending in other currencies, not converted. */
+  /** Income and spending in currencies that couldn't be converted (no rate): not in the totals. */
   otherCurrencies: { currency: string; incomeMinor: number; expenseMinor: number }[]
+  /** Income and spending in other currencies that the totals include, as recorded and converted. */
+  convertedCurrencies: { currency: string; incomeMinor: number; expenseMinor: number; baseIncomeMinor: number; baseExpenseMinor: number }[]
+  /** How the totals were converted ("Rates: ČNB, 25 Nov"). */
+  fx: FxNote
   accounts: Account[]
   transactionCount: number
 }
@@ -360,6 +398,24 @@ export type LimitsData = {
   items: CategoryLimit[]
   /** Top-level expense categories without a limit, with what they averaged over the last three full months. */
   withoutLimit: { categoryId: string; name: string; color: string; averageMinor: number }[]
+  /** Spending in other currencies is converted at each day's ČNB rate; this says how. */
+  fx: FxNote
+}
+
+/** budget.fxRate: one ČNB rate, and optionally an amount converted with it. */
+export type FxRateResult = {
+  currency: string
+  to: string
+  /** The day asked about. */
+  date: string
+  /** How many `to` one unit of `currency` is worth (6 decimals). */
+  rate: number
+  /** The date of the rate used (the fixing, or the first day of the monthly list's month). */
+  rateOn: string
+  source: "daily" | "monthly" | "identity"
+  approximate: boolean
+  amountMinor?: number
+  convertedMinor?: number
 }
 
 export class BudgetInputError extends Error {}
