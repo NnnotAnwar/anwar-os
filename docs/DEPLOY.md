@@ -278,6 +278,33 @@ In [Google Cloud Console](https://console.cloud.google.com/):
 
 To revoke: Settings → Disconnect, and/or delete the client in Cloud Console.
 
+### Search engines (optional)
+
+The public site already serves what crawlers need: `/robots.txt` (everything
+public allowed; `/app`, `/login`, `/api` disallowed), `/sitemap.xml` (every
+public page, case study and note with its last change), a canonical URL, Open
+Graph image and JSON-LD on each page. To see it in Google Search Console and
+Bing Webmaster Tools, prove you own the site with the HTML-tag method:
+
+1. [Google Search Console](https://search.google.com/search-console) → **Add
+   property** → **URL prefix** `https://anwar-os.com/` → **HTML tag**. Copy only
+   the `content="…"` value of the `google-site-verification` meta tag.
+2. Put it in `infra/.env` as `GOOGLE_SITE_VERIFICATION=<token>` and recreate web
+   (`dc up -d web`, or `deploy.sh <current sha>`). The variable is read at
+   request time; no rebuild needed. Check:
+   `curl -s https://anwar-os.com/ | grep -o '<meta name="google-site-verification"[^>]*>'`.
+3. Back in Search Console press **Verify**, then **Sitemaps** → submit
+   `https://anwar-os.com/sitemap.xml`. Keep the variable set: Google re-checks.
+4. Bing (optional): [Bing Webmaster Tools](https://www.bing.com/webmasters) →
+   add the site (or import it from Search Console, which needs no tag), or
+   choose **HTML Meta Tag** and put the `msvalidate.01` content value in
+   `BING_SITE_VERIFICATION`, recreate web, verify, submit the same sitemap.
+
+A DNS TXT record (Search Console's **Domain** property) works too and needs no
+variable; it also covers `www`. Structured data can be checked with Google's
+[Rich Results Test](https://search.google.com/test/rich-results) or the
+[Schema Markup Validator](https://validator.schema.org/).
+
 ## 9. Automatic deploys from GitHub
 
 1. On the server, add the CI key with a forced command, so it can only run

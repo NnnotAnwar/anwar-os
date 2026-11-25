@@ -65,6 +65,9 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       AUTH_RATE_LIMIT: ${AUTH_RATE_LIMIT:-}
+      # Search Console / Bing Webmaster Tools ownership tags on public pages (empty = none).
+      GOOGLE_SITE_VERIFICATION: ${GOOGLE_SITE_VERIFICATION:-}
+      BING_SITE_VERIFICATION: ${BING_SITE_VERIFICATION:-}
       # Hetzner Object Storage for the files module (phase 4). Unused until then.
       S3_ENDPOINT: ${S3_ENDPOINT:-}
       S3_REGION: ${S3_REGION:-}

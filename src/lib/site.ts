@@ -23,6 +23,23 @@ export function getSiteUrl(env: Record<string, string | undefined> = process.env
 /** Absolute URL for a path on this site. Request time only, see getSiteUrl. */
 export const absoluteUrl = (path: string) => new URL(path, getSiteUrl()).toString()
 
+/**
+ * Search engine ownership checks as <meta> tags: Google Search Console
+ * (GOOGLE_SITE_VERIFICATION → google-site-verification) and Bing Webmaster
+ * Tools (BING_SITE_VERIFICATION → msvalidate.01). Values are the tokens the
+ * consoles show (the content="…" part only). Read at request time, like the
+ * origin: the image is built without runtime env. Undefined when neither is set.
+ */
+export function siteVerification(env: Record<string, string | undefined> = process.env): Metadata["verification"] {
+  const google = env.GOOGLE_SITE_VERIFICATION?.trim()
+  const bing = env.BING_SITE_VERIFICATION?.trim()
+  if (!google && !bing) return undefined
+  return {
+    ...(google ? { google } : {}),
+    ...(bing ? { other: { "msvalidate.01": bing } } : {}),
+  }
+}
+
 /** <link rel="alternate"> for the /writing feeds, in the head of every public page. Relative, like canonical. */
 export const feedAlternates = {
   "application/rss+xml": [{ url: "/writing/feed.xml", title: "Anwar — Writing (RSS)" }],

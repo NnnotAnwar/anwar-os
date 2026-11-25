@@ -13,6 +13,13 @@ export const siteLinks = [
   { href: "/contact", label: "Contact", hint: "Job offers and projects — I reply by email", icon: Envelope },
 ] as const
 
+/** The footer lists every section plus pages that don't need a place in the header. */
+export const footerLinks = [
+  ...siteLinks.slice(0, 3),
+  { href: "/now", label: "Now" },
+  ...siteLinks.slice(3),
+] as const satisfies readonly { href: string; label: string }[]
+
 export function isActive(pathname: string | null, href: string) {
   return pathname !== null && (pathname === href || pathname.startsWith(`${href}/`))
 }

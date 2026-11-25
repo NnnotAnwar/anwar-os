@@ -63,6 +63,7 @@ describe("normalizePath", () => {
     expect(normalizePath("/cv", tools)).toBe("/cv")
     expect(normalizePath("/writing/", tools)).toBe("/writing")
     expect(normalizePath("/contact", tools)).toBe("/contact")
+    expect(normalizePath("/now", tools)).toBe("/now")
     expect(normalizePath("/projects/planuj-smeny?ref=x#top", tools)).toBe("/projects/planuj-smeny")
     expect(normalizePath("/writing/why-i-self-host", tools)).toBe("/writing/why-i-self-host")
     expect(normalizePath("/tools/calculator", tools)).toBe("/tools/calculator")

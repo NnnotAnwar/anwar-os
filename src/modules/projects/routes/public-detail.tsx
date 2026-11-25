@@ -8,13 +8,15 @@ import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Markdown, markdownOutline } from "@/lib/markdown"
 import { readingMinutes } from "@/lib/reading"
-import { pageMetadata } from "@/lib/site"
+import { JsonLd } from "@/components/site/json-ld"
+import { getSiteUrl } from "@/lib/site"
 import { cn } from "@/lib/utils"
 import { CaseStudyToc } from "../components/case-study-toc"
 import { morphNames } from "../components/project-card"
 import { StatusPill } from "../components/status-pill"
 import { getPublishedProject, getPublishedProjects } from "../public"
 import { statusLabels, type PublicProject } from "../schema"
+import { projectJsonLd, projectMetadata } from "../seo"
 
 type Props = PageProps<"/projects/[slug]">
 
@@ -22,12 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const project = await getPublishedProject(slug)
   if (!project) return { title: "Project not found", robots: { index: false } }
-  return pageMetadata({
-    title: project.title,
-    description: project.summary || `${project.title} — a case study by Anwar.`,
-    path: `/projects/${project.slug}`,
-    type: "article",
-  })
+  return projectMetadata(project)
 }
 
 export default function PublicProjectPage({ params }: Props) {
@@ -65,6 +62,7 @@ async function CaseStudy({ params }: Pick<Props, "params">) {
     // Keyed by project so previous / next between case studies slides too.
     <Page key={project.id}>
       <article className="grid gap-4">
+        <JsonLd nodes={projectJsonLd(project, getSiteUrl().toString())} />
         <Link
           href="/projects"
           transitionTypes={NAV_BACK}

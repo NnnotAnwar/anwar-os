@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises"
+import { join, normalize } from "node:path"
 import { ImageResponse } from "next/og"
 import { cacheLife } from "next/cache"
 
@@ -82,7 +84,73 @@ function Ticks() {
   )
 }
 
-export async function ogImage({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle?: string }) {
+/** Cut to `max` characters with an ellipsis, so a long title never runs off the card. */
+function clip(text: string, max: number) {
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text
+}
+
+const COVER_TYPES = new Set(["image/png", "image/jpeg", "image/gif"])
+const COVER_MAX_BYTES = 4 * 1024 * 1024
+const PUBLIC_DIR = join(process.cwd(), "public")
+
+function sniffType(bytes: Uint8Array): string | null {
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png"
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg"
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) return "image/gif"
+  return null
+}
+
+/**
+ * A cover as a data URL Satori can draw, cached for days. Covers on this site
+ * (e.g. /case-studies/…) are read from public/ instead of fetched back through
+ * the edge; others are fetched with a timeout. PNG, JPEG and GIF only (what
+ * Satori decodes), at most 4 MB. Throws on anything else, so nothing is cached.
+ */
+async function coverDataUrl(src: string, siteOrigin: string): Promise<string> {
+  "use cache"
+  cacheLife("days")
+  const url = new URL(src, siteOrigin)
+  let bytes: Uint8Array
+  if (url.origin === siteOrigin) {
+    const file = normalize(join(PUBLIC_DIR, decodeURIComponent(url.pathname)))
+    if (!file.startsWith(`${PUBLIC_DIR}/`)) throw new Error("og: cover outside public/")
+    bytes = new Uint8Array(await readFile(file))
+  } else {
+    if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("og: cover is not a web URL")
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000), redirect: "follow" })
+    if (!res.ok) throw new Error(`og: cover ${res.status}`)
+    if (Number(res.headers.get("content-length") ?? 0) > COVER_MAX_BYTES) throw new Error("og: cover too large")
+    bytes = new Uint8Array(await res.arrayBuffer())
+  }
+  if (bytes.byteLength > COVER_MAX_BYTES) throw new Error("og: cover too large")
+  const type = sniffType(bytes)
+  if (!type || !COVER_TYPES.has(type)) throw new Error("og: cover is not PNG, JPEG or GIF")
+  return `data:${type};base64,${Buffer.from(bytes).toString("base64")}`
+}
+
+/** The cover to draw on a social card, or null (the card then shows title and tagline only). */
+export async function ogCover(src: string | null | undefined, siteOrigin: string): Promise<string | null> {
+  if (!src) return null
+  try {
+    return await coverDataUrl(src, siteOrigin)
+  } catch (error) {
+    console.warn("og: cover not drawn", error instanceof Error ? error.message : error)
+    return null
+  }
+}
+
+export async function ogImage({
+  eyebrow,
+  title,
+  subtitle,
+  image,
+}: {
+  eyebrow: string
+  title: string
+  subtitle?: string
+  /** A data URL (see ogCover): drawn on the right, with the text beside it. */
+  image?: string | null
+}) {
   const loaded = await fonts()
   const display = loaded.length ? "Satoshi" : undefined
   const long = title.length > 48
@@ -132,22 +200,64 @@ export async function ogImage({ eyebrow, title, subtitle }: { eyebrow: string; t
                 <span style={{ color: accent, marginLeft: -6 }}>.os</span>
               </div>
             </div>
-            <div
-              style={{
-                display: "flex",
-                color: ink,
-                fontSize: long ? 64 : 80,
-                fontWeight: 700,
-                lineHeight: 1.04,
-                letterSpacing: "-0.035em",
-                maxWidth: 960,
-              }}
-            >
-              {title}
-            </div>
-            {subtitle && (
-              <div style={{ display: "flex", color: soft, fontSize: 30, fontWeight: 500, lineHeight: 1.3, maxWidth: 900 }}>
-                {subtitle.length > 140 ? `${subtitle.slice(0, 139).trimEnd()}…` : subtitle}
+            {image ? (
+              // With a picture (a project's cover): text on the left, the cover framed on the right.
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 40 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      color: ink,
+                      fontSize: title.length > 36 ? 46 : 58,
+                      fontWeight: 700,
+                      lineHeight: 1.06,
+                      letterSpacing: "-0.035em",
+                    }}
+                  >
+                    {clip(title, 90)}
+                  </div>
+                  {subtitle && (
+                    <div style={{ display: "flex", color: soft, fontSize: 24, fontWeight: 500, lineHeight: 1.3 }}>
+                      {clip(subtitle, 110)}
+                    </div>
+                  )}
+                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element -- Satori renders plain <img> */}
+                <img
+                  src={image}
+                  alt=""
+                  width={440}
+                  height={248}
+                  style={{
+                    width: 440,
+                    height: 248,
+                    objectFit: "cover",
+                    borderRadius: 20,
+                    border: "2px solid rgba(255,255,255,0.95)",
+                    boxShadow: "0 24px 48px -24px rgba(79,70,229,0.45)",
+                  }}
+                />
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    color: ink,
+                    fontSize: long ? 64 : 80,
+                    fontWeight: 700,
+                    lineHeight: 1.04,
+                    letterSpacing: "-0.035em",
+                    maxWidth: 960,
+                  }}
+                >
+                  {clip(title, 110)}
+                </div>
+                {subtitle && (
+                  <div style={{ display: "flex", color: soft, fontSize: 30, fontWeight: 500, lineHeight: 1.3, maxWidth: 900 }}>
+                    {clip(subtitle, 140)}
+                  </div>
+                )}
               </div>
             )}
           </div>

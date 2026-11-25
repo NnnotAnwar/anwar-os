@@ -89,6 +89,19 @@ describe("cv tables", () => {
     expect(profiles).toHaveLength(1)
   })
 
+  it("is what the public /cv read returns (readCv for the site owner, no viewer)", async () => {
+    // Regression: readCv filtered on the current user, which a visitor doesn't
+    // have, so /cv said "not public yet" for a published CV.
+    process.env.BETTER_AUTH_URL ??= "http://127.0.0.1:3303"
+    const { asPublic } = await import("@/db")
+    const { readCv } = await import("@/modules/cv/actions")
+    const cv = await asPublic((tx) => readCv(tx, "site owner"))
+    expect(cv.profile).not.toBeNull()
+    expect(cv.experience.map((e) => e.role).filter((r) => r.endsWith(run))).toEqual([`visible ${run}`])
+    // The private read stays "mine": a visitor has nothing of their own.
+    expect((await asPublic((tx) => readCv(tx))).profile).toBeNull()
+  })
+
   it("never shows another user's published CV publicly", async () => {
     await as(bob, async (sql) => {
       await sql`insert into cv_profile (headline, is_public) values ('Bob', true)`

@@ -4,9 +4,9 @@ import { useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ArrowLeft, CheckCircle, Minus, Plus, Trash2, X } from "@/components/icons"
+import { ArrowLeft, ArrowUpRight, CheckCircle, Minus, Plus, Trash2, X } from "@/components/icons"
 import { NAV_BACK } from "@/components/motion"
-import { Field, fieldClass, SaveStatus } from "@/components/editor-fields"
+import { Field, fieldClass, SaveStatus, Toggle } from "@/components/editor-fields"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAutosave } from "@/lib/use-autosave"
@@ -19,6 +19,7 @@ import {
   linkToGoal,
   logGoalProgress,
   saveGoal,
+  setGoalOnNow,
   setGoalProgress,
   setGoalStatus,
 } from "../server-actions"
@@ -150,6 +151,7 @@ export function GoalEditor({
         tasksDone: goal?.tasksDone ?? 0,
         tasksTotal: goal?.tasksTotal ?? 0,
         projectCount: goal?.projectCount ?? 0,
+        showOnNow: goal?.showOnNow ?? false,
         progress: goalProgress({
           status: live.status,
           targetValue: target,
@@ -304,6 +306,13 @@ export function GoalEditor({
             disabled={pending}
           />
           <LinkedCard goalId={id} tasks={goal?.tasks ?? []} projects={goal?.projects ?? []} />
+          <NowCard
+            key={id}
+            id={id}
+            initial={goal?.showOnNow ?? false}
+            thisYear={value.year === thisYear}
+            dropped={live.status === "dropped"}
+          />
         </>
       )}
     </article>
@@ -555,6 +564,57 @@ function LinkedCard({ goalId, tasks, projects }: { goalId: string; tasks: GoalTa
           No tasks yet. Add one above, or open a task or project and choose this goal under Goal.
         </p>
       )}
+    </section>
+  )
+}
+
+/**
+ * "Show on /now": goals are private until the owner turns this on. Applies at
+ * once (no autosave round), and says when the goal won't show anyway.
+ */
+function NowCard({ id, initial, thisYear, dropped }: { id: string; initial: boolean; thisYear: boolean; dropped: boolean }) {
+  const [on, setOn] = useState(initial)
+  const [pending, startTransition] = useTransition()
+
+  function change(next: boolean) {
+    setOn(next)
+    startTransition(async () => {
+      const result = await setGoalOnNow({ id, value: next })
+      if (!result.ok) {
+        setOn(!next)
+        toast.error(result.error)
+        return
+      }
+      toast.success(next ? "Shown on /now" : "Hidden from /now")
+    })
+  }
+
+  const note = !on
+    ? "Private. Turn it on to list this goal on your public /now page."
+    : dropped
+      ? "Dropped goals never show on /now."
+      : !thisYear
+        ? "Only this year's goals show on /now; this one will in its own year."
+        : "Visitors see the title and progress on /now. Never the why or the tasks."
+
+  return (
+    <section aria-labelledby="goal-now" className="glass grid gap-3 rounded-xl p-4 md:p-6">
+      <div className="flex items-center justify-between gap-2">
+        <h2 id="goal-now" className="text-card-title">
+          On your site
+        </h2>
+        <a
+          href="/now"
+          target="_blank"
+          rel="noreferrer"
+          className="text-meta -my-2 flex min-h-11 items-center gap-1 rounded-lg px-2 text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 md:min-h-0"
+        >
+          Open /now
+          <ArrowUpRight className="size-3.5" />
+          <span className="sr-only">(opens in a new tab)</span>
+        </a>
+      </div>
+      <Toggle checked={on} onChange={change} disabled={pending} label="Show on /now" description={note} />
     </section>
   )
 }

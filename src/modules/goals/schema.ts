@@ -57,6 +57,8 @@ export const logGoalProgressInput = z.object({
   by: z.number().finite().min(-1_000_000).max(1_000_000).refine((n) => n !== 0, "Log a step other than zero."),
 })
 export const setGoalStatusInput = z.object({ id: z.uuid(), status: z.enum(goalStatuses) })
+/** Whether the goal is listed on the public /now page (only this year's, never dropped ones). */
+export const setGoalOnNowInput = z.object({ id: z.uuid(), value: z.boolean() })
 export const reorderGoalsInput = z.object({ ids: z.array(z.uuid()).min(1).max(100) })
 export const linkGoalInput = z
   .object({
@@ -89,6 +91,8 @@ export type Goal = {
   tasksDone: number
   tasksTotal: number
   projectCount: number
+  /** Listed on the public /now page while it's this year's goal. Off by default. */
+  showOnNow: boolean
   progress: GoalProgress
   createdAt: string
   updatedAt: string

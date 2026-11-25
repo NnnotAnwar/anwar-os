@@ -3,7 +3,7 @@ import Link from "next/link"
 import { connection } from "next/server"
 import { safeHref } from "@/lib/markdown"
 import { getPublicCv } from "@/modules/cv/public"
-import { siteLinks } from "./site-links"
+import { footerLinks } from "./site-links"
 
 /** Footer: contacts come from the published CV profile, so there is one place to edit them. */
 export function SiteFooter() {
@@ -24,7 +24,7 @@ export function SiteFooter() {
       </div>
       <div className="grid content-start gap-2 md:justify-items-end">
         <ul className="text-meta -mx-2 flex flex-wrap gap-y-0 text-muted-foreground md:mx-0 md:gap-x-3 md:gap-y-1">
-          {siteLinks.map((l) => (
+          {footerLinks.map((l) => (
             <li key={l.href}>
               <Link href={l.href} className="flex min-h-11 items-center rounded-lg px-2 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 md:min-h-0 md:px-0">
                 {l.label}

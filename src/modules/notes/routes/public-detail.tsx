@@ -8,11 +8,13 @@ import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Markdown } from "@/lib/markdown"
 import { readingMinutes } from "@/lib/reading"
-import { pageMetadata } from "@/lib/site"
+import { JsonLd } from "@/components/site/json-ld"
+import { getSiteUrl } from "@/lib/site"
 import { cn } from "@/lib/utils"
 import { formatPublished } from "../lib/dates"
 import { getPublishedNote, getPublishedNotes } from "../public"
-import { summaryOf, type PublicNote } from "../schema"
+import type { PublicNote } from "../schema"
+import { noteJsonLd, noteMetadata } from "../seo"
 
 type Props = PageProps<"/writing/[slug]">
 
@@ -20,16 +22,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const note = await getPublishedNote(slug)
   if (!note) return { title: "Not found", robots: { index: false } }
-  const metadata = pageMetadata({
-    title: note.title,
-    description: summaryOf(note, 160) || `${note.title} — a note by Anwar.`,
-    path: `/writing/${note.slug}`,
-    type: "article",
-  })
-  return {
-    ...metadata,
-    openGraph: { ...metadata.openGraph, type: "article", publishedTime: note.publishedAt, modifiedTime: note.updatedAt },
-  }
+  return noteMetadata(note)
 }
 
 export default function PublicNotePage({ params }: Props) {
@@ -54,6 +47,7 @@ async function Article({ params }: Pick<Props, "params">) {
   return (
     <Page key={note.id}>
       <article className="mx-auto grid w-full max-w-3xl gap-4">
+        <JsonLd nodes={noteJsonLd(note, getSiteUrl().toString())} />
         <Link
           href="/writing"
           transitionTypes={NAV_BACK}

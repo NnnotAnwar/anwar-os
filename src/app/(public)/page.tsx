@@ -1,14 +1,18 @@
 import { Suspense, type CSSProperties, type ReactNode } from "react"
 import Link from "next/link"
 import { connection } from "next/server"
-import { ArrowRight, ChatText, Envelope } from "@/components/icons"
+import { ArrowRight, ChatText, Compass, Envelope } from "@/components/icons"
 import { NAV_FORWARD, Page, Reveal, SkeletonExit } from "@/components/motion"
 import { Meridian } from "@/components/site/meridian"
 import { ScrollReveal } from "@/components/site/scroll-reveal"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { pageMetadata, siteDescription } from "@/lib/site"
+import { JsonLd } from "@/components/site/json-ld"
+import { websiteJsonLd } from "@/lib/json-ld"
+import { getSiteUrl, pageMetadata, siteDescription, siteName } from "@/lib/site"
 import { cn } from "@/lib/utils"
+import { getPublicCv } from "@/modules/cv/public"
+import { cvPerson } from "@/modules/cv/seo"
 import { getLatestPublishedIdeas } from "@/modules/ideas/public"
 import { IdeaCard } from "@/modules/ideas/components/idea-card"
 import { ProjectCard } from "@/modules/projects/components/project-card"
@@ -32,6 +36,9 @@ export default function HomePage() {
   return (
     <Page>
       <div className="grid gap-10 md:gap-14">
+        <Suspense fallback={null}>
+          <HomeJsonLd />
+        </Suspense>
         <section
           aria-labelledby="hero-title"
           className="glass grid gap-8 rounded-xl p-5 [--glass-shadow:var(--shadow-glass-lg)] sm:p-8 md:p-10"
@@ -96,6 +103,25 @@ export default function HomePage() {
               </div>
             ))}
           </dl>
+        </ScrollReveal>
+
+        <ScrollReveal>
+          <Link
+            href="/now"
+            transitionTypes={NAV_FORWARD}
+            className="press group glass grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 rounded-xl p-4 outline-none transition-shadow hover:[--glass-shadow:var(--shadow-glass-lg)] focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-5"
+          >
+            <span className="flex size-10 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+              <Compass className="size-5" />
+            </span>
+            <span className="grid gap-0.5">
+              <span className="text-card-title group-hover:text-text-accent">What I&apos;m doing now</span>
+              <span className="text-meta text-pretty text-muted-foreground">
+                This year&apos;s goals, what I&apos;m building and writing — kept current from my own data.
+              </span>
+            </span>
+            <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+          </Link>
         </ScrollReveal>
 
         <ScrollReveal>
@@ -183,6 +209,21 @@ function Row({ title, href, more, children }: { title: string; href: string; mor
       </div>
       {children}
     </section>
+  )
+}
+
+/** WebSite + the owner as a Person (from the published CV), for search engines. */
+async function HomeJsonLd() {
+  await connection()
+  const cv = await getPublicCv()
+  const site = getSiteUrl().toString()
+  return (
+    <JsonLd
+      nodes={[
+        websiteJsonLd({ siteUrl: site, name: siteName, description: siteDescription }),
+        cvPerson(cv, site, siteDescription),
+      ]}
+    />
   )
 }
 

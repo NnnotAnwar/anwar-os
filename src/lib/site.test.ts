@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { absoluteUrl, getSiteUrl, pageMetadata } from "./site"
+import { absoluteUrl, getSiteUrl, pageMetadata, siteVerification } from "./site"
 
 // The image is built with BETTER_AUTH_URL=http://localhost:3000 and gets the real
 // origin at container start, so the origin must be read when asked, never at import.
@@ -17,6 +17,21 @@ describe("getSiteUrl / absoluteUrl", () => {
 
   it("falls back to localhost when unset", () => {
     expect(getSiteUrl({}).toString()).toBe("http://localhost:3000/")
+  })
+})
+
+describe("siteVerification", () => {
+  it("is nothing until a token is set", () => {
+    expect(siteVerification({})).toBeUndefined()
+    expect(siteVerification({ GOOGLE_SITE_VERIFICATION: "  " })).toBeUndefined()
+  })
+
+  it("maps Google and Bing tokens to their meta names", () => {
+    expect(siteVerification({ GOOGLE_SITE_VERIFICATION: " abc123 " })).toEqual({ google: "abc123" })
+    expect(siteVerification({ GOOGLE_SITE_VERIFICATION: "g", BING_SITE_VERIFICATION: "b" })).toEqual({
+      google: "g",
+      other: { "msvalidate.01": "b" },
+    })
   })
 })
 

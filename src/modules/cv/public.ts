@@ -14,6 +14,6 @@ export async function getPublicCv(): Promise<Cv | null> {
   "use cache"
   cacheTag(PUBLIC_CV_TAG)
   cacheLife("days")
-  const cv = await asPublic(readCv)
+  const cv = await asPublic((tx) => readCv(tx, "site owner"))
   return cv.profile ? cv : null
 }
