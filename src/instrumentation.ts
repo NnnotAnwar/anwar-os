@@ -28,12 +28,11 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
   })
 }
 
-export function register() {
-  if (process.env.NEXT_RUNTIME !== "nodejs") return
-  const g = globalThis as typeof globalThis & { __aosErrorLogListeners?: boolean }
-  // Dev reloads re-run register(); listen once per process.
-  if (g.__aosErrorLogListeners) return
-  g.__aosErrorLogListeners = true
-  process.on("unhandledRejection", (reason) => void record(reason, { routeType: "process" }))
-  process.on("uncaughtExceptionMonitor", (error) => void record(error, { routeType: "process" }))
+export async function register() {
+  // process.on is Node-only: kept in its own file and imported only there, so
+  // the Edge build of this file doesn't see it (Next's documented pattern).
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { listenForProcessErrors } = await import("./instrumentation-node")
+    listenForProcessErrors((error) => record(error, { routeType: "process" }))
+  }
 }
