@@ -301,11 +301,18 @@ run_test_db() {
   if (cd "$ROOT" && DATABASE_URL="postgres://os_app:$APPPASS@127.0.0.1:$PORT/anwar_os" \
     MIGRATION_DATABASE_URL="postgres://postgres:$PGPASS@127.0.0.1:$PORT/anwar_os" \
     node ./node_modules/vitest/vitest.mjs run --config vitest.db.config.mts --testTimeout=30000 >"$WORK/test-db.log" 2>&1); then
-    summary="$(grep -E '^\s+Tests\s' "$WORK/test-db.log" | tail -n 1 | sed 's/^ *//')"
+    summary="$( (grep -E '^\s+Tests\s' "$WORK/test-db.log" || true) | tail -n 1 | sed 's/^ *//')"
     add_check test-db true "pnpm test:db passed against the restored copy (${summary:-ok})"
   else
-    summary="$(grep -E '^\s+(Tests|Test Files)\s|FAIL ' "$WORK/test-db.log" | head -n 4 | tr '\n' ' ' | head -c 400)"
-    add_check test-db false "pnpm test:db failed: $summary"
+    # Which tests failed and the first assertion, for the report (never the
+    # public log). `|| true` and no `head` mid-pipe: under pipefail a grep with
+    # no match, or one cut off by head (SIGPIPE), would end the whole drill here
+    # before the check is recorded.
+    local totals failed first
+    totals="$( (grep -E '^\s+(Test Files|Tests)\s' "$WORK/test-db.log" || true) | sed 's/^ *//' | tr '\n' ' ')"
+    failed="$( (grep -oE 'FAIL +[^ ]+\.test\.ts( > [^>]+)?' "$WORK/test-db.log" || true) | sed 's/^FAIL *//' | sort -u | awk 'NR<=8' | tr '\n' ';')"
+    first="$( (grep -E 'AssertionError|Error:|expected ' "$WORK/test-db.log" || true) | awk 'NR==1' | cut -c1-160)"
+    add_check test-db false "pnpm test:db failed. ${totals}Failed: ${failed:-?} First error: ${first:-?}"
   fi
 }
 
