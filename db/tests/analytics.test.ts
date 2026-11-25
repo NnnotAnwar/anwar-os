@@ -81,6 +81,7 @@ describe("app.record_page_view", () => {
 
   it("counts sections and known tools", async () => {
     expect(await view("/")).toBe(true)
+    expect(await view("/now")).toBe(true)
     expect(await view("/tools/calories")).toBe(true)
   })
 

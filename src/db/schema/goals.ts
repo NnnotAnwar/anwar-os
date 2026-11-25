@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm"
-import { check, doublePrecision, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core"
+import { boolean, check, doublePrecision, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core"
 import { user } from "./auth"
 import { projectsProjects } from "./projects"
 import { tasksTasks } from "./tasks"
@@ -15,7 +15,9 @@ const ownerId = () =>
 
 // Module: goals. RLS (including "a link can only point at your own goal, task
 // and project"), triggers and grants live in db/modules/goals.sql; Drizzle only
-// describes the shape.
+// describes the shape. Goals have no public read policy: /now gets the ones
+// marked show_on_now, and only a few safe columns of them, through
+// app.now_goals() (db/modules/now.sql).
 
 /**
  * A goal for one calendar year. A measurable goal has a target ("20 books")
@@ -35,6 +37,8 @@ export const goalsGoals = pgTable(
     currentValue: doublePrecision("current_value").notNull().default(0),
     status: text("status").$type<GoalStatus>().notNull().default("active"),
     sortOrder: doublePrecision("sort_order").notNull().default(0),
+    /** Listed on the public /now page while it's this year's goal. Off unless the owner turns it on. */
+    showOnNow: boolean("show_on_now").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

@@ -16,6 +16,7 @@ import {
   listGoalsInput,
   logGoalProgressInput,
   reorderGoalsInput,
+  setGoalOnNowInput,
   setGoalProgressInput,
   setGoalStatusInput,
   updateGoalInput,
@@ -57,6 +58,7 @@ const columns = {
   currentValue: g.currentValue,
   status: g.status,
   sortOrder: g.sortOrder,
+  showOnNow: g.showOnNow,
   createdAt: g.createdAt,
   updatedAt: g.updatedAt,
   tasksDone: sql<number>`(select count(*)::int from tasks_tasks t where t.done_at is not null and ${countsTowards(outerGoal)})`,
@@ -266,6 +268,18 @@ export const actions = {
     handler: ({ id, status }): Promise<void> =>
       asViewer(async (tx) => {
         await tx.update(g).set({ status }).where(eq(g.id, id))
+      }),
+  }),
+  setShowOnNow: defineAction({
+    description:
+      "Show or hide a goal on the public /now page. Goals are private by default; a goal marked here is listed there with its title and progress (never its why) while it's a goal for the current year and not dropped.",
+    kind: "write",
+    input: setGoalOnNowInput,
+    handler: ({ id, value }): Promise<{ showOnNow: boolean }> =>
+      asViewer(async (tx) => {
+        const [row] = await tx.update(g).set({ showOnNow: value }).where(eq(g.id, id)).returning({ showOnNow: g.showOnNow })
+        if (!row) throw new GoalInputError("That goal no longer exists.")
+        return row
       }),
   }),
   reorder: defineAction({

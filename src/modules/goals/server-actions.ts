@@ -1,9 +1,10 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { revalidatePath, updateTag } from "next/cache"
 import { redirect } from "next/navigation"
 import { z } from "zod"
 import { runModuleAction } from "@/core/module-actions"
+import { NOW_PUBLIC_TAG } from "@/modules/now/schema"
 import { TaskInputError } from "@/modules/tasks/actions"
 import { actions, GoalInputError } from "./actions"
 import {
@@ -13,6 +14,7 @@ import {
   linkGoalInput,
   logGoalProgressInput,
   reorderGoalsInput,
+  setGoalOnNowInput,
   setGoalProgressInput,
   setGoalStatusInput,
   updateGoalInput,
@@ -28,9 +30,15 @@ function firstIssue(error: { issues: { message: string }[] }) {
   return error.issues[0]?.message ?? "Check the goal and try again."
 }
 
-/** Goals show on their own page, on Today and in the task and project editors. */
+/**
+ * Goals show on their own page, on Today and in the task and project editors;
+ * the ones marked "Show on /now" also on the public /now page (its cache is
+ * dropped on every change: cheap, and a progress step there should show).
+ */
 function changed() {
+  updateTag(NOW_PUBLIC_TAG)
   revalidatePath("/app/goals")
+  revalidatePath("/app/now")
   revalidatePath("/app")
 }
 
@@ -97,6 +105,20 @@ export async function setGoalStatus(input: { id: string; status: GoalStatus }) {
   if (!parsed.success) return
   await actions.setStatus.handler(parsed.data)
   changed()
+}
+
+/** The goal editor's and the Now page settings' "Show on /now" switch. Applies at once. */
+export async function setGoalOnNow(input: { id: string; value: boolean }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const parsed = setGoalOnNowInput.safeParse(input)
+  if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) }
+  try {
+    await actions.setShowOnNow.handler(parsed.data)
+    changed()
+    return { ok: true }
+  } catch (error) {
+    if (error instanceof GoalInputError) return { ok: false, error: error.message }
+    return { ok: false, error: "That didn't change. Check your connection and try again." }
+  }
 }
 
 export async function reorderGoals(input: { ids: string[] }) {
