@@ -15,8 +15,11 @@
 #             web joins it, under the alias `anwar-os-web`, which is what the
 #             edge Caddy proxies to. Not internal: web needs outbound APIs
 #             (object storage, Telegram, mail).
-#   internal  web/migrate <-> db, and the bots -> web over HTTP. `internal:
-#             true` = no route to the internet; Postgres is never published.
+#   internal  web/migrate <-> db only. `internal: true` = no route to the
+#             internet; Postgres is never published.
+#   apps      the bots and ops-agent <-> web over HTTP (internal too). They
+#             never needed Postgres, so they can't reach it: a compromised bot
+#             or agent finds no database to try passwords on.
 #   egress    outbound-only network for bots (Telegram API). Nothing listens on it.
 #
 # Profiles
@@ -43,6 +46,10 @@ x-logging: &logging
 x-hardening: &hardening
   security_opt:
     - no-new-privileges:true
+  # A fork bomb or runaway worker stops at its own container instead of
+  # exhausting the host's process table (Postgres at max_connections stays far
+  # below this).
+  pids_limit: 512
 
 services:
   web:
@@ -118,6 +125,7 @@ services:
         # Unique across projects: the edge Caddy proxies to anwar-os-web:3000.
         aliases: [anwar-os-web]
       internal: {}
+      apps: {}
     depends_on:
       db:
         condition: service_healthy
@@ -227,7 +235,7 @@ services:
       # chat it is the same number as OSBOT_OWNER_CHAT_ID, used when unset.
       BOT_EXPENSES_OWNER_ID: ${BOT_EXPENSES_OWNER_ID:-${OSBOT_OWNER_CHAT_ID:-}}
     networks:
-      - internal
+      - apps
       - egress
     depends_on:
       web:
@@ -265,7 +273,7 @@ services:
       OSBOT_API_SECRET: ${OSBOT_API_SECRET:-}
       OSBOT_OWNER_CHAT_ID: ${OSBOT_OWNER_CHAT_ID:-}
     networks:
-      - internal
+      - apps
       - egress
     depends_on:
       web:
@@ -328,7 +336,7 @@ services:
     expose:
       - "8080"
     networks:
-      - internal
+      - apps
     logging: *logging
     labels:
       os.managed: "true"
@@ -340,6 +348,8 @@ networks:
     external: true
     name: edge
   internal:
+    internal: true
+  apps:
     internal: true
   egress: {}
 

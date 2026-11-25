@@ -137,7 +137,10 @@ ssh root@<IPV4> 'bash bootstrap.sh'            # uses root's authorized_keys
 ```
 
 It creates the `deploy` user (sudo without password — it has no password — and in
-the `docker` group), disables root login and password auth, enables ufw (22 rate
+the `docker` group), disables root login and password auth, lets only the users in
+`SSH_ALLOW_USERS` log in (default `deploy`; on a box that also hosts Shiftella run it
+as `SSH_ALLOW_USERS="deploy shiftella-deploy" bash bootstrap.sh`), turns off SSH TCP
+and socket forwarding (no tunnels), enables ufw (22 rate
 limited, 80, 443/tcp, 443/udp), unattended security upgrades (reboots at 04:30 when
 needed), fail2ban for sshd, Docker Engine + compose plugin from Docker's apt repo
 (arm64 or amd64), timezone Europe/Prague, swap if RAM < 4 GB (not on a CAX21),

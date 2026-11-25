@@ -18,6 +18,7 @@
 #
 # Optional env:
 #   DEPLOY_USER=deploy         user to create
+#   SSH_ALLOW_USERS="deploy …"  who may log in over SSH (default: DEPLOY_USER)
 #   TIMEZONE=Europe/Prague
 #   SWAP_SIZE_GB=2             swap file size when RAM < SWAP_IF_RAM_BELOW_MB
 #   SWAP_IF_RAM_BELOW_MB=4096
@@ -26,6 +27,9 @@
 set -euo pipefail
 
 DEPLOY_USER="${DEPLOY_USER:-deploy}"
+# Who may log in over SSH at all (sshd AllowUsers). Add the deploy users of
+# other projects on this box here, e.g. "deploy shiftella-deploy".
+SSH_ALLOW_USERS="${SSH_ALLOW_USERS:-$DEPLOY_USER}"
 TIMEZONE="${TIMEZONE:-Europe/Prague}"
 SWAP_SIZE_GB="${SWAP_SIZE_GB:-2}"
 SWAP_IF_RAM_BELOW_MB="${SWAP_IF_RAM_BELOW_MB:-4096}"
@@ -122,7 +126,7 @@ deploy_user() {
 }
 
 ssh_hardening() {
-  log "sshd: keys only, no root login"
+  log "sshd: keys only, no root login, only $SSH_ALLOW_USERS, no tunnels"
   # Ubuntu's sshd_config includes sshd_config.d/*.conf first and the first value
   # wins, so a 00- prefix beats cloud-init's 50-cloud-init.conf.
   local conf=/etc/ssh/sshd_config.d/00-anwar-os.conf
@@ -137,6 +141,9 @@ MaxAuthTries 3
 LoginGraceTime 30
 X11Forwarding no
 AllowAgentForwarding no
+AllowTcpForwarding no
+AllowStreamLocalForwarding no
+AllowUsers $SSH_ALLOW_USERS
 ClientAliveInterval 300
 ClientAliveCountMax 2" || true
   # With socket activation (24.04) sshd.service may never have run, so its
