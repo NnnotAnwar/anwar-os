@@ -217,3 +217,5 @@ export const Minus = bold(P.Minus)
 // contact form
 export const Envelope = bold(P.Envelope)
 export const ArrowBendUpLeft = bold(P.ArrowBendUpLeft)
+// journal
+export const BookOpenText = bold(P.BookOpenText)
