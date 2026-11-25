@@ -242,8 +242,10 @@ deploy() {
     fi
   fi
 
-  # Keep ~10 days of old images for rollbacks, drop the rest.
-  docker image prune -af --filter "until=240h" >/dev/null || true
+  # Drop images no container uses that are older than 3 days. Each deploy adds
+  # ~2 GB (migrate alone is 1.4 GB), so 10 days filled half the disk; a rollback
+  # pulls its tag from GHCR again anyway (deploy history keeps the sha).
+  docker image prune -af --filter "until=72h" >/dev/null || true
   log "done: $sha is live"
 }
 
