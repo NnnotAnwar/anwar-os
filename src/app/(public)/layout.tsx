@@ -45,7 +45,12 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
         <AccountLink className="ml-auto md:ml-0" />
         <SiteMenu className="md:hidden" />
       </header>
-      <main id="main" className="mx-auto w-full max-w-5xl flex-1 px-3 pt-6 pb-12 md:px-6 md:pt-10 print:p-0">
+      {/* At least a screen tall (less the header), so the footer starts below the
+          fold and streamed content can't push it down in view (layout shift). */}
+      <main
+        id="main"
+        className="mx-auto min-h-[calc(100svh-4rem-env(safe-area-inset-top))] w-full max-w-5xl flex-1 px-3 pt-6 pb-12 md:px-6 md:pt-10 print:min-h-0 print:p-0"
+      >
         {children}
       </main>
       <SiteFooter />
