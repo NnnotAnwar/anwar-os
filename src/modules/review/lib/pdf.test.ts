@@ -29,7 +29,8 @@ const report: MonthlyReport = {
       { name: "Продукты", color: null, amountMinor: 1_000_00, previousMinor: 0 },
     ],
     changes: [{ name: "Potraviny a drogérie", color: null, amountMinor: 8_000_00, previousMinor: 6_000_00 }],
-    otherCurrencies: [{ currency: "EUR", expenseMinor: 12_99, incomeMinor: 0 }],
+    otherCurrencies: [{ currency: "XTS", expenseMinor: 12_99, incomeMinor: 0 }],
+    fx: { source: "ČNB", rateOn: "2026-10-30", approximate: false, converted: ["EUR", "KZT"], unavailable: ["XTS"] },
     transactionCount: 42,
     url: "/app/budget?month=2026-10",
   },
@@ -54,8 +55,8 @@ describe("pdfSafe", () => {
     for (const data of [INTER_REGULAR, INTER_BOLD]) {
       const font = fontkit.create(Buffer.from(data, "base64"))
       const supported = new Set(font.characterSet)
-      const text = "Potraviny a drogérie · Řeřicha čaj · Продукты и ЖКХ — «ёлка» №5 · +12% · Kč 1 547,00 € ✓"
-      expect(pdfSafe(text, supported)).toBe("Potraviny a drogérie · Řeřicha čaj · Продукты и ЖКХ — «ёлка» №5 · +12% · Kč 1 547,00 €")
+      const text = "Potraviny a drogérie · Řeřicha čaj · Продукты и ЖКХ — «ёлка» №5 · +12% · ≈ Kč 1 547,00 € · Rates: ČNB, 30 Oct ✓"
+      expect(pdfSafe(text, supported)).toBe("Potraviny a drogérie · Řeřicha čaj · Продукты и ЖКХ — «ёлка» №5 · +12% · ≈ Kč 1 547,00 € · Rates: ČNB, 30 Oct")
     }
   })
 })

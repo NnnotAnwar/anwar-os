@@ -148,6 +148,15 @@ def test_weekly_card():
     )
 
 
+def test_weekly_card_marks_converted_spending():
+    fx = {"source": "ČNB", "rateOn": "2026-11-20", "approximate": True, "converted": ["EUR"], "unavailable": []}
+    text = weekly_text({**WEEKLY, "spending": {**WEEKLY["spending"], "fx": fx}})
+    assert f"💸 <b>Spent</b> ≈ 4{NBSP}820{NBSP}CZK" in text
+    assert "<i>EUR converted · rates: ČNB, 20 Nov (some older)</i>" in text
+    empty = {"source": "ČNB", "rateOn": None, "approximate": False, "converted": [], "unavailable": []}
+    assert "≈" not in weekly_text({**WEEKLY, "spending": {**WEEKLY["spending"], "fx": empty}})
+
+
 def test_weekly_card_leaves_out_what_is_switched_off_or_empty():
     quiet = {
         **WEEKLY,

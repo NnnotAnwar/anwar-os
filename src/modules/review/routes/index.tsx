@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shell/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { requireViewer } from "@/core/auth"
 import { formatMonth, isMonth, monthOf, shiftMonth, todayIn } from "@/modules/budget/lib/dates"
+import { approx, FxNoteLine } from "@/modules/budget/components/fx-note"
 import { formatMoney } from "@/modules/budget/lib/money"
 import { cn } from "@/lib/utils"
 import { actions } from "../actions"
@@ -132,6 +133,7 @@ function Change({ current, previous, invert = false }: { current: number; previo
 function Sections({ report }: { report: MonthlyReport }) {
   const prev = report.previousLabel.split(" ")[0]!
   const s = report.spending
+  const ish = s ? approx(s.fx) : ""
   return (
     <>
       {s && (
@@ -145,15 +147,19 @@ function Sections({ report }: { report: MonthlyReport }) {
                 Spent {report.partial ? "so far" : `in ${report.label.split(" ")[0]}`}
               </h2>
               <p className="flex items-baseline gap-2">
-                <span className="text-metric tabular-nums">{formatMoney(s.expenseMinor, s.currency)}</span>
+                <span className="text-metric tabular-nums">
+                  {ish}
+                  {formatMoney(s.expenseMinor, s.currency)}
+                </span>
                 <Change current={s.expenseMinor} previous={s.previousExpenseMinor} invert />
               </p>
               <p className="text-caption text-muted-foreground tabular-nums">
-                {prev}: {formatMoney(s.previousExpenseMinor, s.currency)}
+                {prev}: {ish}
+                {formatMoney(s.previousExpenseMinor, s.currency)}
               </p>
             </div>
-            <Stat label="Income" value={formatMoney(s.incomeMinor, s.currency)} />
-            <Stat label="Net" value={formatMoney(s.netMinor, s.currency, "en", { signed: true })} />
+            <Stat label="Income" value={ish + formatMoney(s.incomeMinor, s.currency)} />
+            <Stat label="Net" value={ish + formatMoney(s.netMinor, s.currency, "en", { signed: true })} />
             <Stat label="Transactions" value={s.transactionCount.toLocaleString("en")} />
           </div>
           {s.categories.length > 0 && <CategoryList report={report} />}
@@ -172,9 +178,10 @@ function Sections({ report }: { report: MonthlyReport }) {
               })}
             </p>
           )}
+          <FxNoteLine note={s.fx} today={report.today} locale="en" unavailableText="have no rate, so they're left out of the totals" />
           {s.otherCurrencies.map((c) => (
             <p key={c.currency} className="text-caption text-muted-foreground tabular-nums">
-              Also in {c.currency}: {formatMoney(c.expenseMinor, c.currency)} spent, {formatMoney(c.incomeMinor, c.currency)} received
+              Not in the totals, in {c.currency}: {formatMoney(c.expenseMinor, c.currency)} spent, {formatMoney(c.incomeMinor, c.currency)} received
             </p>
           ))}
         </section>
