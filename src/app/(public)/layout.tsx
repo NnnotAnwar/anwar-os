@@ -5,7 +5,7 @@ import { SiteFooter } from "@/components/site/site-footer"
 import { SiteMenu, SiteNav } from "@/components/site/site-nav"
 import type { Metadata } from "next"
 import { connection } from "next/server"
-import { feedAlternates, getSiteUrl, siteDescription, siteName, siteTitle } from "@/lib/site"
+import { feedAlternates, getSiteUrl, siteDescription, siteName, siteTitle, siteVerification } from "@/lib/site"
 import { PageViewBeacon } from "@/modules/analytics/components/page-view-beacon"
 import "@/components/site/site.css"
 
@@ -14,6 +14,8 @@ import "@/components/site/site.css"
  * per request. As static `metadata` it was baked into the prerendered segments
  * that client-side navigation uses, with the build's http://localhost:3000.
  * Pages give relative canonical/og URLs (pageMetadata) that resolve against it.
+ * The Search Console / Bing verification tags are runtime env for the same
+ * reason; every public page carries them, which is what the consoles check.
  */
 export async function generateMetadata(): Promise<Metadata> {
   await connection()
@@ -24,6 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
     alternates: { types: feedAlternates },
     openGraph: { type: "website", siteName, locale: "en_US" },
     twitter: { card: "summary_large_image" },
+    verification: siteVerification(),
   }
 }
 

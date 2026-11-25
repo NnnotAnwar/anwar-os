@@ -5,10 +5,14 @@ import { Envelope, IdCard } from "@/components/icons"
 import { NAV_FORWARD, Page, Reveal, SkeletonExit } from "@/components/motion"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { JsonLd } from "@/components/site/json-ld"
+import { breadcrumbJsonLd, profilePageJsonLd } from "@/lib/json-ld"
+import { absoluteUrl, getSiteUrl } from "@/lib/site"
 import { cn } from "@/lib/utils"
 import { CvSheet } from "../components/cv-sheet"
 import { PrintButton } from "../components/print-button"
 import { getPublicCv } from "../public"
+import { cvPerson, cvUpdatedAt } from "../seo"
 import "../print.css"
 
 export default function PublicCvPage() {
@@ -34,23 +38,40 @@ async function Resume() {
   await connection()
   const cv = await getPublicCv()
   if (!cv) return <NotPublished />
+  const site = getSiteUrl().toString()
   return (
-    <CvSheet
-      cv={cv}
-      actions={
-        <div className="flex flex-wrap items-start gap-2 print:hidden">
-          <Link
-            href="/contact"
-            transitionTypes={NAV_FORWARD}
-            className={cn(buttonVariants({ variant: "outline", size: "lg" }), "max-sm:h-11")}
-          >
-            <Envelope />
-            Contact me
-          </Link>
-          <PrintButton />
-        </div>
-      }
-    />
+    <>
+      <JsonLd
+        nodes={[
+          profilePageJsonLd({
+            siteUrl: site,
+            url: absoluteUrl("/cv"),
+            person: cvPerson(cv, site, cv.profile?.summary || undefined),
+            dateModified: cvUpdatedAt(cv),
+          }),
+          breadcrumbJsonLd([
+            { name: "Home", url: absoluteUrl("/") },
+            { name: "CV", url: absoluteUrl("/cv") },
+          ]),
+        ]}
+      />
+      <CvSheet
+        cv={cv}
+        actions={
+          <div className="flex flex-wrap items-start gap-2 print:hidden">
+            <Link
+              href="/contact"
+              transitionTypes={NAV_FORWARD}
+              className={cn(buttonVariants({ variant: "outline", size: "lg" }), "max-sm:h-11")}
+            >
+              <Envelope />
+              Contact me
+            </Link>
+            <PrintButton />
+          </div>
+        }
+      />
+    </>
   )
 }
 

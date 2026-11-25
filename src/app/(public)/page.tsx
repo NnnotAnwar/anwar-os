@@ -7,8 +7,12 @@ import { Meridian } from "@/components/site/meridian"
 import { ScrollReveal } from "@/components/site/scroll-reveal"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { pageMetadata, siteDescription } from "@/lib/site"
+import { JsonLd } from "@/components/site/json-ld"
+import { websiteJsonLd } from "@/lib/json-ld"
+import { getSiteUrl, pageMetadata, siteDescription, siteName } from "@/lib/site"
 import { cn } from "@/lib/utils"
+import { getPublicCv } from "@/modules/cv/public"
+import { cvPerson } from "@/modules/cv/seo"
 import { getLatestPublishedIdeas } from "@/modules/ideas/public"
 import { IdeaCard } from "@/modules/ideas/components/idea-card"
 import { ProjectCard } from "@/modules/projects/components/project-card"
@@ -32,6 +36,9 @@ export default function HomePage() {
   return (
     <Page>
       <div className="grid gap-10 md:gap-14">
+        <Suspense fallback={null}>
+          <HomeJsonLd />
+        </Suspense>
         <section
           aria-labelledby="hero-title"
           className="glass grid gap-8 rounded-xl p-5 [--glass-shadow:var(--shadow-glass-lg)] sm:p-8 md:p-10"
@@ -202,6 +209,21 @@ function Row({ title, href, more, children }: { title: string; href: string; mor
       </div>
       {children}
     </section>
+  )
+}
+
+/** WebSite + the owner as a Person (from the published CV), for search engines. */
+async function HomeJsonLd() {
+  await connection()
+  const cv = await getPublicCv()
+  const site = getSiteUrl().toString()
+  return (
+    <JsonLd
+      nodes={[
+        websiteJsonLd({ siteUrl: site, name: siteName, description: siteDescription }),
+        cvPerson(cv, site, siteDescription),
+      ]}
+    />
   )
 }
 
