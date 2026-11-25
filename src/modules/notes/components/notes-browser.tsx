@@ -334,7 +334,7 @@ function NoteRows({
                 >
                   {selection.active && <SelectCheck checked={checked} />}
                   <span className="grid min-w-0 flex-1 gap-0.5">
-                    <span className="text-body-strong flex items-center gap-1.5">
+                    <span className="text-body-strong flex min-w-0 items-center gap-1.5">
                       {note.pinned && <Pin className="size-3.5 shrink-0 text-text-accent" aria-label="Pinned" />}
                       <span className="truncate">{note.title}</span>
                       {note.isPublic && (
