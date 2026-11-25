@@ -284,52 +284,66 @@ export function TasksApp({
           {flat.length === 0 && view !== "upcoming" ? (
             <EmptyState view={view} data={data} />
           ) : (
-            sections.map((section) => (
-              <section key={section.key} aria-label={section.title ?? "Tasks"} className="grid gap-1.5">
-                {section.title && (
-                  <h2 className="flex items-baseline gap-2 px-1">
-                    <span className={cn("text-heading", section.tone === "warning" && "text-warning-text")}>{section.title}</span>
-                    {section.meta && <span className="text-meta text-muted-foreground">{section.meta}</span>}
-                    {section.tasks.length > 0 && (
-                      <span className="text-caption ml-auto text-muted-foreground tabular-nums">{section.tasks.length}</span>
+            sections.map((section) => {
+              // The last task leaving a section takes the heading (and the gap after
+              // it) along, in the same motion, instead of the heading snapping away after.
+              const leaving = section.tasks.length > 0 && section.tasks.every((t) => m.stateOf(t.id) === "leaving")
+              return (
+                <section
+                  key={section.key}
+                  aria-label={section.title ?? "Tasks"}
+                  className={cn(
+                    "grid transition-[grid-template-rows,opacity,margin] duration-200 ease-out motion-reduce:transition-none",
+                    leaving ? "-mb-3 grid-rows-[0fr] opacity-0" : "grid-rows-[1fr]",
+                  )}
+                >
+                  <div className={cn("grid min-h-0 gap-1.5", leaving && "overflow-hidden")}>
+                    {section.title && (
+                      <h2 className="flex items-baseline gap-2 px-1">
+                        <span className={cn("text-heading", section.tone === "warning" && "text-warning-text")}>{section.title}</span>
+                        {section.meta && <span className="text-meta text-muted-foreground">{section.meta}</span>}
+                        {section.tasks.length > 0 && (
+                          <span className="text-caption ml-auto text-muted-foreground tabular-nums">{section.tasks.length}</span>
+                        )}
+                      </h2>
                     )}
-                  </h2>
-                )}
-                {section.tasks.length === 0 ? (
-                  <p className="text-caption border-t border-hairline px-1 pt-2 text-muted-foreground/80">{section.empty}</p>
-                ) : (
-                  <div role="list" className="glass divide-y divide-hairline overflow-hidden rounded-xl" ref={reorderable ? drag.containerRef : undefined}>
-                    {section.tasks.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        state={m.stateOf(task.id)}
-                        today={today}
-                        locale={locale}
-                        listName={view === "lists" ? null : listName(task.listId)}
-                        showDue={view === "lists" || (view === "today" && task.dueDate !== today)}
-                        focused={focusedId === task.id}
-                        editing={renamingId === task.id}
-                        onFocusRow={() => setFocusedId(task.id)}
-                        onToggle={() => complete(task)}
-                        onOpen={() => {
-                          setFocusedId(task.id)
-                          setEditing(task)
-                        }}
-                        onSchedule={() => setScheduling(task)}
-                        onStartRename={() => setRenamingId(task.id)}
-                        onRename={(title) => {
-                          setRenamingId(null)
-                          if (title) void m.save(task, { title })
-                        }}
-                        grip={reorderable ? { onPointerDown: (e) => drag.start(task.id, e), dragging: drag.draggingId === task.id } : undefined}
-                        style={reorderable ? drag.styleFor(task.id) : undefined}
-                      />
-                    ))}
+                    {section.tasks.length === 0 ? (
+                      <p className="text-caption border-t border-hairline px-1 pt-2 text-muted-foreground/80">{section.empty}</p>
+                    ) : (
+                      <div role="list" className="glass divide-y divide-hairline overflow-hidden rounded-xl" ref={reorderable ? drag.containerRef : undefined}>
+                        {section.tasks.map((task) => (
+                          <TaskRow
+                            key={task.id}
+                            task={task}
+                            state={m.stateOf(task.id)}
+                            today={today}
+                            locale={locale}
+                            listName={view === "lists" ? null : listName(task.listId)}
+                            showDue={view === "lists" || (view === "today" && task.dueDate !== today)}
+                            focused={focusedId === task.id}
+                            editing={renamingId === task.id}
+                            onFocusRow={() => setFocusedId(task.id)}
+                            onToggle={() => complete(task)}
+                            onOpen={() => {
+                              setFocusedId(task.id)
+                              setEditing(task)
+                            }}
+                            onSchedule={() => setScheduling(task)}
+                            onStartRename={() => setRenamingId(task.id)}
+                            onRename={(title) => {
+                              setRenamingId(null)
+                              if (title) void m.save(task, { title })
+                            }}
+                            grip={reorderable ? { onPointerDown: (e) => drag.start(task.id, e), dragging: drag.draggingId === task.id } : undefined}
+                            style={reorderable ? drag.styleFor(task.id) : undefined}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </section>
-            ))
+                </section>
+              )
+            })
           )}
           {total !== null && total > 0 && view === "today" && data.counts.overdue > 0 && (
             <p className="text-caption px-1 text-muted-foreground">Swipe left or press S on a task to reschedule it.</p>
