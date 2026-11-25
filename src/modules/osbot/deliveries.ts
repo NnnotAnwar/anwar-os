@@ -1,5 +1,5 @@
 import "server-only"
-import { and, eq, inArray, lt, sql } from "drizzle-orm"
+import { and, eq, inArray, lt, notInArray, or, sql } from "drizzle-orm"
 import { asViewer } from "@/core/auth"
 import { osbotDeliveries, type OsbotDeliveryKind } from "@/db/schema"
 
@@ -8,6 +8,15 @@ import { osbotDeliveries, type OsbotDeliveryKind } from "@/db/schema"
 // restarts between sending and its next poll. Runs as the owner (RLS).
 
 const RETENTION_DAYS = 60
+/**
+ * Kinds kept longer than RETENTION_DAYS. A document reminder's key must outlive
+ * the gap to the document's next reminder (offsets go up to 730 days), or the
+ * same card would be sent again once its row was pruned.
+ */
+const LONG_RETENTION: Partial<Record<OsbotDeliveryKind, number>> = { document: 800 }
+const longKinds = Object.keys(LONG_RETENTION) as OsbotDeliveryKind[]
+
+const olderThan = (days: number) => lt(osbotDeliveries.deliveredAt, sql`now() - make_interval(days => ${days})`)
 
 /** The keys among `keys` already sent for `kind`. */
 export async function deliveredKeys(kind: OsbotDeliveryKind, keys: string[]): Promise<Set<string>> {
@@ -33,7 +42,12 @@ export async function recordDeliveries(kind: OsbotDeliveryKind, keys: string[]):
       .returning({ id: osbotDeliveries.id })
     await tx
       .delete(osbotDeliveries)
-      .where(lt(osbotDeliveries.deliveredAt, sql`now() - make_interval(days => ${RETENTION_DAYS})`))
+      .where(
+        or(
+          and(notInArray(osbotDeliveries.kind, longKinds), olderThan(RETENTION_DAYS)),
+          ...longKinds.map((k) => and(eq(osbotDeliveries.kind, k), olderThan(LONG_RETENTION[k]!))),
+        ),
+      )
     return inserted.length
   })
 }

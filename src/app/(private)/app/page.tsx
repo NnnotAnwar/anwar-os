@@ -130,7 +130,8 @@ async function Widgets() {
                 key={w.key}
                 aria-labelledby={`${w.key}-title`}
                 data-widget={w.key}
-                className="glass grid content-start gap-3 rounded-xl p-4"
+                // A widget with nothing to show renders `data-widget-empty` and its tile hides.
+                className="glass grid content-start gap-3 rounded-xl p-4 has-[[data-widget-empty]]:hidden"
               >
                 <header className="flex items-center justify-between gap-2">
                   <h2 id={`${w.key}-title`} className="text-card-title">

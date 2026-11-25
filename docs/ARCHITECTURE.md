@@ -122,7 +122,7 @@ data layer under `actions.ts` and the auth layer change.
 | `/feedback` | complaints and suggestions to Anwar, anonymous allowed |
 | `/contact` | job offers and projects: name, email, optional company, topic; Anwar answers by email. Works without JavaScript (plain POST, 303 to `/contact/sent` or `/contact?error=<code>`) |
 
-**Private** (`/app`, owner only): Today, notes, ideas, goals, links, files, calendar,
+**Private** (`/app`, owner only): Today, notes, ideas, goals, documents, links, files, calendar,
 feedback inbox (Feedback · Contact tabs), projects, bots, ops, tools with saved results, settings.
 
 ---
@@ -233,6 +233,7 @@ config because content mixes EN/CS/RU) kept in sync by triggers; ⌘K queries it
 | **projects** | public + private | showcase with case studies; private side links each project to its services in ops | 3 |
 | **ideas** | private, opt-in public | backlog with status (raw → exploring → building → shipped / dropped), tags, publish toggle | 3 |
 | **goals** | private | a few goals per year, measured by a number (+1 in one tap) or by the tasks and projects linked to them; progress under the year ruler on Today; Goal picker in the task and project editors | 6 |
+| **documents** | private only | passport, residence permit / visa, ID, driving licence, insurance: expiry dates with status, Renewed (old dates kept as history), scans in Files → Documents; osbot cards at 10:00 owner time 90 / 30 / 7 days ahead, on the day and once expired (late once if missed, never a superseded one), with Remind tomorrow; Today tile, badge within 30 days. No document numbers, nothing public | 6 |
 | **links** | private, opt-in public | bookmarks with tags; title/description/favicon fetched on save; public ones feed `/links` | 3 |
 | **feedback** | public forms + private inbox | anonymous complaints/suggestions, optional contact; statuses, reply notes, Telegram alert. Contact form (`/contact`): named job offers and projects, new / replied / archived, Reply by email, Telegram alert with Replied / Archive | 3 |
 | **tools** | public + saved results | calories (Mifflin–St Jeor BMR, TDEE, macros), basic calculator, statistics (mean, median, SD, percentiles from pasted numbers), compound growth. Pure client-side math with unit tests | 3 |
