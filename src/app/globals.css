@@ -605,6 +605,44 @@
   }
 }
 
+/*
+ * Phones: one light crossfade. On iPhone the desktop choreography stuttered:
+ * the new page waited for the old one to leave (a blank frame in between), the
+ * root snapshot (the whole screen, canvas included) faded on top of the page's
+ * own fade, and tab switches also slid up. Here the old and new page overlap
+ * from the first frame, only the page layer animates, tabs don't move, and the
+ * forward/back slide is a short 16px hint.
+ */
+@media (width < 48rem) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+  ::view-transition-old(.nav-tab),
+  ::view-transition-old(.nav-forward),
+  ::view-transition-old(.nav-back) {
+    animation: 150ms ease-out both vt-fade reverse;
+  }
+  ::view-transition-new(.nav-tab) {
+    animation: 220ms var(--ease-out) both vt-fade;
+  }
+  ::view-transition-new(.nav-forward) {
+    --vt-offset: 16px;
+    animation:
+      220ms var(--ease-out) both vt-fade,
+      260ms var(--ease-out) both vt-slide-x;
+  }
+  ::view-transition-new(.nav-back) {
+    --vt-offset: -16px;
+    animation:
+      220ms var(--ease-out) both vt-fade,
+      260ms var(--ease-out) both vt-slide-x;
+  }
+  ::view-transition-group(root) {
+    animation-duration: 260ms;
+  }
+}
+
 /* Press feedback for cards and tiles (buttons already scale to 98%). */
 .press {
   transition:
