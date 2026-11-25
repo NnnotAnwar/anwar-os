@@ -306,10 +306,15 @@
      invisible hit area reaches 8px above and below each one, so the control
      looks the same but is easy to tap. */
   @media (pointer: coarse) {
-    & > * {
+    /* On the control itself, never on a wrapper: an <li>'s ::after would sit
+       over the link inside it and take the tap (the Budget, Tasks, Inbox and
+       Ideas tabs did nothing on phones). */
+    & > :is(a, button, label),
+    & > li > :is(a, button, label) {
       position: relative;
     }
-    & > *::after {
+    & > :is(a, button, label)::after,
+    & > li > :is(a, button, label)::after {
       content: "";
       position: absolute;
       inset: -8px -1px;
