@@ -152,6 +152,12 @@ class OsbotApi:
         """{"id", "status", "previous"}"""
         return await self._request("POST", "/contact/status", payload={"id": contact_id, "status": status})
 
+    # --- the error log (Ops → Errors) ----------------------------------------------
+
+    async def error_status(self, error_id: str, status: str) -> dict[str, Any]:
+        """Resolve an error group, or put it back ("open"): {"id", "status", "previous"}."""
+        return await self._request("POST", "/errors/status", payload={"id": error_id, "status": status})
+
     # --- heartbeat ------------------------------------------------------------
 
     async def heartbeat(self, version: str, started_at: datetime) -> None:

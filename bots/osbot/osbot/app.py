@@ -13,7 +13,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
 
-from . import BOT_NAME, texts
+from . import BOT_NAME, error_report, texts
 from .api import OsbotApi
 from .config import DEFAULT_APP_URL, Config
 from .digest import WeeklyMemory, digest_tasks
@@ -123,9 +123,13 @@ async def run_bot(config: Config) -> None:
         # Every text is HTML (texts.py); links in messages don't unfurl.
         bot = Bot(token=config.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML, link_preview_is_disabled=True))
         dp = build_dispatcher(api, config.owner_chat_id, app_url=config.app_url, reminders=reminders)
+        # Unhandled exceptions from here on also go to the app's error log.
+        reporter = error_report.install(api)
         try:
             await _poll_until_stopped(bot, dp, api, config, started_at, stop, reminders)
         finally:
+            error_report.uninstall(reporter)
+            await reporter.drain()
             await bot.session.close()
     log.info("stopped")
 

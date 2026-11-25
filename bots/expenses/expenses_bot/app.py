@@ -16,7 +16,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-from . import BOT_NAME
+from . import BOT_NAME, error_report
 from .api import BudgetApi
 from .config import Config
 from .handlers import on_error, routers
@@ -65,6 +65,8 @@ async def run_bot(config: Config) -> None:
     log.info("starting", extra={"bot": BOT_NAME, "version": config.version, "api": config.api_url})
 
     api = BudgetApi(config.api_url, config.api_secret)
+    # Unhandled exceptions from here on also go to the app's error log (Ops → Errors).
+    reporter = error_report.install(api)
     try:
         bot = create_bot(config.bot_token)
         try:
@@ -76,6 +78,8 @@ async def run_bot(config: Config) -> None:
             # Idempotent; needed when polling never started or was cancelled.
             await bot.session.close()
     finally:
+        error_report.uninstall(reporter)
+        await reporter.drain()
         await api.close()
         log.info("stopped")
 

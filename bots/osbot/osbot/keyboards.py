@@ -82,6 +82,13 @@ class ContactCb(CallbackData, prefix="ct"):
     status: str
 
 
+class ErrorCb(CallbackData, prefix="er"):
+    """Set an error group's status from its alert (resolved = ✓ Resolve, open = Undo)."""
+
+    id: str
+    status: str
+
+
 class RetryCb(CallbackData, prefix="rt"):
     """Try a failed request again: today | cap (with `kind`, the message it replies to)."""
 
@@ -271,3 +278,12 @@ def contact_keyboard(item_id: str, url: str | None, status: str = "new", previou
     else:
         actions = [_button("↩ Undo", ContactCb(id=item_id, status=previous))]
     return _rows([url_button("↗ Open", url), *actions])
+
+
+def error_keyboard(error_id: str, url: str | None, status: str = "open") -> InlineKeyboardMarkup | None:
+    """An error alert. Open: ↗ Open / ✓ Resolve. Resolved: ↗ Open / ↩ Undo."""
+    if status == "resolved":
+        action = _button("↩ Undo", ErrorCb(id=error_id, status="open"))
+    else:
+        action = _button("✓ Resolve", ErrorCb(id=error_id, status="resolved"))
+    return _rows([url_button("↗ Open", url), action])
