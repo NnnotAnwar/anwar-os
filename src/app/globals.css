@@ -317,6 +317,21 @@
   }
 }
 
+/* Touch: a control drawn shorter than 44px (the 32–36px buttons) gets an
+   invisible hit area, centred, that reaches 44px tall; it looks the same. Only
+   vertically: side-by-side icon buttons would otherwise take each other's taps.
+   Needs a positioned box (Button is relative). */
+@utility touch-target {
+  @media (pointer: coarse) {
+    &::after {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      inset-block: min(0px, calc(50% - 22px));
+    }
+  }
+}
+
 @utility segment-active {
   background-color: white;
   box-shadow: var(--shadow-chip);
@@ -373,6 +388,14 @@
   }
   html {
     @apply font-sans;
+    /* iOS paints a grey box over whatever you tap (square, ignoring the radius);
+       every control here has its own pressed state instead. */
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Quick repeated taps (calculator keys, habit checks) never trigger iOS's
+     double-tap zoom; pinch zoom still works. */
+  :where(a, button, input, label, select, textarea, summary, [role="button"], [role="checkbox"], [role="tab"]) {
+    touch-action: manipulation;
   }
   body {
     @apply text-foreground;
@@ -564,6 +587,15 @@
   }
   .sheet[data-closed] {
     animation: sheet-out 200ms ease-in both !important;
+  }
+  /* The dimmed, blurred backdrop keeps the sheet's pace: it used to clear in
+     100ms, so the page snapped sharp while the sheet was still sliding away. */
+  [data-slot="dialog-overlay"]:has(+ .sheet) {
+    --tw-duration: 280ms;
+  }
+  [data-slot="dialog-overlay"][data-closed]:has(+ .sheet) {
+    --tw-duration: 200ms;
+    --tw-ease: ease-in;
   }
 }
 

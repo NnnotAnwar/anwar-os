@@ -59,7 +59,8 @@ export const TabLink = withActiveState(function TabLinkView({ href, icon, active
       transitionTypes={NAV_TAB}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex flex-1 flex-col items-center gap-1 py-2 text-[11px] text-muted-foreground outline-none focus-visible:text-foreground [&_svg]:size-5",
+        // The icon dips under the finger (like a pressed card) and the colour eases over.
+        "flex flex-1 flex-col items-center gap-1 py-2 text-[11px] text-muted-foreground transition-colors duration-150 outline-none focus-visible:text-foreground [&_svg]:size-5 [&_svg]:transition-transform [&_svg]:duration-150 [&_svg]:ease-(--ease-out) active:[&_svg]:scale-90",
         active && "font-semibold text-text-accent",
       )}
     >
