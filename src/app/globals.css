@@ -590,12 +590,13 @@
   }
   /* The dimmed, blurred backdrop keeps the sheet's pace: it used to clear in
      100ms, so the page snapped sharp while the sheet was still sliding away. */
-  [data-slot="dialog-overlay"]:has(+ .sheet) {
-    --tw-duration: 280ms;
+  [data-slot="dialog-overlay"]:has(~ .sheet) {
+    animation-duration: 280ms;
+    animation-timing-function: var(--ease-out);
   }
-  [data-slot="dialog-overlay"][data-closed]:has(+ .sheet) {
-    --tw-duration: 200ms;
-    --tw-ease: ease-in;
+  [data-slot="dialog-overlay"][data-closed]:has(~ .sheet) {
+    animation-duration: 200ms;
+    animation-timing-function: ease-in;
   }
 }
 
