@@ -20,7 +20,7 @@ jobs:
       BETTER_AUTH_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6.1.1
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -59,7 +59,7 @@ jobs:
       MIGRATION_DATABASE_URL: postgres://postgres:ci@127.0.0.1:55432/anwar_os
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6.1.1
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -79,7 +79,7 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6.1.1
       - uses: actions/setup-node@v5
         with:
           node-version: 24
