@@ -107,6 +107,25 @@ def test_a_month_in_progress_and_a_quiet_one():
     assert quiet.endswith("<i>Nothing recorded this month yet.</i>")
 
 
+def test_the_journal_line_only_with_data():
+    journal = {
+        "written": 18,
+        "rated": 16,
+        "averageMood": 3.8,
+        "best": {"day": "2026-11-10", "mood": 5, "text": "Hike"},
+        "worst": {"day": "2026-11-03", "mood": 1, "text": "Rain"},
+        "url": "",
+    }
+    text = monthly_text({**REPORT, "journal": journal})
+    assert text.endswith("📓 <b>Journal</b> 18 days · mood 3.8 🙂 · best Tue 10 Nov 😄 · hardest Tue 3 Nov 😞")
+    lines_only = monthly_text({**REPORT, "journal": {**journal, "rated": 0, "averageMood": None, "best": None, "worst": None}})
+    assert lines_only.endswith("📓 <b>Journal</b> 18 days")
+    assert "Journal" not in monthly_text({**REPORT, "journal": None})
+    # A quiet month with only journal entries isn't "nothing recorded".
+    quiet = {**REPORT, "spending": None, "subscriptions": None, "tasks": None, "site": None, "captured": {}, "journal": journal}
+    assert "Nothing recorded" not in monthly_text(quiet)
+
+
 def test_monthly_keyboards():
     scheduled = monthly_keyboard(REPORT, pdf_url=SAVED["url"])
     assert buttons(scheduled) == [("↗ Open in app", REPORT["url"]), ("📄 PDF", SAVED["url"])]

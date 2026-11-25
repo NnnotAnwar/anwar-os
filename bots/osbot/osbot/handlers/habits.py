@@ -9,6 +9,8 @@ from aiogram.filters import Command
 
 from .. import texts
 from ..api import OsbotApi
+from ..brief import is_brief
+from . import brief
 from ..errors import describe
 from ..habits import HabitCb, habits_keyboard, habits_text, toggled_toast
 from ..keyboards import RetryCb, retry_keyboard
@@ -47,6 +49,10 @@ async def on_habit(callback: types.CallbackQuery, callback_data: HabitCb, api: O
             return
     except Exception as error:
         await callback.answer(describe(error, action="habit").toast(), show_alert=True)
+        return
+    if is_brief(card.text) and day == data.get("today"):
+        # A tick on the morning brief keeps the brief (redrawn with the new state).
+        await brief.redraw(callback, api, toast)
         return
     # Reminders and the evening nudge turn into the full card for their day.
     await edit(card, habits_text(data), habits_keyboard(data))
