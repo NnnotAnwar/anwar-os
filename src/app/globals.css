@@ -605,13 +605,21 @@
   }
 }
 
+@keyframes vt-fade-soft {
+  from {
+    opacity: 0.5;
+  }
+}
+
 /*
- * Phones: one light crossfade. On iPhone the desktop choreography stuttered:
- * the new page waited for the old one to leave (a blank frame in between), the
- * root snapshot (the whole screen, canvas included) faded on top of the page's
- * own fade, and tab switches also slid up. Here the old and new page overlap
- * from the first frame, only the page layer animates, tabs don't move, and the
- * forward/back slide is a short 16px hint.
+ * Phones: the new page takes over at once and settles in. A screen recording
+ * on iPhone showed why crossfades read as jank here: the old and new page (or
+ * the new page's skeleton) were both visible for ~250 ms, text over text, and
+ * the skeleton → content hand-over was a second delayed, sliding transition.
+ * Below 48rem the old page leaves without a fade, the new one rises from half
+ * opacity (never a blank frame), the root isn't animated, tabs don't move,
+ * forward/back slide 12 px, and content replaces its skeleton in one quick
+ * fade. Desktop keeps its choreography.
  */
 @media (width < 48rem) {
   ::view-transition-old(root),
@@ -620,26 +628,28 @@
   }
   ::view-transition-old(.nav-tab),
   ::view-transition-old(.nav-forward),
-  ::view-transition-old(.nav-back) {
-    animation: 150ms ease-out both vt-fade reverse;
+  ::view-transition-old(.nav-back),
+  ::view-transition-old(.skeleton-out) {
+    display: none;
   }
-  ::view-transition-new(.nav-tab) {
-    animation: 220ms var(--ease-out) both vt-fade;
+  ::view-transition-new(.nav-tab),
+  ::view-transition-new(.reveal) {
+    animation: 160ms var(--ease-out) both vt-fade-soft;
   }
   ::view-transition-new(.nav-forward) {
-    --vt-offset: 16px;
+    --vt-offset: 12px;
     animation:
-      220ms var(--ease-out) both vt-fade,
-      260ms var(--ease-out) both vt-slide-x;
+      180ms var(--ease-out) both vt-fade-soft,
+      220ms var(--ease-out) both vt-slide-x;
   }
   ::view-transition-new(.nav-back) {
-    --vt-offset: -16px;
+    --vt-offset: -12px;
     animation:
-      220ms var(--ease-out) both vt-fade,
-      260ms var(--ease-out) both vt-slide-x;
+      180ms var(--ease-out) both vt-fade-soft,
+      220ms var(--ease-out) both vt-slide-x;
   }
   ::view-transition-group(root) {
-    animation-duration: 260ms;
+    animation-duration: 220ms;
   }
 }
 
