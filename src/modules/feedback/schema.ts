@@ -40,7 +40,7 @@ export function normalizeContact(raw: string): string | null {
 
 /** Whether a stored contact is an email (link with mailto:) or a Telegram handle (t.me). */
 export function contactHref(contact: string) {
-  if (EMAIL.test(contact)) return `mailto:${contact}`
+  if (EMAIL.test(contact)) return `mailto:${encodeURIComponent(contact).replace(/%40/g, "@")}`
   // Stored handles are always normalized to "@name".
   const tg = contact.match(/^@([a-z][a-z0-9_]{4,31})$/i)
   return tg ? `https://t.me/${tg[1]}` : null

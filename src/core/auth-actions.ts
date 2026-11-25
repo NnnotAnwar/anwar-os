@@ -5,6 +5,7 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import QRCode from "qrcode"
 import { z } from "zod"
+import { isSessionFresh } from "@/core/api-tokens/server"
 import { db } from "@/db"
 import { auth } from "@/lib/auth"
 import { readAuthEnv } from "@/lib/auth-config"
@@ -160,11 +161,8 @@ function isNotFresh(e: unknown) {
   return body?.code === "SESSION_NOT_FRESH"
 }
 
-const reauthError: MethodResult = {
-  ok: false,
-  reauth: true,
-  error: "For your security, sign in again before changing how you sign in.",
-}
+const REAUTH_MESSAGE = "For your security, sign in again before changing how you sign in."
+const reauthError: MethodResult = { ok: false, reauth: true, error: REAUTH_MESSAGE }
 
 /** Signs out and sends the owner back to Settings through the sign-in page. */
 export async function confirmIdentity() {
@@ -201,6 +199,9 @@ export async function renamePasskey(id: string, rawName: string): Promise<Method
 }
 
 export async function removePasskey(id: string): Promise<MethodResult> {
+  // Better Auth checks only that a session exists; removing a way to sign in
+  // asks for a recent sign-in, like adding one.
+  if (!(await isSessionFresh())) return reauthError
   try {
     await auth.api.deletePasskey({ body: { id }, headers: await headers() })
     return { ok: true }
@@ -212,6 +213,8 @@ export async function removePasskey(id: string): Promise<MethodResult> {
 export async function turnOffTwoFactor(rawPassword: string): Promise<{ ok: boolean; error?: string }> {
   const parsed = password.safeParse(rawPassword)
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]!.message }
+  // A stolen session plus the password must not be enough to drop 2FA.
+  if (!(await isSessionFresh())) return { ok: false, error: REAUTH_MESSAGE }
   try {
     await auth.api.disableTwoFactor({ body: { password: parsed.data }, headers: await headers() })
     return { ok: true }

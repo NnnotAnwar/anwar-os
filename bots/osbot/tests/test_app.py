@@ -52,6 +52,27 @@ async def test_everyone_else_gets_a_polite_refusal():
     answer.assert_awaited_once_with(NOT_OWNER)
 
 
+async def test_groups_get_no_reply_at_all():
+    handler = AsyncMock()
+    update = Update.model_validate(
+        {
+            "update_id": 3,
+            "message": {
+                "message_id": 1,
+                "date": 0,
+                "chat": {"id": -100123, "type": "supergroup", "title": "G"},
+                "from": {"id": OWNER, "is_bot": False, "first_name": "X"},
+                "text": "/today",
+            },
+        }
+    )
+    with patch.object(Message, "answer", AsyncMock()) as answer:
+        result = await OwnerOnlyMiddleware(OWNER)(handler, update, {"event_chat": update.message.chat})
+    assert result is None
+    handler.assert_not_awaited()
+    answer.assert_not_awaited()
+
+
 async def test_foreign_button_presses_are_refused_too():
     update = Update.model_validate(
         {

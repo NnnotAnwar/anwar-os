@@ -401,7 +401,7 @@ function Item({ item }: { item: UiItem }) {
     case "assistant":
       return (
         <div className="grid max-w-full gap-1">
-          <Markdown source={item.text} className="text-body grid gap-2 break-words [&_a]:text-text-accent [&_a]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_li]:ml-4 [&_ol]:list-decimal [&_ul]:list-disc" />
+          <Markdown source={item.text} images={false} className="text-body grid gap-2 break-words [&_a]:text-text-accent [&_a]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_li]:ml-4 [&_ol]:list-decimal [&_ul]:list-disc" />
           {item.interrupted && <p className="text-caption text-muted-foreground">Stopped.</p>}
         </div>
       )

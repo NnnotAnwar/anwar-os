@@ -7,6 +7,12 @@
 #     caddy reload --config /etc/caddy/base/Caddyfile --adapter caddyfile
 {
 	email {$ACME_EMAIL}
+	servers {
+		# A request's Host must match the name its TLS handshake asked for, so
+		# "Host: web:3000" over anwar-os.com's certificate is refused instead of
+		# getting an empty 200 from no matching site.
+		strict_sni_host on
+	}
 }
 
 (security_headers) {
@@ -33,7 +39,12 @@
 	header {
 		-Server
 		-X-Powered-By
+		-Via
 	}
+
+	# Nothing here uses TRACE/TRACK; Next answered them with a 500.
+	@trace method TRACE TRACK
+	respond @trace 405
 }
 
 # Every project's sites. A glob with no matches is fine (fresh server).

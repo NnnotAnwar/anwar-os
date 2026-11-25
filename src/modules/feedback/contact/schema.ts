@@ -118,6 +118,14 @@ export type ContactFilter = z.infer<typeof listContactInput>["filter"]
 export const contactIdInput = z.object({ id: z.uuid() })
 export const setContactStatusInput = z.object({ id: z.uuid(), status: z.enum(contactStatuses) })
 
+/**
+ * mailto: for an address a stranger typed. Encoded, so "a@b.c?bcc=x&body=y"
+ * (which the address check lets through) can't add recipients or text.
+ */
+export function mailtoHref(email: string) {
+  return `mailto:${encodeURIComponent(email).replace(/%40/g, "@")}`
+}
+
 /** A mailto: link that answers the message, quoting its first lines. */
 export function replyHref(m: Pick<ContactMessage, "email" | "name" | "topic" | "message">) {
   const subject = `Re: ${topicLabels[m.topic]} — anwar-os.com`
@@ -127,5 +135,5 @@ export function replyHref(m: Pick<ContactMessage, "email" | "name" | "topic" | "
     .map((line) => `> ${line}`)
     .join("\n")
   const body = `Hi ${m.name.split(/\s+/)[0]},\n\n\n\n${quoted}`
-  return `mailto:${encodeURIComponent(m.email).replace(/%40/g, "@")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+  return `${mailtoHref(m.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 }
