@@ -19,6 +19,8 @@ import {
 // The "read published" policies let everyone see the site owner's public CV,
 // so private queries must also say "only mine" (same as links).
 const mine = (t: { ownerId: AnyColumn }) => eq(t.ownerId, sql`app.current_user_id()`)
+// Visitors have no current user, so the public read names the site owner instead.
+const siteOwners = (t: { ownerId: AnyColumn }) => eq(t.ownerId, sql`app.site_owner_id()`)
 
 const tables = {
   experience: cvExperience,
@@ -36,8 +38,9 @@ const iso = <T extends { updatedAt: Date }>(row: T): Omit<T, "updatedAt"> & { up
   updatedAt: row.updatedAt.toISOString(),
 })
 
-/** Everything the transaction's RLS lets through, in display order. */
-export async function readCv(tx: Tx): Promise<Cv> {
+/** Everything the transaction's RLS lets through, in display order: the viewer's own CV, or (for visitors) the site owner's. */
+export async function readCv(tx: Tx, whose: "mine" | "site owner" = "mine"): Promise<Cv> {
+  const scope = whose === "mine" ? mine : siteOwners
   const [profiles, experience, education, skills, languages] = await Promise.all([
     tx
       .select({
@@ -50,7 +53,7 @@ export async function readCv(tx: Tx): Promise<Cv> {
         updatedAt: cvProfile.updatedAt,
       })
       .from(cvProfile)
-      .where(mine(cvProfile))
+      .where(scope(cvProfile))
       .limit(1),
     tx
       .select({
@@ -65,7 +68,7 @@ export async function readCv(tx: Tx): Promise<Cv> {
         updatedAt: cvExperience.updatedAt,
       })
       .from(cvExperience)
-      .where(mine(cvExperience))
+      .where(scope(cvExperience))
       .orderBy(asc(cvExperience.sortOrder), asc(cvExperience.createdAt)),
     tx
       .select({
@@ -80,7 +83,7 @@ export async function readCv(tx: Tx): Promise<Cv> {
         updatedAt: cvEducation.updatedAt,
       })
       .from(cvEducation)
-      .where(mine(cvEducation))
+      .where(scope(cvEducation))
       .orderBy(asc(cvEducation.sortOrder), asc(cvEducation.createdAt)),
     tx
       .select({
@@ -91,7 +94,7 @@ export async function readCv(tx: Tx): Promise<Cv> {
         updatedAt: cvSkills.updatedAt,
       })
       .from(cvSkills)
-      .where(mine(cvSkills))
+      .where(scope(cvSkills))
       .orderBy(asc(cvSkills.sortOrder), asc(cvSkills.createdAt)),
     tx
       .select({
@@ -102,7 +105,7 @@ export async function readCv(tx: Tx): Promise<Cv> {
         updatedAt: cvLanguages.updatedAt,
       })
       .from(cvLanguages)
-      .where(mine(cvLanguages))
+      .where(scope(cvLanguages))
       .orderBy(asc(cvLanguages.sortOrder), asc(cvLanguages.createdAt)),
   ])
   return {
@@ -120,7 +123,7 @@ export const actions = {
       "Get the user's whole CV: profile (name, headline, summary, location, contacts, published flag) and the ordered experience, education, skills and languages, hidden entries included.",
     kind: "read",
     input: z.object({}),
-    handler: (): Promise<Cv> => asViewer(readCv),
+    handler: (): Promise<Cv> => asViewer((tx) => readCv(tx)),
   }),
   saveProfile: defineAction({
     description:
