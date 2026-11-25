@@ -226,7 +226,7 @@ export function WeekView({
         <div className="grid grid-cols-[2.75rem_repeat(7,minmax(0,1fr))] border-b border-hairline">
           <span className="text-micro self-center pl-1 text-muted-foreground">All day</span>
           {allDay.map((list, i) => (
-            <ul key={i} className="grid content-start gap-0.5 border-l border-hairline p-0.5">
+            <ul key={i} className="grid grid-cols-1 content-start gap-0.5 border-l border-hairline p-0.5">
               {list.map((o) => (
                 <li key={o.key}>
                   <button

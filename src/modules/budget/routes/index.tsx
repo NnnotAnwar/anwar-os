@@ -46,14 +46,14 @@ async function Body({ searchParams }: Pick<Props, "searchParams">) {
   const money = (minor: number, opts?: { signed?: boolean }) => approxMoney(minor, overview.baseCurrency, locale, overview.fx, opts)
 
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-1 gap-4">
       <MonthSwitcher month={month} current={current} locale={locale} basePath="/app/budget" />
 
       <section aria-labelledby="totals" className="glass grid gap-4 rounded-xl p-4 [--glass-shadow:var(--shadow-glass-lg)] md:p-5">
         <h2 id="totals" className="sr-only">
           Totals for {formatMonth(month, locale)}
         </h2>
-        <dl className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4 md:grid-cols-2 lg:grid-cols-4">
           <Metric label="Income" value={money(overview.incomeMinor)} />
           <Metric label="Spent" value={money(overview.expenseMinor)} />
           <Metric label="Net" value={money(overview.netMinor, { signed: true })} accent={overview.netMinor > 0} />
@@ -92,9 +92,9 @@ async function Body({ searchParams }: Pick<Props, "searchParams">) {
         </section>
       )}
 
-      <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <SpendingCard overview={overview} locale={locale} month={month} />
-        <div className="grid content-start gap-4">
+        <div className="grid grid-cols-1 content-start gap-4">
           <AccountsCard overview={overview} locale={locale} />
         </div>
       </div>
@@ -178,7 +178,7 @@ function AccountsCard({ overview, locale }: { overview: Overview; locale: string
   const rateOn = overview.accounts.reduce<string | null>((d, a) => (a.baseBalance && (!d || a.baseBalance.rateOn > d) ? a.baseBalance.rateOn : d), null)
   const approximate = overview.accounts.some((a) => a.baseBalance?.approximate)
   return (
-    <section aria-labelledby="accounts-title" className="glass grid content-start gap-3 rounded-xl p-4">
+    <section aria-labelledby="accounts-title" className="glass grid grid-cols-1 content-start gap-3 rounded-xl p-4">
       <header className="flex items-baseline justify-between gap-2">
         <h2 id="accounts-title" className="text-card-title">
           Balances
@@ -192,7 +192,7 @@ function AccountsCard({ overview, locale }: { overview: Overview; locale: string
           <ArrowUpRight className="size-3" />
         </Link>
       </header>
-      <ul className="grid gap-0.5">
+      <ul className="grid grid-cols-1 gap-0.5">
         {overview.accounts.map((a) => {
           const Icon = kindIcon[a.kind]
           return (
@@ -244,11 +244,11 @@ function AccountsCard({ overview, locale }: { overview: Overview; locale: string
 function OverviewSkeleton() {
   return (
     <SkeletonExit>
-      <div className="grid gap-4" aria-hidden>
+      <div className="grid grid-cols-1 gap-4" aria-hidden>
         <Skeleton className="h-9 w-56" />
         <Skeleton className="h-36 rounded-xl" />
         <Skeleton className="h-20 rounded-xl" />
-        <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <Skeleton className="h-64 rounded-xl" />
           <Skeleton className="h-48 rounded-xl" />
         </div>

@@ -6,8 +6,14 @@ import { ChevronRightIcon, House, Settings } from "@/components/icons"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shell/page-header"
 import { ServiceGrid } from "@/components/services/service-grid"
+import { modules } from "@/modules/_registry"
 
 export const metadata = { title: "Services" }
+
+// Placeholders as many and as tall as the cards that replace them (the owner's
+// default: four pinned, the rest below), so nothing jumps when they stream in.
+const PINNED_GUESS = 4
+const REST_GUESS = Math.max(modules.length - PINNED_GUESS, 2)
 
 // The "More" tab: every service as a card (Kaspi-style). Tap one for its options;
 // star it to keep it in My services on Today and in the sidebar.
@@ -21,7 +27,7 @@ export default function ServicesPage() {
           <h2 id="mine-heading" className="text-eyebrow text-text-accent">
             My services
           </h2>
-          <Suspense fallback={<GridSkeleton count={4} />}>
+          <Suspense fallback={<GridSkeleton count={PINNED_GUESS} />}>
             <ServiceGrid which="pinned" />
           </Suspense>
         </section>
@@ -30,7 +36,7 @@ export default function ServicesPage() {
           <h2 id="all-heading" className="text-eyebrow text-muted-foreground">
             All services
           </h2>
-          <Suspense fallback={<GridSkeleton count={6} />}>
+          <Suspense fallback={<GridSkeleton count={REST_GUESS} />}>
             <ServiceGrid which="rest" />
           </Suspense>
         </section>
@@ -48,7 +54,8 @@ function GridSkeleton({ count }: { count: number }) {
   return (
     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4" aria-hidden>
       {Array.from({ length: count }, (_, i) => (
-        <Skeleton key={i} className="h-24 rounded-xl" />
+        // A card: p-3.5, the 40px icon, name and tagline.
+        <Skeleton key={i} className="h-[114px] rounded-xl" />
       ))}
     </div>
   )

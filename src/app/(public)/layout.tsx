@@ -42,13 +42,18 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
         Skip to content
       </a>
       {/* One row at every width. It stays put while pages slide under it (site-header in globals.css). */}
-      <header className="site-header glass sticky top-[calc(0.5rem+env(safe-area-inset-top))] z-30 mx-2 mt-[calc(0.5rem+env(safe-area-inset-top))] flex items-center gap-1 rounded-xl py-1.5 pr-1.5 pl-3 md:top-3 md:mx-6 md:mt-3 md:gap-4 md:px-4 md:py-2 print:hidden">
+      <header className="site-header glass sticky top-[calc(0.5rem+env(safe-area-inset-top))] z-30 mx-2 mt-[calc(0.5rem+env(safe-area-inset-top))] flex items-center gap-1 rounded-xl py-1.5 pr-1.5 pl-3 md:top-3 md:mx-6 md:mt-3 md:gap-2 md:px-4 md:py-2 lg:gap-4 print:hidden">
         <Wordmark href="/" className="flex h-11 items-center md:h-8" />
         <SiteNav className="ml-auto max-md:hidden" />
         <AccountLink className="ml-auto md:ml-0" />
         <SiteMenu className="md:hidden" />
       </header>
-      <main id="main" className="mx-auto w-full max-w-5xl flex-1 px-3 pt-6 pb-12 md:px-6 md:pt-10 print:p-0">
+      {/* At least a screen tall (less the header), so the footer starts below the
+          fold and streamed content can't push it down in view (layout shift). */}
+      <main
+        id="main"
+        className="mx-auto min-h-[calc(100svh-4rem-env(safe-area-inset-top))] w-full max-w-5xl flex-1 px-3 pt-6 pb-12 md:px-6 md:pt-10 print:min-h-0 print:p-0"
+      >
         {children}
       </main>
       <SiteFooter />

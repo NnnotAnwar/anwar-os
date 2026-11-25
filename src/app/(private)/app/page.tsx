@@ -20,7 +20,9 @@ import { TodayGoals } from "@/modules/goals/components/today-goals"
 export default function TodayPage() {
   return (
     <Page>
-      <div className="grid w-full gap-3 md:gap-4">
+      {/* Grid items may shrink below their content (min-w-0 at every level): a long
+          task or note title in a widget truncates instead of widening the page. */}
+      <div className="grid w-full gap-3 md:gap-4 [&_.grid>*]:min-w-0">
         <Suspense fallback={<HeaderSkeleton />}>
           <TodayHeader />
         </Suspense>

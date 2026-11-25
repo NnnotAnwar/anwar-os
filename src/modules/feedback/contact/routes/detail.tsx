@@ -7,6 +7,7 @@ import { requireViewer } from "@/core/auth"
 import { actions } from "../../actions"
 import { ContactDetail } from "../components/contact-detail"
 import { topicLabels } from "../schema"
+import { Page } from "@/components/motion"
 
 const getMessage = cache(async (id: string) =>
   z.uuid().safeParse(id).success ? actions.contactGet.handler({ id }) : null,
@@ -19,9 +20,11 @@ export async function generateMetadata({ params }: PageProps<"/app/feedback/cont
 
 export default function ContactDetailPage({ params }: PageProps<"/app/feedback/contact/[id]">) {
   return (
-    <Suspense fallback={<DetailSkeleton />}>
-      <Loader params={params} />
-    </Suspense>
+    <Page>
+      <Suspense fallback={<DetailSkeleton />}>
+        <Loader params={params} />
+      </Suspense>
+    </Page>
   )
 }
 

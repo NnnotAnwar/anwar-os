@@ -38,7 +38,7 @@ export function UserMenu({ name, email, role, variant }: Props) {
         aria-label="Account and appearance"
         className={cn(
           "flex items-center gap-2.5 rounded-md text-left outline-none hover:bg-sidebar-accent focus-visible:ring-3 focus-visible:ring-ring/50",
-          variant === "full" ? "w-full px-2 py-1.5" : "p-1",
+          variant === "full" ? "w-full px-2 py-1.5" : "touch-target relative p-1",
         )}
       >
         <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-600 font-display text-xs font-semibold text-primary-foreground">

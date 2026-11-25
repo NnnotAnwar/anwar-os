@@ -9,32 +9,35 @@ import { actions } from "../../actions"
 import { FeedbackTabs } from "../../components/feedback-tabs"
 import { ContactList } from "../components/contact-list"
 import { contactStatusLabels, type ContactFilter, type ContactStatus } from "../schema"
+import { Page } from "@/components/motion"
 
 const filters: ContactFilter[] = ["open", "new", "replied", "archived"]
 const filterLabel = (f: ContactFilter) => (f === "open" ? "Open" : contactStatusLabels[f])
 
 export default function ContactInboxPage({ searchParams }: PageProps<"/app/feedback/contact">) {
   return (
-    <div className="grid w-full max-w-3xl gap-4">
-      <PageHeader
-        eyebrow="Inbox"
-        title="Contact"
-        description="Job offers and projects from the public contact form. Answer by email; archived messages are deleted after 12 months."
-        actions={
-          <NextLink
-            href="/contact"
-            target="_blank"
-            className="text-meta -my-3 inline-flex items-center gap-1 rounded py-3 text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            Public form
-            <ExternalLink className="size-3.5" />
-          </NextLink>
-        }
-      />
-      <Suspense fallback={<InboxSkeleton />}>
-        <InboxBody searchParams={searchParams} />
-      </Suspense>
-    </div>
+    <Page>
+      <div className="grid w-full max-w-3xl gap-4">
+        <PageHeader
+          eyebrow="Inbox"
+          title="Contact"
+          description="Job offers and projects from the public contact form. Answer by email; archived messages are deleted after 12 months."
+          actions={
+            <NextLink
+              href="/contact"
+              target="_blank"
+              className="text-meta -my-3 inline-flex items-center gap-1 rounded py-3 text-text-accent outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              Public form
+              <ExternalLink className="size-3.5" />
+            </NextLink>
+          }
+        />
+        <Suspense fallback={<InboxSkeleton />}>
+          <InboxBody searchParams={searchParams} />
+        </Suspense>
+      </div>
+    </Page>
   )
 }
 

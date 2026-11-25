@@ -317,6 +317,21 @@
   }
 }
 
+/* Touch: a control drawn shorter than 44px (the 32–36px buttons) gets an
+   invisible hit area, centred, that reaches 44px tall; it looks the same. Only
+   vertically: side-by-side icon buttons would otherwise take each other's taps.
+   Needs a positioned box (Button is relative). */
+@utility touch-target {
+  @media (pointer: coarse) {
+    &::after {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      inset-block: min(0px, calc(50% - 22px));
+    }
+  }
+}
+
 @utility segment-active {
   background-color: white;
   box-shadow: var(--shadow-chip);
@@ -373,6 +388,14 @@
   }
   html {
     @apply font-sans;
+    /* iOS paints a grey box over whatever you tap (square, ignoring the radius);
+       every control here has its own pressed state instead. */
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Quick repeated taps (calculator keys, habit checks) never trigger iOS's
+     double-tap zoom; pinch zoom still works. */
+  :where(a, button, input, label, select, textarea, summary, [role="button"], [role="checkbox"], [role="tab"]) {
+    touch-action: manipulation;
   }
   body {
     @apply text-foreground;
@@ -537,6 +560,46 @@
   animation-duration: var(--duration-move);
 }
 
+/*
+ * The app header, sidebar and phone tab bar are their own layers, above the
+ * page. Without names they were part of the root snapshot, and the moving page
+ * (its own group, drawn on top) covered them: on a scrolled phone screen the
+ * old page slid over the header and the new one over the tab bar for a moment.
+ * They do not animate; the new state (the active tab) shows at once.
+ */
+.app-header {
+  view-transition-name: app-header;
+}
+.app-sidebar {
+  view-transition-name: app-sidebar;
+}
+.tab-bar {
+  view-transition-name: tab-bar;
+}
+::view-transition-group(app-header),
+::view-transition-group(app-sidebar),
+::view-transition-group(tab-bar) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(app-header),
+::view-transition-old(app-sidebar),
+::view-transition-old(tab-bar) {
+  display: none;
+}
+::view-transition-new(app-header),
+::view-transition-new(app-sidebar),
+::view-transition-new(tab-bar) {
+  animation: none;
+}
+/* A snapshot has no backdrop to blur: the phone header (70% canvas over a
+   blur) would show the moving page through it, so it is solid for the moment. */
+@media (width < 48rem) {
+  ::view-transition-group(app-header) {
+    background-color: var(--background);
+  }
+}
+
 /* Press feedback for cards and tiles (buttons already scale to 98%). */
 .press {
   transition:
@@ -565,6 +628,16 @@
   .sheet[data-closed] {
     animation: sheet-out 200ms ease-in both !important;
   }
+  /* The dimmed, blurred backdrop keeps the sheet's pace: it used to clear in
+     100ms, so the page snapped sharp while the sheet was still sliding away. */
+  [data-slot="dialog-overlay"]:has(~ .sheet) {
+    animation-duration: 280ms;
+    animation-timing-function: var(--ease-out);
+  }
+  [data-slot="dialog-overlay"][data-closed]:has(~ .sheet) {
+    animation-duration: 200ms;
+    animation-timing-function: ease-in;
+  }
 }
 
 /* A completed checkbox / a starred item: one small, satisfying pop. */
@@ -588,5 +661,11 @@
   ::view-transition-old(*),
   ::view-transition-new(*) {
     animation: none !important;
+  }
+  /* The sheet rules above are !important and more specific than the global
+     reduced-motion rule, so phone sheets kept sliding. */
+  .sheet[data-open],
+  .sheet[data-closed] {
+    animation-duration: 0.01ms !important;
   }
 }

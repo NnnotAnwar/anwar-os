@@ -41,7 +41,7 @@ export function NotesSearch({ initialQuery, inputRef }: { initialQuery: string; 
         onKeyDown={(e) => e.key === "Escape" && update("")}
         placeholder="Filter notes"
         aria-label="Filter notes"
-        className="h-9 w-full rounded-lg border border-field-border bg-field pr-9 pl-9 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-search-cancel-button]:hidden"
+        className="h-9 w-full rounded-lg border border-field-border bg-field pr-9 pl-9 text-base outline-none md:text-sm placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-search-cancel-button]:hidden"
       />
       {value && (
         <button

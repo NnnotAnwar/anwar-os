@@ -266,7 +266,9 @@ function Processor({
               rows={Math.min(8, Math.max(2, text.split("\n").length))}
               placeholder={current.url ? "Add a note about this link" : ""}
               maxLength={10_000}
-              className="text-card-title -mx-2 resize-none rounded-lg bg-transparent px-2 py-1 font-display leading-snug outline-none hover:bg-white/30 focus-visible:bg-field focus-visible:ring-3 focus-visible:ring-accent-500/20 dark:hover:bg-white/5"
+              // Grows with wrapped lines too (rows only counts line breaks, so a long
+              // sentence was cut off at two lines on a phone); rows stays as the fallback.
+              className="text-card-title -mx-2 field-sizing-content max-h-[calc(8lh+0.5rem)] min-h-[calc(2lh+0.5rem)] resize-none rounded-lg bg-transparent px-2 py-1 font-display leading-snug outline-none hover:bg-white/30 focus-visible:bg-field focus-visible:ring-3 focus-visible:ring-accent-500/20 dark:hover:bg-white/5"
             />
             {current.url && (
               <a

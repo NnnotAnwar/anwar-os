@@ -19,9 +19,9 @@ export const metadata = { title: "Settings" }
 export default function SettingsPage() {
   return (
     <Page>
-      <div className="mx-auto grid w-full max-w-3xl gap-8">
+      <div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-8">
         <PageHeader title="Settings" />
-        <section aria-labelledby="sign-in-heading" className="grid gap-4 md:grid-cols-[14rem_1fr] md:gap-8">
+        <section aria-labelledby="sign-in-heading" className="grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8">
           <div className="grid content-start gap-1">
             <h2 id="sign-in-heading" className="font-medium">
               Sign-in methods
@@ -39,7 +39,7 @@ export default function SettingsPage() {
         <section
           id="appearance"
           aria-labelledby="appearance-heading"
-          className="grid scroll-mt-20 gap-4 md:grid-cols-[14rem_1fr] md:gap-8"
+          className="grid scroll-mt-20 gap-4 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8"
         >
           <div className="grid content-start gap-1">
             <h2 id="appearance-heading" className="font-medium">
@@ -85,7 +85,7 @@ async function TelegramSection() {
   const viewer = await requireViewer()
   if (viewer.role !== "owner") return null
   return (
-    <section aria-labelledby="telegram-heading" className="grid gap-4 md:grid-cols-[14rem_1fr] md:gap-8">
+    <section aria-labelledby="telegram-heading" className="grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8">
       <div className="grid content-start gap-1">
         <h2 id="telegram-heading" className="font-medium">
           Telegram
@@ -110,7 +110,7 @@ async function ApiTokensSection() {
   if (viewer.role === "demo" || viewer.isAnonymous) return null
   const [tokens, fresh] = await Promise.all([listApiTokens(), isSessionFresh()])
   return (
-    <section aria-labelledby="api-tokens-heading" className="grid gap-4 md:grid-cols-[14rem_1fr] md:gap-8">
+    <section aria-labelledby="api-tokens-heading" className="grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8">
       <div className="grid content-start gap-1">
         <h2 id="api-tokens-heading" className="font-medium">
           API tokens
@@ -126,16 +126,27 @@ async function ApiTokensSection() {
   )
 }
 
+/** Shaped like SignInMethods (password, passkeys, two-factor rows), so the sections below stay put. */
 function MethodsSkeleton() {
+  const rows = [
+    { lines: 1, action: false },
+    { lines: 2, action: true },
+    { lines: 3, action: true },
+  ]
   return (
-    <div className="grid gap-5">
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="flex items-center gap-3">
-          <Skeleton className="size-9 rounded-lg" />
-          <div className="grid flex-1 gap-1.5">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-3 w-48" />
+    <div className="grid" aria-hidden>
+      {rows.map((row, i) => (
+        <div key={i} className="grid gap-3 border-b border-border/60 py-4 first:pt-0 last:border-b-0 last:pb-0">
+          <div className="flex items-start gap-3">
+            <Skeleton className="size-9 shrink-0 rounded-lg" />
+            <div className="grid flex-1 gap-1.5 pt-0.5">
+              <Skeleton className="h-4 w-28" />
+              {Array.from({ length: row.lines }, (_, j) => (
+                <Skeleton key={j} className={j === row.lines - 1 ? "h-3.5 w-2/3" : "h-3.5 w-full"} />
+              ))}
+            </div>
           </div>
+          {row.action && <Skeleton className="h-9 w-36 rounded-lg sm:ml-12" />}
         </div>
       ))}
     </div>

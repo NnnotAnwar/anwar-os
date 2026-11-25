@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 // controls styled with semantic tokens only, so a re-theme carries over.
 
 export const fieldClass =
-  "h-9 w-full min-w-0 rounded-lg border border-field-border bg-field px-3 py-1.5 text-sm font-medium outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-accent-500/20 aria-invalid:border-destructive md:h-8"
+  "h-9 w-full min-w-0 rounded-lg border border-field-border bg-field px-3 py-1.5 text-base font-medium md:text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-accent-500/20 aria-invalid:border-destructive md:h-8"
 
 export function Field({
   label,

@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { requireViewer } from "@/core/auth"
 import { actions } from "../actions"
 import { IdeaEditor } from "../components/idea-editor"
+import { Page } from "@/components/motion"
 
 const getIdea = cache(async (id: string) => (z.uuid().safeParse(id).success ? actions.get.handler({ id }) : null))
 
@@ -16,9 +17,11 @@ export async function generateMetadata({ params }: PageProps<"/app/ideas/[id]">)
 
 export default function IdeaDetailPage({ params }: PageProps<"/app/ideas/[id]">) {
   return (
-    <Suspense fallback={<EditorSkeleton />}>
-      <Loader params={params} />
-    </Suspense>
+    <Page>
+      <Suspense fallback={<EditorSkeleton />}>
+        <Loader params={params} />
+      </Suspense>
+    </Page>
   )
 }
 
@@ -31,9 +34,11 @@ async function Loader({ params }: Pick<PageProps<"/app/ideas/[id]">, "params">) 
 
 export function NewIdeaPage() {
   return (
-    <Suspense fallback={<EditorSkeleton />}>
-      <NewIdea />
-    </Suspense>
+    <Page>
+      <Suspense fallback={<EditorSkeleton />}>
+        <NewIdea />
+      </Suspense>
+    </Page>
   )
 }
 

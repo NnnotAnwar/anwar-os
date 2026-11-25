@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { requireViewer } from "@/core/auth"
 import { actions } from "../actions"
 import { NoteEditor } from "../components/note-editor"
+import { Page } from "@/components/motion"
 
 // One database read per request, shared by the tab title and the editor.
 const getNote = cache(async (id: string) =>
@@ -19,9 +20,11 @@ export async function generateMetadata({ params }: PageProps<"/app/notes/[id]">)
 
 export default function NoteDetailPage({ params }: PageProps<"/app/notes/[id]">) {
   return (
-    <Suspense fallback={<EditorSkeleton />}>
-      <NoteLoader params={params} />
-    </Suspense>
+    <Page>
+      <Suspense fallback={<EditorSkeleton />}>
+        <NoteLoader params={params} />
+      </Suspense>
+    </Page>
   )
 }
 

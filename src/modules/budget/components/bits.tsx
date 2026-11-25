@@ -9,7 +9,7 @@ import { colorClass } from "../lib/colors"
 // same tokens as shadcn's Input (bg-field / border-field-border).
 
 export const selectClass =
-  "h-9 w-full min-w-0 rounded-lg border border-field-border bg-field px-2.5 text-sm font-medium outline-none focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-accent-500/20 aria-invalid:border-destructive md:h-8 dark:[color-scheme:dark]"
+  "h-9 w-full min-w-0 rounded-lg border border-field-border bg-field px-2.5 text-base font-medium outline-none md:text-sm focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-accent-500/20 aria-invalid:border-destructive md:h-8 dark:[color-scheme:dark]"
 
 export function Field({
   label,

@@ -28,7 +28,7 @@ export const metadata = { title: { absolute: "Today · anwar.os", template: "%s 
 export default function AppLayout({ children }: LayoutProps<"/app">) {
   return (
     <div className="min-h-svh md:grid md:grid-cols-[16rem_minmax(0,1fr)]">
-      <aside className="glass sticky top-3 m-3 mr-0 hidden h-[calc(100svh-1.5rem)] flex-col rounded-xl px-3 py-4 md:flex">
+      <aside className="app-sidebar glass sticky top-3 m-3 mr-0 hidden h-[calc(100svh-1.5rem)] flex-col rounded-xl px-3 py-4 md:flex">
         <div className="px-2.5 pb-6">
           <Wordmark />
         </div>
@@ -58,8 +58,9 @@ export default function AppLayout({ children }: LayoutProps<"/app">) {
       </aside>
 
       <div className="flex min-h-svh min-w-0 flex-col">
-        {/* Phones: the bar starts under the status bar when iOS lets the page draw there. */}
-        <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-2 bg-background/70 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl reduce-transparency:bg-background reduce-transparency:backdrop-blur-none md:static md:h-14 md:bg-transparent md:px-6 md:pt-3 md:backdrop-blur-none">
+        {/* Phones: the bar starts under the status bar when iOS lets the page draw there.
+            app-header (and app-sidebar, tab-bar) hold still while pages move (globals.css). */}
+        <header className="app-header sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-2 bg-background/70 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-xl reduce-transparency:bg-background reduce-transparency:backdrop-blur-none md:static md:h-14 md:bg-transparent md:px-6 md:pt-3 md:backdrop-blur-none">
           <div className="md:hidden">
             <Wordmark className="block py-3" />
           </div>
