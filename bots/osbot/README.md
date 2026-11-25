@@ -21,6 +21,10 @@ private bot."
 | budget limits | once a category reaches 90 % of its monthly limit (Budget → Limits): `⚠️ Food: 92 % of the monthly limit` with what's left and, when it heads past the limit, the month-end pace; once it's used up: `🔴 Food: monthly limit used up` and by how much; each once per category and month (a jump straight past 100 % sends only the second), ↗ Limits |
 | `/habits` | today's habits as buttons (`✅ 🧘 Stretch · 🔥 4` / `⬜ Read`): a tap ticks one off or back and the card redraws with the new streaks; ↗ Open in app, 🔄 Refresh. Buttons carry their day, so an old card changes its own day |
 | habit reminders | at a habit's own reminder time, if it isn't done yet: `⏰ Time for 🧘 Stretch` with a tick button; the evening nudge (off unless switched on in Habits) lists what's still open. Once a day each; nothing when all is done (`habits.py`) |
+| `/brief` | the morning brief on demand (below), with ↗ Today and 🔄 Refresh |
+| morning brief | at the time set in Settings → Telegram (default 08:00 the owner's time, on by default), once a day: today's calendar (time · title · place), tasks due today numbered like /today (a number opens the same task card) and the overdue count, today's habits as tick buttons (a tick redraws the brief), spending this month against the Budget limits (what's left, categories at ≥ 90 %) or the plan, payments charging today; "🌤 Nothing planned — a clear day" when empty. Skipped when the bot is more than 3 hours late, so it never arrives at lunch (`brief.py`) |
+| `/journal` | "🌙 How was today?" with 😞 🙁 😐 🙂 😄; a face saves the mood and a ForceReply prompt asks for one line (⏭ Skip); the saved line comes back with ↩ Undo and ↗ Open. Undo is kept in memory: after a restart the button says so |
+| evening question | the same card at the time set in Journal (default 21:30, on by default), once a day, only while the day has no mood; skipped more than 3 hours late. A window past midnight still asks about the day it started on (`journal.py`) |
 | weekly review | Sundays from 19:00, once: tasks done / added / overdue, 🎯 focus (top 3 due or overdue), next week's calendar, spending vs last week with top categories and the Budget plan, payments next week, new ideas / notes / links / feedback; ↗ Open in app, 💤 1 h, ⏭ Skip |
 | monthly report | the 1st from 10:00, once, for last month: spending vs the month before with top categories and the biggest changes, income and net, subscriptions a month, tasks done / added, new notes / ideas / links / feedback, site views with top pages. Its PDF is filed into Files → Reports first; ↗ Open in app, 📄 PDF |
 
@@ -71,10 +75,16 @@ any mismatch, then acts as the site owner with row-level security on.
 | `GET habits?date=` | the day's habits (default today) for the `/habits` card: `{ date, label, habits: [{ id, name, emoji, done, current }], done, total, url }` |
 | `POST habits/toggle` | `{ id, date? }`: flips one habit for that day, returns `toggled` plus the day's card |
 | `GET habits/nudges`, `POST habits/nudges/ack` | habit reminders and the evening nudge due now; `{ date, reminders: [ids], evening }` once sent |
+| `GET brief` | today's morning brief, with `delivered` |
+| `GET brief/due` | `{ due, date, time, brief }`: the brief only when it should go out now (switched on, within 3 h of its time in the owner's zone, not sent that day) |
+| `POST brief/ack` | `{ date }` (brief/due's `date`) once sent: idempotent |
+| `GET journal?date=` | the question card for a day (default today): `{ date, today, label, short, entry: { mood, text } \| null, url }` |
+| `POST journal/save` | `{ date, mood?, text? }`: a face (`null` clears it) and/or the line; a field left out keeps its value; returns the card and `previous` (Undo writes it back) |
+| `GET journal/due`, `POST journal/ack` | the evening question when due (`{ due, date, time, card }`; not once the day has a mood); `{ date }` once sent |
 | `POST ops-alerts/check`, `POST ops-alerts/ack` | server alerts (`osbot/ops_alerts.py`): what started or stopped being wrong since the owner was last told; `{ items: [{ key, event }] }` once sent |
 
 Loops run once a minute, just after the minute turns: heartbeat, reminders,
-feedback, payments, weekly (`digest.py`), monthly (`monthly.py`), budget limits (`budget_limits.py`), habits (`habits.py`). Each item is sent first and acknowledged after, so a crash can repeat
+feedback, payments, weekly (`digest.py`), monthly (`monthly.py`), budget limits (`budget_limits.py`), habits (`habits.py`), the morning brief (`brief.py`) and the journal question (`journal.py`). For the brief and the journal question the web app decides when they are due, in the owner's time zone (`src/modules/osbot/lib/schedule.ts`: from their time until 3 hours later, measured in real time across DST changes). Each item is sent first and acknowledged after, so a crash can repeat
 one message but never lose one. While the heartbeat is fresh, the web app stops
 sending its own direct feedback alerts and leaves them to osbot.
 

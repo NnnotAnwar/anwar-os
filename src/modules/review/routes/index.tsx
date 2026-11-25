@@ -10,6 +10,8 @@ import { formatMonth, isMonth, monthOf, shiftMonth, todayIn } from "@/modules/bu
 import { approx, FxNoteLine, leftOutText } from "@/modules/budget/components/fx-note"
 import { formatMoney } from "@/modules/budget/lib/money"
 import { cn } from "@/lib/utils"
+import { formatDayShort } from "@/modules/journal/lib/format"
+import { moodOf } from "@/modules/journal/schema"
 import { actions } from "../actions"
 import { SavePdfButton } from "../components/save-pdf-button"
 import { percentChange } from "../lib/compare"
@@ -45,7 +47,8 @@ async function Report({ searchParams }: Pick<PageProps<"/app/review">, "searchPa
     (!report.spending || (report.spending.expenseMinor === 0 && report.spending.incomeMinor === 0 && report.spending.previousExpenseMinor === 0)) &&
     (!report.tasks || (report.tasks.done === 0 && report.tasks.added === 0)) &&
     Object.values(report.captured).every((v) => !v) &&
-    (!report.site || (report.site.views === 0 && report.site.previousViews === 0))
+    (!report.site || (report.site.views === 0 && report.site.previousViews === 0)) &&
+    !report.journal
 
   return (
     <div className="grid gap-4">
@@ -241,8 +244,48 @@ function Sections({ report }: { report: MonthlyReport }) {
             )}
           </Card>
         )}
+
+        {report.journal && <JournalCard journal={report.journal} />}
       </div>
     </>
+  )
+}
+
+function JournalCard({ journal }: { journal: NonNullable<MonthlyReport["journal"]> }) {
+  const average = moodOf(journal.averageMood === null ? null : Math.round(journal.averageMood))
+  const day = (label: string, d: NonNullable<typeof journal.best>) => {
+    const mood = moodOf(d.mood)
+    return (
+      <li className="grid gap-0.5">
+        <span className="text-caption text-muted-foreground">
+          {label} · {formatDayShort(d.day)}
+        </span>
+        <span className="text-body flex min-w-0 items-baseline gap-2">
+          <span aria-hidden>{mood?.emoji}</span>
+          <span className="sr-only">{mood?.label}</span>
+          <span className={cn("line-clamp-2 break-words", !d.text && "text-muted-foreground italic")}>{d.text || "No line"}</span>
+        </span>
+      </li>
+    )
+  }
+  return (
+    <Card title="Journal" href="/app/journal" link="Open">
+      <p className="flex flex-wrap items-baseline gap-x-2">
+        <span className="text-heading tabular-nums">{journal.written}</span>
+        <span className="text-meta text-muted-foreground">{journal.written === 1 ? "day written" : "days written"}</span>
+        {journal.averageMood !== null && (
+          <span className="text-meta text-muted-foreground tabular-nums">
+            · average {average?.emoji} {journal.averageMood.toFixed(1)}
+          </span>
+        )}
+      </p>
+      {(journal.best || journal.worst) && (
+        <ul className="grid gap-2">
+          {journal.best && day("Best day", journal.best)}
+          {journal.worst && day("Hardest day", journal.worst)}
+        </ul>
+      )}
+    </Card>
   )
 }
 

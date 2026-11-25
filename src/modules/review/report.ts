@@ -7,6 +7,7 @@ import { pageLabel } from "@/modules/analytics/schema"
 import { formatMonth, monthOf, monthRange, parseIsoDate, shiftMonth, todayIn } from "@/modules/budget/lib/dates"
 import type { Overview, SubscriptionsData } from "@/modules/budget/schema"
 import { startOfLocalDay } from "@/modules/calendar/lib/zoned"
+import type { JournalStats } from "@/modules/journal/schema"
 import { deliveredKeys } from "@/modules/osbot/deliveries"
 import { compareCategories } from "./lib/compare"
 import type { MonthlyReport } from "./schema"
@@ -30,19 +31,20 @@ export async function monthlyReport(month: string | undefined, timezone: string,
   const current = month ?? monthOf(today)
   const previous = shiftMonth(current, -1)
   const base = baseUrl()
-  const [budgetOn, tasksOn, ideasOn, notesOn, linksOn, feedbackOn, analyticsOn] = await Promise.all(
-    ["budget", "tasks", "ideas", "notes", "links", "feedback", "analytics"].map((m) => hasModule(m)),
+  const [budgetOn, tasksOn, ideasOn, notesOn, linksOn, feedbackOn, analyticsOn, journalOn] = await Promise.all(
+    ["budget", "tasks", "ideas", "notes", "links", "feedback", "analytics", "journal"].map((m) => hasModule(m)),
   )
   const from = monthStart(current, timezone)
   const to = monthStart(shiftMonth(current, 1), timezone)
   const before = monthStart(previous, timezone)
 
-  const [spending, subscriptions, tasks, captured, site, delivered] = await Promise.all([
+  const [spending, subscriptions, tasks, captured, site, journal, delivered] = await Promise.all([
     budgetOn ? spendingOf(current, previous, base) : null,
     budgetOn ? subscriptionsOf(base) : null,
     tasksOn ? taskCounts(before, from, to, base) : null,
     createdCounts(from, to, { ideasOn, notesOn, linksOn, feedbackOn }),
     analyticsOn ? siteViews(current, previous, base) : null,
+    journalOn ? journalOf(current, base) : null,
     deliveredKeys("monthly", [current]).then((s) => s.has(current)),
   ])
 
@@ -62,7 +64,16 @@ export async function monthlyReport(month: string | undefined, timezone: string,
     tasks,
     captured,
     site,
+    journal,
   }
+}
+
+/** Days written, the average mood and the best and worst day; null without entries. */
+async function journalOf(month: string, base: string): Promise<MonthlyReport["journal"]> {
+  const stats = await runModuleAction<JournalStats>("journal", "stats", { month })
+  if (!stats.written) return null
+  const { written, rated, averageMood, best, worst } = stats
+  return { written, rated, averageMood, best, worst, url: `${base}/app/journal?year=${month.slice(0, 4)}` }
 }
 
 async function spendingOf(month: string, previous: string, base: string): Promise<MonthlyReport["spending"]> {

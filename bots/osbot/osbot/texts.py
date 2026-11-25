@@ -49,9 +49,11 @@ HELP = (
     "<i>Any of these without text asks for it.</i>\n\n"
     "<b>Plan</b>\n"
     "/today · calendar, due tasks and new feedback, with Done and Tomorrow buttons\n"
+    "/brief · the morning brief: calendar, tasks, habits, money and payments in one card\n"
     "/week · the week in review: tasks, next week's calendar, spending, payments\n"
     "/month · this month's report; <code>/month last</code> or <code>/month 2026-10</code> for another\n"
-    "/habits · today's habits; tap one to tick it off\n\n"
+    "/habits · today's habits; tap one to tick it off\n"
+    "/journal · how was today? A face and one line\n\n"
     "<b>Notifications</b>\n"
     "⏰ Calendar reminders, with snooze\n"
     "💬 New feedback from the site, with Mark read\n"
@@ -59,6 +61,8 @@ HELP = (
     "💳 Recurring payments, the day before they charge\n"
     "🗓 The week in review, Sundays at 19:00\n"
     "📊 Last month's report with its PDF, on the 1st at 10:00\n"
+    "☀️ The morning brief, at 08:00 unless changed in Settings → Telegram\n"
+    "🌙 How was today? in the evening, until the day has a mood (set in Journal)\n"
     "🌱 Habit reminders and the evening nudge, when set in the app"
 )
 

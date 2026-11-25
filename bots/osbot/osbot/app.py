@@ -20,6 +20,8 @@ from .digest import WeeklyMemory, digest_tasks
 from .files_check import files_check_task
 from .fmt import set_timezone
 from .habits import habits_task
+from .journal import JournalMemory, journal_task
+from .brief import BriefMemory, brief_task
 from .handlers import make_routers, on_error
 from .monthly import MonthlyMemory, monthly_task
 from .loops import background_tasks
@@ -37,9 +39,11 @@ SHUTDOWN_TIMEOUT_SECONDS = 7
 # The command menu (the "/" button next to the input field), most used first.
 COMMANDS = [
     BotCommand(command="today", description="Today's calendar and due tasks"),
+    BotCommand(command="brief", description="The morning brief: your day in one card"),
     BotCommand(command="week", description="This week in review"),
     BotCommand(command="month", description="This month's report (or /month last)"),
     BotCommand(command="habits", description="Today's habits: tap to tick off"),
+    BotCommand(command="journal", description="How was today? A face and one line"),
     BotCommand(command="task", description="Add a task"),
     BotCommand(command="note", description="Save a note"),
     BotCommand(command="link", description="Save a link"),
@@ -56,6 +60,7 @@ def build_dispatcher(
     app_url: str = DEFAULT_APP_URL,
     reminders: ReminderMemory | None = None,
     weekly: WeeklyMemory | None = None,
+    journal: JournalMemory | None = None,
 ) -> Dispatcher:
     dp = Dispatcher()
     # Injected into handlers by argument name.
@@ -65,6 +70,8 @@ def build_dispatcher(
     dp["reminders"] = reminders if reminders is not None else ReminderMemory()
     # The weekly review's snooze, shared with its loop (digest.py).
     dp["weekly"] = weekly if weekly is not None else WeeklyMemory()
+    # The journal's Undo snapshots (journal.py), shared with its evening loop.
+    dp["journal"] = journal if journal is not None else JournalMemory()
     dp.update.outer_middleware(OwnerOnlyMiddleware(owner_chat_id))
     for router in make_routers():
         dp.include_router(router)
@@ -153,6 +160,8 @@ async def _poll_until_stopped(
     loops.append(limits_task(bot, api, config.owner_chat_id))
     loops.append(monthly_task(bot, api, config.owner_chat_id, MonthlyMemory()))
     loops.append(habits_task(bot, api, config.owner_chat_id))
+    loops.append(brief_task(bot, api, config.owner_chat_id, BriefMemory()))
+    loops.append(journal_task(bot, api, config.owner_chat_id, dp.get("journal") or JournalMemory()))
     stopper = asyncio.create_task(stop.wait(), name="stop-signal")
     tasks = [polling, *loops, stopper]
     try:

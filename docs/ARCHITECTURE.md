@@ -233,6 +233,7 @@ config because content mixes EN/CS/RU) kept in sync by triggers; ⌘K queries it
 | **projects** | public + private | showcase with case studies; private side links each project to its services in ops | 3 |
 | **ideas** | private, opt-in public | backlog with status (raw → exploring → building → shipped / dropped), tags, publish toggle | 3 |
 | **goals** | private | a few goals per year, measured by a number (+1 in one tap) or by the tasks and projects linked to them; progress under the year ruler on Today; Goal picker in the task and project editors | 6 |
+| **journal** | private (owner only) | one line a day with a mood (1–5): today on the page and the Today widget, a GitHub-style year of moods, search, edit/delete any day; osbot asks "How was today?" in the evening (default 21:30, Journal settings); days written, average mood and best/worst day in the monthly report | 7 |
 | **links** | private, opt-in public | bookmarks with tags; title/description/favicon fetched on save; public ones feed `/links` | 3 |
 | **feedback** | public forms + private inbox | anonymous complaints/suggestions, optional contact; statuses, reply notes, Telegram alert. Contact form (`/contact`): named job offers and projects, new / replied / archived, Reply by email, Telegram alert with Replied / Archive | 3 |
 | **tools** | public + saved results | calories (Mifflin–St Jeor BMR, TDEE, macros), basic calculator, statistics (mean, median, SD, percentiles from pasted numbers), compound growth. Pure client-side math with unit tests | 3 |
@@ -297,6 +298,8 @@ Only labelled services can be touched; `db`, the edge `caddy`, `ops-agent` itsel
   the `bot_expenses` schema and role.
 - **osbot** (`bots/osbot/`): Anwar's own bot for the platform. Quick capture
   (forward a message → Inbox by default, or task / note / link / idea), `/today`,
+  the morning brief (default 08:00, Settings → Telegram, `osbot_settings`) and the
+  evening journal question, each skipped when more than 3 hours late,
   calendar reminders, feedback and contact-form alerts and server alerts (every 5 min, state in
   `ops_alert_state`, rules shared with Ops → Server; DEPLOY.md §19). Unlike the other
   bots it has **no database role**: it calls the web app's internal API

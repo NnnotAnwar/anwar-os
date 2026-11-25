@@ -211,3 +211,42 @@ class OsbotApi:
     async def ack_habit_nudges(self, date: str, reminders: list[str], evening: bool) -> int:
         data = await self._request("POST", "/habits/nudges/ack", payload={"date": date, "reminders": reminders, "evening": evening})
         return int(data["acked"])
+
+    # --- the morning brief (brief.py) ------------------------------------------------
+
+    async def brief(self) -> dict[str, Any]:
+        """Today's brief: {"date", "label", "events", "tasks", "tasksToday", "overdue", "habits", "money", "payments", "clear", "url", …}"""
+        return await self._request("GET", "/brief")
+
+    async def brief_due(self) -> dict[str, Any]:
+        """{"due", "date", "time", "brief"}: the brief only when it should go out now (the owner's time, not sent, not too late)."""
+        return await self._request("GET", "/brief/due")
+
+    async def ack_brief(self, date: str) -> int:
+        """`date` is brief/due's "date" (the day the brief was scheduled for)."""
+        data = await self._request("POST", "/brief/ack", payload={"date": date})
+        return int(data["acked"])
+
+    # --- the journal (journal.py) ------------------------------------------------------
+
+    async def journal(self, date: str | None = None) -> dict[str, Any]:
+        """The question card for `date` (default today): {"date", "today", "label", "short", "entry": {"mood", "text"} | None, "url"}"""
+        return await self._request("GET", "/journal", params={"date": date} if date else None)
+
+    async def journal_save(self, date: str, *, mood: int | None | object = ..., text: str | None = None) -> dict[str, Any]:
+        """Sets the day's mood (None clears it) and/or line; what is left out keeps its value.
+        Returns the card plus "previous" ({"mood", "text"} | None), for Undo."""
+        payload: dict[str, Any] = {"date": date}
+        if mood is not ...:
+            payload["mood"] = mood
+        if text is not None:
+            payload["text"] = text
+        return await self._request("POST", "/journal/save", payload=payload)
+
+    async def journal_due(self) -> dict[str, Any]:
+        """{"due", "date", "time", "card"}: the evening question, only when it should go out now."""
+        return await self._request("GET", "/journal/due")
+
+    async def ack_journal(self, date: str) -> int:
+        data = await self._request("POST", "/journal/ack", payload={"date": date})
+        return int(data["acked"])

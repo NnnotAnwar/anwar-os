@@ -20,7 +20,7 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from .digest import fx_parts, money
-from .fmt import esc, local, plural, truncate
+from .fmt import day_label, esc, iso_day, local, plural, truncate
 from .keyboards import url_button
 from .loops import every_minute
 from .tg import send_card
@@ -122,9 +122,30 @@ def monthly_text(data: dict[str, Any]) -> str:
             line += " · top: " + " · ".join(f"{esc(truncate(p['label'], 24))} {p['views']}" for p in pages)
         lines += ["", line]
 
+    journal = data.get("journal")
+    if journal and journal.get("written"):
+        lines += ["", journal_line(journal)]
+
     if len(lines) == 1:
         lines += ["", "<i>Nothing recorded this month yet.</i>"]
     return "\n".join(lines)
+
+
+JOURNAL_FACES = {1: "😞", 2: "🙁", 3: "😐", 4: "🙂", 5: "😄"}
+
+
+def journal_line(journal: dict[str, Any]) -> str:
+    """📓 Journal 18 days · mood 3.8 🙂 · best Tue 12 Nov 😄 · hardest Fri 3 Nov 😞"""
+    parts = [f"📓 <b>Journal</b> {plural(int(journal['written']), 'day')}"]
+    average = journal.get("averageMood")
+    if average is not None:
+        parts.append(f"mood {float(average):.1f} {JOURNAL_FACES.get(round(float(average)), '')}".rstrip())
+    for key, label in (("best", "best"), ("worst", "hardest")):
+        day = journal.get(key)
+        when = iso_day(day.get("day")) if day else None
+        if day and when:
+            parts.append(f"{label} {esc(day_label(when))} {JOURNAL_FACES.get(int(day['mood']), '')}".rstrip())
+    return " · ".join(parts)
 
 
 def monthly_keyboard(data: dict[str, Any], *, pdf_url: str | None = None, refresh: bool = False) -> InlineKeyboardMarkup | None:
