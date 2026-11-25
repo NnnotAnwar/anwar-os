@@ -8,7 +8,9 @@ import {
   foreignKey,
   index,
   integer,
+  numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -299,4 +301,57 @@ export const budgetBotHeartbeats = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [check("budget_bot_heartbeats_version_length", sql`char_length(${t.version}) between 1 and 80`)],
+)
+
+// ---------------------------------------------------------------------------
+// Exchange rates (ČNB). Public data shared by every user: no owner_id. RLS on,
+// everyone signed in (os_app) may read; nobody may write directly. Rows arrive
+// only through app.budget_fx_save_daily / app.budget_fx_save_monthly
+// (security definer, db/modules/budget-fx.sql), which validate them and never
+// change a published rate. Read and written by src/modules/budget/fx/rates.ts.
+// ---------------------------------------------------------------------------
+
+export const budgetFxSources = ["daily", "monthly"] as const
+
+/**
+ * One rate as ČNB published it: `rate` CZK for `units` units of `currency`.
+ * daily: the central bank fixing of `valid_on`; monthly: the "other
+ * currencies" list valid for the month starting on `valid_on`.
+ */
+export const budgetFxRates = pgTable(
+  "budget_fx_rates",
+  {
+    source: text("source", { enum: budgetFxSources }).notNull(),
+    validOn: date("valid_on", { mode: "string" }).notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    units: integer("units").notNull(),
+    rate: numeric("rate", { precision: 18, scale: 6 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ name: "budget_fx_rates_pkey", columns: [t.source, t.validOn, t.currency] }),
+    index("budget_fx_rates_currency_idx").on(t.currency, t.validOn),
+    check("budget_fx_rates_source_valid", sql`${t.source} in ('daily', 'monthly')`),
+    check("budget_fx_rates_currency_shape", sql`${t.currency} ~ '^[A-Z]{3}$' and ${t.currency} <> 'CZK'`),
+    check("budget_fx_rates_units_valid", sql`${t.units} in (1, 10, 100, 1000, 10000, 100000, 1000000)`),
+    check("budget_fx_rates_rate_positive", sql`${t.rate} > 0`),
+    check("budget_fx_rates_monthly_first", sql`${t.source} = 'daily' or extract(day from ${t.validOn}) = 1`),
+  ],
+)
+
+/**
+ * Which daily fixing applies to a calendar day: what ČNB's daily file answered
+ * for it (the day's own fixing, or the latest before it on weekends and
+ * holidays). `final` is false for days from "today in Prague" on, since a
+ * newer fixing may still be published that day; those rows are re-checked.
+ */
+export const budgetFxDays = pgTable(
+  "budget_fx_days",
+  {
+    day: date("day", { mode: "string" }).primaryKey(),
+    fixingDate: date("fixing_date", { mode: "string" }).notNull(),
+    final: boolean("final").notNull(),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check("budget_fx_days_fixing_before_day", sql`${t.fixingDate} <= ${t.day}`)],
 )
