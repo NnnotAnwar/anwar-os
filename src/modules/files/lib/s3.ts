@@ -80,6 +80,15 @@ export async function presignDownload(
   return getSignedUrl(client, command, { expiresIn: DOWNLOAD_URL_TTL })
 }
 
+/**
+ * A short-lived GET of any object, for a machine (the restore drill fetches
+ * the newest encrypted backup with it). `bucket` defaults to S3_BUCKET.
+ */
+export async function presignGet(key: string, expiresIn: number, bucket?: string) {
+  const { client, bucket: defaultBucket } = storage()
+  return getSignedUrl(client, new GetObjectCommand({ Bucket: bucket || defaultBucket, Key: key }), { expiresIn })
+}
+
 /** Writes an object the server made itself (e.g. a generated report), replacing any at `key`. */
 export async function putObject(key: string, body: Uint8Array, mime: string) {
   const { client, bucket } = storage()
@@ -117,11 +126,16 @@ export async function headObject(key: string): Promise<{ size: number; lastModif
  * removeObjects this throws: the storage check must not mistake a failed
  * listing for an empty bucket.
  */
-export async function* listObjects(): AsyncGenerator<{ key: string; size: number; lastModified: Date | null }> {
-  const { client, bucket } = storage()
+export async function* listObjects(
+  opts: { prefix?: string; bucket?: string } = {},
+): AsyncGenerator<{ key: string; size: number; lastModified: Date | null }> {
+  const { client, bucket: defaultBucket } = storage()
+  const bucket = opts.bucket || defaultBucket
   let token: string | undefined
   do {
-    const page = await client.send(new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: token, MaxKeys: 1000 }))
+    const page = await client.send(
+      new ListObjectsV2Command({ Bucket: bucket, Prefix: opts.prefix, ContinuationToken: token, MaxKeys: 1000 }),
+    )
     for (const o of page.Contents ?? []) {
       if (o.Key) yield { key: o.Key, size: o.Size ?? 0, lastModified: o.LastModified ?? null }
     }

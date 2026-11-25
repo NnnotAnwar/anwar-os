@@ -217,3 +217,6 @@ export const Minus = bold(P.Minus)
 // contact form
 export const Envelope = bold(P.Envelope)
 export const ArrowBendUpLeft = bold(P.ArrowBendUpLeft)
+// ops: error log + restore drill
+export const Bug = bold(P.Bug)
+export const ClockCounterClockwise = bold(P.ClockCounterClockwise)

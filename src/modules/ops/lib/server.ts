@@ -335,4 +335,6 @@ export const alertKindLabels: Record<OpsAlertKind, { label: string; description:
   reboot: { label: "Reboot", description: `A reboot has been pending for more than ${LIMITS.rebootAlertHours / 24} days` },
   agent: { label: "Agent", description: "ops-agent can't be reached, so nothing else can be checked" },
   files: { label: "Files storage", description: "The weekly check finds lost, damaged or orphaned files, or didn't run" },
+  errors: { label: "Errors", description: "A new error in the app or a bot, or a resolved one that came back (a few an hour at most)" },
+  drill: { label: "Restore drill", description: "The monthly restore drill failed, or none passed for 35 days" },
 }

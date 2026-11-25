@@ -1,9 +1,17 @@
 import "server-only"
 import type { BadgeLoader } from "@/core/module"
 import { actions } from "./actions"
+import { opsBadge } from "./lib/badge"
 
-/** Services that need a look (unhealthy, crash-looping, down). Hidden when all is well or not connected. */
+/**
+ * Services that need a look (unhealthy, crash-looping, down) and unresolved
+ * errors in the error log. Hidden when all is well (or not connected and no
+ * errors).
+ */
 export const badge: BadgeLoader = async () => {
-  const count = await actions.attentionCount.handler({})
-  return count ? { count, label: count === 1 ? "needs attention" : "need attention" } : null
+  const [services, errors] = await Promise.all([
+    actions.attentionCount.handler({}).catch(() => null),
+    actions.openErrorCount.handler({}).catch(() => 0),
+  ])
+  return opsBadge(services ?? 0, errors)
 }

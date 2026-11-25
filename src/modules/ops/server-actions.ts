@@ -4,6 +4,7 @@ import { refresh } from "next/cache"
 import type { z } from "zod"
 import { actions, type ControlResult, type DeployResult } from "./actions"
 import { alertSettingsInput, type AlertSettings } from "./alerts"
+import { ErrorNotFound, errorStatusInput, type ErrorStatusResult, type ErrorsView } from "./errors"
 import { deleteOrphansInput, type DeleteOrphansResult, type FilesCheckView, type RunResult } from "./files-check"
 import type { TagsResult } from "./ghcr"
 import type { ServerStatus } from "./host"
@@ -123,5 +124,29 @@ export async function deleteFileOrphans(input: unknown): Promise<DeleteOrphansRe
   } catch (e) {
     console.error("ops delete orphans failed", e)
     return { ok: false, error: OFFLINE }
+  }
+}
+
+/** Ops → Errors: Resolve (one tap) and its Undo. */
+export async function changeErrorStatus(input: unknown): Promise<{ ok: true; result: ErrorStatusResult } | { ok: false; error: string }> {
+  const data = await parse(errorStatusInput, input)
+  if (!data) return { ok: false, error: "Unknown error group." }
+  try {
+    const result = await actions.setErrorStatus.handler(data)
+    refresh() // the Ops card's badge
+    return { ok: true, result }
+  } catch (e) {
+    if (e instanceof ErrorNotFound) return { ok: false, error: e.message }
+    console.error("ops error status failed", e)
+    return { ok: false, error: OFFLINE }
+  }
+}
+
+/** Polled by the Errors section (every minute while visible). */
+export async function pollErrors(): Promise<ErrorsView | null> {
+  try {
+    return await actions.errors.handler({ openLimit: 100, resolvedLimit: 20 })
+  } catch {
+    return null
   }
 }

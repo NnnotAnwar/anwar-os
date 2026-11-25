@@ -10,9 +10,11 @@ import { osbotStatus } from "@/modules/osbot/service"
 import { actions } from "../actions"
 import { ActivityList } from "../components/activity-list"
 import { AlertSettingsCard } from "../components/alert-settings"
+import { ErrorsPanel } from "../components/errors-panel"
 import { FilesStorageTile } from "../components/files-storage-tile"
 import { NotConnected } from "../components/not-connected"
 import { OpsPanel } from "../components/ops-panel"
+import { RestoreDrillTile } from "../components/restore-drill-tile"
 import { ServerPanel } from "../components/server-panel"
 
 export default function OpsPage() {
@@ -22,7 +24,7 @@ export default function OpsPage() {
         <PageHeader
           eyebrow="Control panel"
           title="Ops"
-          description="Every service on the server: health, logs, restarts and deploys. Protected ones (web, database, proxy, agent) can only be restarted."
+          description="Every service on the server: health, logs, restarts and deploys, the error log and the server's vitals. Protected services (web, database, proxy, agent) can only be restarted."
           actions={
             <NextLink
               href="/app/bots"
@@ -74,20 +76,52 @@ function ServerSuspense() {
   )
 }
 
+function ErrorsSuspense() {
+  return (
+    <Suspense
+      fallback={
+        <SkeletonExit>
+          <div className="grid gap-3" aria-hidden>
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-28 rounded-xl" />
+          </div>
+        </SkeletonExit>
+      }
+    >
+      <Reveal>
+        <ErrorsSection />
+      </Reveal>
+    </Suspense>
+  )
+}
+
+async function ErrorsSection() {
+  const viewer = await requireViewer()
+  if (viewer.role !== "owner") notFound()
+  const errors = await actions.errors.handler({ openLimit: 100, resolvedLimit: 20 })
+  return (
+    <section aria-labelledby="errors-title" id="errors" className="grid scroll-mt-24 gap-3">
+      <ErrorsPanel initial={errors} renderedAt={new Date().toISOString()} timezone={viewer.timezone} locale={viewer.locale} />
+    </section>
+  )
+}
+
 async function ServerSection() {
   const viewer = await requireViewer()
   if (viewer.role !== "owner") notFound()
-  const [status, settings, bot, files] = await Promise.all([
+  const [status, settings, bot, files, drill] = await Promise.all([
     actions.server.handler({}),
     actions.alertSettings.handler({}),
     osbotStatus(),
     actions.filesCheck.handler({}),
+    actions.restoreDrill.handler({}),
   ])
   const renderedAt = new Date().toISOString()
   return (
     <section aria-labelledby="server-title" id="server" className="grid scroll-mt-24 gap-3">
       <ServerPanel initial={status} renderedAt={renderedAt} timezone={viewer.timezone} locale={viewer.locale}>
         <FilesStorageTile initial={files} renderedAt={renderedAt} timezone={viewer.timezone} locale={viewer.locale} />
+        <RestoreDrillTile state={drill} renderedAt={renderedAt} timezone={viewer.timezone} locale={viewer.locale} />
       </ServerPanel>
       <AlertSettingsCard
         initial={settings}
@@ -120,6 +154,8 @@ async function Body() {
           </>
         )}
       </section>
+
+      <ErrorsSuspense />
 
       <ServerSuspense />
 
