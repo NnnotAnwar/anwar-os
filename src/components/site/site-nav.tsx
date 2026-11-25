@@ -20,7 +20,7 @@ function NavItems({ pathname }: { pathname: string | null }) {
           transitionTypes={NAV_TAB}
           aria-current={active ? "page" : undefined}
           className={cn(
-            "text-meta flex h-8 items-center rounded-lg px-2.5 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+            "text-meta flex h-8 items-center rounded-lg px-2 text-muted-foreground outline-none transition-colors hover:bg-muted lg:px-2.5 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
             active && "segment-active text-foreground",
           )}
         >
