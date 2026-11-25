@@ -128,6 +128,11 @@ class Writer {
 
 const n = (value: number) => value.toLocaleString("en")
 
+/** Journal moods in words (Inter has no emoji). */
+const MOOD_WORDS: Record<number, string> = { 1: "bad", 2: "low", 3: "okay", 4: "good", 5: "great" }
+const pdfDay = (iso: string) =>
+  new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`))
+
 function vs(current: number, previous: number, previousLabel: string, format: (v: number) => string) {
   const pct = percentChange(current, previous)
   if (pct === null) return previous === 0 && current === 0 ? "" : `${previousLabel}: ${format(previous)}`
@@ -233,6 +238,17 @@ export async function renderReportPdf(report: MonthlyReport, generatedAt = new D
       w.text("No views this month.", { size: 9, color: MUTED })
       w.line(14)
     }
+  }
+
+  const j = report.journal
+  if (j) {
+    w.section("Journal")
+    w.row("Days written", n(j.written), { bold: true })
+    if (j.averageMood !== null) w.row("Average mood", `${j.averageMood.toFixed(1)} of 5 (${MOOD_WORDS[Math.round(j.averageMood)]})`)
+    const day = (d: NonNullable<typeof j.best>, label: string) =>
+      w.row(`${label}: ${pdfDay(d.day)}${d.text ? ` · ${d.text}` : ""}`, MOOD_WORDS[d.mood] ?? String(d.mood))
+    if (j.best) day(j.best, "Best day")
+    if (j.worst) day(j.worst, "Hardest day")
   }
 
   return doc.save({ useObjectStreams: true })

@@ -66,6 +66,19 @@ export type MonthlyReport = {
     pages: { path: string; label: string; views: number }[]
     url: string
   } | null
+  /** The month in the journal; null when the module is off or nothing was written. */
+  journal: {
+    /** Days with an entry. */
+    written: number
+    /** Days with a mood, their average (1–5, one decimal) or null. */
+    rated: number
+    averageMood: number | null
+    /** Mood 1–5, the day and its line. */
+    best: { day: string; mood: number; text: string } | null
+    /** Null when every rated day had the same mood. */
+    worst: { day: string; mood: number; text: string } | null
+    url: string
+  } | null
 }
 
 export type SavedReport = {

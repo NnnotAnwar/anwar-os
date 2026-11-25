@@ -37,6 +37,14 @@ const report: MonthlyReport = {
   tasks: { done: 31, added: 28, previousDone: 20, url: "/app/tasks" },
   captured: { notes: 12, ideas: 4, links: null, feedback: 2 },
   site: { views: 540, previousViews: 400, pages: [{ path: "/cv", label: "CV", views: 210 }], url: "/app/analytics" },
+  journal: {
+    written: 18,
+    rated: 16,
+    averageMood: 3.8,
+    best: { day: "2026-10-12", mood: 5, text: "Hike to Karlštejn 😄" },
+    worst: { day: "2026-10-03", mood: 1, text: "Плохой день" },
+    url: "/app/journal?year=2026",
+  },
 }
 
 describe("pdfSafe", () => {
@@ -84,8 +92,14 @@ describe("renderReportPdf", () => {
       subscriptions: null,
       tasks: null,
       site: null,
+      journal: null,
       captured: { notes: null, ideas: null, links: null, feedback: null },
     })
     expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1)
+  })
+
+  it("renders a journal month with lines but no moods", async () => {
+    const bytes = await renderReportPdf({ ...report, journal: { written: 3, rated: 0, averageMood: null, best: null, worst: null, url: "" } })
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBeGreaterThanOrEqual(1)
   })
 })
