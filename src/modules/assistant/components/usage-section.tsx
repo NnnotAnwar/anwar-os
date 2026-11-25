@@ -16,7 +16,7 @@ export async function AssistantUsageSection() {
   const month = new Intl.DateTimeFormat("en", { month: "long", timeZone: viewer.timezone }).format(new Date())
 
   return (
-    <section aria-labelledby="assistant-heading" className="grid gap-4 md:grid-cols-[14rem_1fr] md:gap-8">
+    <section aria-labelledby="assistant-heading" className="grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8">
       <div className="grid content-start gap-1">
         <h2 id="assistant-heading" className="font-medium">
           AI assistant

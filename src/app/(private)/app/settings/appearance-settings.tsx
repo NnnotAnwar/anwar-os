@@ -37,8 +37,8 @@ export function AppearanceSettings({
     <div className="grid gap-5">
       <fieldset className="grid gap-2">
         <legend className={cn(fieldLabel, "mb-2")}>Theme</legend>
-        {/* Four across only while the section is full width; beside its heading (md+) the
-            column is ~470px and "Scheduled" spilt out of a quarter of it. */}
+        {/* Four across only on a full-width phone or small tablet; from md the column is
+            460–520px (beside the sidebar or the heading) and "Scheduled" spilt out of a quarter. */}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-2">
           {MODES.map((m) => (
             <label
