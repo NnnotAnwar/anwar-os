@@ -43,7 +43,7 @@ jobs:
         working-directory: bots/${{ matrix.bot }}
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           version: "0.10.7"
       - run: uv sync --frozen
@@ -87,7 +87,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Cache Playwright's Chromium
         id: playwright-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -96,7 +96,7 @@ jobs:
       - if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm exec playwright install-deps chromium
       - name: Cache the Next.js build
-        uses: actions/cache@v4
+        uses: actions/cache@v5.1.0
         with:
           path: .next/cache
           key: next-e2e-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
@@ -121,7 +121,7 @@ jobs:
         working-directory: services/ops-agent
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: services/ops-agent/go.mod
           cache: false # no dependencies to cache
