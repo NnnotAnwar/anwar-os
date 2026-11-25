@@ -51,7 +51,7 @@ export function EventRow({
     >
       <span className="text-small w-[5.75rem] shrink-0 pt-px text-muted-foreground tabular-nums">{timeLabel(o, day, timeZone)}</span>
       <span className="grid min-w-0 flex-1 gap-0.5">
-        <span className="text-body flex items-center gap-1.5">
+        <span className="text-body flex min-w-0 items-center gap-1.5">
           <CategoryDot category={o.category} />
           <span className="truncate">{o.title}</span>
           {Icon && <Icon className="size-3.5 shrink-0 text-text-accent" aria-label={info.label} />}

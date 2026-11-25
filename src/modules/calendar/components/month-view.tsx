@@ -106,7 +106,8 @@ export function MonthView({
                     isSelected && "bg-secondary",
                   )}
                 />
-                <div className="pointer-events-none relative grid gap-1 p-1 sm:p-1.5">
+                {/* One column no wider than the cell (grid-cols-1), so long titles truncate there. */}
+                <div className="pointer-events-none relative grid grid-cols-1 gap-1 p-1 sm:p-1.5">
                   <span
                     className={cn(
                       "text-small flex size-6 items-center justify-center rounded-full tabular-nums",
@@ -124,7 +125,7 @@ export function MonthView({
                       ))}
                     </span>
                   )}
-                  <ul className="hidden gap-0.5 sm:grid">
+                  <ul className="hidden grid-cols-1 gap-0.5 sm:grid">
                     {events.slice(0, 3).map((o) => (
                       <li key={o.key}>
                         <button
