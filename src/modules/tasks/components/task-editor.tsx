@@ -27,7 +27,7 @@ const REPEATS: { value: string; label: string }[] = [
 
 const fieldLabel = "text-eyebrow text-muted-foreground"
 const selectClass =
-  "text-body h-10 w-full rounded-lg border border-field-border bg-field px-2.5 outline-none focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-accent-500/20 md:h-9"
+  "text-body h-10 w-full max-md:text-base rounded-lg border border-field-border bg-field px-2.5 outline-none focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-accent-500/20 md:h-9"
 
 /**
  * Task details as a sheet. Edits apply when the sheet closes (Things-style:

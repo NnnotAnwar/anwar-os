@@ -18,7 +18,7 @@ export type EditorState =
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 const selectClass =
-  "h-8 w-full rounded-lg border border-field-border bg-field px-2.5 text-sm outline-none focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-ring/20 dark:[color-scheme:dark]"
+  "h-8 w-full rounded-lg border border-field-border bg-field px-2.5 text-base outline-none md:text-sm focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-ring/20 dark:[color-scheme:dark]"
 
 /** Fields for a new event on `date`: all-day, or one hour from `time`. */
 export function draftFields(date: string, timezone: string, time?: { start: string; end: string }): EventFields {

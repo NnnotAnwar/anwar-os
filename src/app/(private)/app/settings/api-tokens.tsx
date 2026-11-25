@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils"
 const dateFormat = new Intl.DateTimeFormat("en", { day: "numeric", month: "short", year: "numeric" })
 const fieldLabel = "text-eyebrow text-muted-foreground"
 const selectClass =
-  "text-body h-11 w-full rounded-lg border border-field-border bg-field px-2.5 outline-none focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-accent-500/20 md:h-9"
+  "text-body h-11 w-full max-md:text-base rounded-lg border border-field-border bg-field px-2.5 outline-none focus-visible:border-accent-500 focus-visible:ring-3 focus-visible:ring-accent-500/20 md:h-9"
 
 function ago(iso: string, now = Date.now()) {
   const minutes = Math.round((now - new Date(iso).getTime()) / 60_000)
