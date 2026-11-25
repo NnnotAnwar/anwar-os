@@ -211,3 +211,19 @@ class OsbotApi:
     async def ack_habit_nudges(self, date: str, reminders: list[str], evening: bool) -> int:
         data = await self._request("POST", "/habits/nudges/ack", payload={"date": date, "reminders": reminders, "evening": evening})
         return int(data["acked"])
+
+    # --- documents (documents.py) -------------------------------------------------------
+
+    async def documents_due(self) -> dict[str, Any]:
+        """Expiry reminder cards due now: {"today", "time", "reminderTime", "items": [{"id", "name", "kind",
+        "kindLabel", "emoji", "expiresOn", "dateLabel", "daysLeft", "stage", "late", "dueOn", "dueLabel",
+        "snoozed", "keys", "url", "renewUrl"}], "url"}"""
+        return await self._request("GET", "/documents/reminders/due")
+
+    async def ack_documents(self, keys: list[str]) -> int:
+        data = await self._request("POST", "/documents/reminders/ack", payload={"keys": keys})
+        return int(data["acked"])
+
+    async def snooze_document(self, document_id: str) -> dict[str, Any]:
+        """Remind tomorrow: {"id", "name", "snoozedUntil", "label", "time"}."""
+        return await self._request("POST", "/documents/snooze", payload={"id": document_id})

@@ -17,6 +17,7 @@ from . import BOT_NAME, texts
 from .api import OsbotApi
 from .config import DEFAULT_APP_URL, Config
 from .digest import WeeklyMemory, digest_tasks
+from .documents import documents_task
 from .files_check import files_check_task
 from .fmt import set_timezone
 from .habits import habits_task
@@ -153,6 +154,7 @@ async def _poll_until_stopped(
     loops.append(limits_task(bot, api, config.owner_chat_id))
     loops.append(monthly_task(bot, api, config.owner_chat_id, MonthlyMemory()))
     loops.append(habits_task(bot, api, config.owner_chat_id))
+    loops.append(documents_task(bot, api, config.owner_chat_id))
     stopper = asyncio.create_task(stop.wait(), name="stop-signal")
     tasks = [polling, *loops, stopper]
     try:
