@@ -1,6 +1,6 @@
 import "server-only"
 import { and, arrayContains, desc, eq, ilike, or, sql } from "drizzle-orm"
-import { asViewer } from "@/core/auth"
+import { asViewer, requireViewer } from "@/core/auth"
 import { defineAction } from "@/core/module"
 import { linksLinks } from "@/db/schema"
 import { likeContains } from "@/lib/sql-like"
@@ -56,8 +56,13 @@ export function toLink(row: Row): Link {
 // so private queries must also say "only mine".
 const mine = eq(linksLinks.ownerId, sql`app.current_user_id()`)
 
-/** Best effort: a page that's slow, private or broken still gets saved. */
+/**
+ * Best effort: a page that's slow, private or broken still gets saved. Only for
+ * a signed-in viewer: the fetch runs before the insert, and without this a
+ * signed-out caller of the server action could make the server fetch any URL.
+ */
 async function metadataFor(url: string): Promise<PageMetadata | null> {
+  await requireViewer()
   try {
     return await fetchPageMetadata(url)
   } catch {
