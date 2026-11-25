@@ -19,6 +19,7 @@ import { deleteTransactions } from "../server-actions"
 import { CategoryDot } from "./bits"
 import { QuickAdd, TransactionEditor, TransferSheet, type EditorState } from "./transactions"
 import type { AccountOption, CategoryOption } from "./types"
+import { dayNet, type DayNet } from "../lib/day-net"
 
 /**
  * The month's transactions grouped by day. On phones: swipe left to delete,
@@ -152,18 +153,14 @@ export function TransactionsBoard({
       ) : (
         <div className="grid gap-3">
           {[...days.entries()].map(([day, rows]) => {
-            const net = rows.filter((r) => !r.transferId).reduce((s, r) => s + r.amountMinor, 0)
+            const net = dayNet(rows)
             return (
               <section key={day} aria-labelledby={`day-${day}`} className="grid gap-1.5">
                 <header className="flex items-baseline justify-between px-1">
                   <h3 id={`day-${day}`} className="text-eyebrow text-muted-foreground">
                     {day === today ? "Today" : formatDay(day, locale, today)}
                   </h3>
-                  {rows[0] && net !== 0 && (
-                    <span className="text-caption text-muted-foreground tabular-nums">
-                      {formatMoney(net, rows[0].currency, locale, { signed: true })}
-                    </span>
-                  )}
+                  {net && <DayNetLabel net={net} locale={locale} />}
                 </header>
                 <ul className="glass divide-y divide-hairline overflow-hidden rounded-xl">
                   {rows.map((tx) => {
@@ -245,6 +242,25 @@ export function TransactionsBoard({
 
 function rowTitle(tx: Transaction) {
   return tx.transferId ? (tx.amountMinor < 0 ? "Transfer out" : "Transfer in") : (tx.categoryName ?? "Uncategorised")
+}
+
+/** The day's net beside its heading; nothing for a day that nets to zero. */
+function DayNetLabel({ net, locale }: { net: DayNet; locale: string }) {
+  const parts =
+    net.kind === "per-currency"
+      ? net.nets.filter((n) => n.minor !== 0).map((n) => formatMoney(n.minor, n.currency, locale, { signed: true }))
+      : net.minor !== 0
+        ? [`${net.kind === "converted" ? "≈ " : ""}${formatMoney(net.minor, net.currency, locale, { signed: true })}`]
+        : []
+  if (parts.length === 0) return null
+  return (
+    <span
+      className="text-caption text-muted-foreground tabular-nums"
+      title={net.kind === "converted" ? "Other currencies at the ČNB rate of their day" : undefined}
+    >
+      {parts.join(" · ")}
+    </span>
+  )
 }
 
 export function TransactionRow({
