@@ -22,10 +22,11 @@ Architecture background: [ARCHITECTURE.md §3](ARCHITECTURE.md#3-infrastructure)
 | `infra/bootstrap.sh` | hardens a fresh Ubuntu 24.04 (idempotent) |
 | `infra/deploy.sh` | deploy / rollback / status on the server |
 | `infra/ci-gate.sh` | SSH forced command for the CI key |
-| `infra/backup/` | `backup.sh`, `restore.sh`, systemd service + timer |
+| `infra/backup/` | `backup.sh`, `restore.sh`, `drill.sh` (the restore drill), systemd service + timer |
 | `.github/workflows/deploy.yml` | build multi-arch images (web, migrate, both bots) → GHCR → `deploy.sh <sha>` over SSH |
 | `.github/workflows/infra.yml` | shellcheck + compose + Caddy config validation (edge + rendered sites) |
 | `.github/workflows/uptime.yml`, `infra/uptime/check.sh` | external uptime checks every 10 min, Telegram on down/back (§19) |
+| `.github/workflows/restore-drill.yml` | the monthly restore drill: newest backup → throwaway Postgres → checks → Ops → Server (§11) |
 
 On the server everything lives in a checkout of this repo at `/opt/anwar-os/repo`
 (public repo, cloned over HTTPS, no credentials). `deploy.sh` checks out the exact
@@ -351,9 +352,70 @@ Not in the database backup: `.env` and `/opt/edge/.env` (password manager), Cadd
 (re-issued automatically), container images (rebuilt by CI), and app files in
 Object Storage (phase 4; enable bucket versioning or a second sync then).
 
-## 11. Restore drill (do it now, then monthly)
+## 11. Restore drill (monthly, automatic)
 
-Untested backups don't count. The drill restores into a scratch database next to
+Untested backups don't count. On the 2nd of every month (and whenever you press
+**Actions → Restore drill → Run workflow**) GitHub Actions restores the newest
+nightly backup into a throwaway Postgres on its runner and checks it
+(`.github/workflows/restore-drill.yml` → `infra/backup/drill.sh`):
+
+| Check | Passes when |
+|---|---|
+| restore | the file decrypts and `pg_restore --exit-on-error` succeeds |
+| migrations | the backup's applied migrations are the repo's journal, in order (newer ones in the repo are fine: deployed after the backup) |
+| rls | every `public` table has RLS on, and policies wherever `os_app` has access |
+| rows | `auth.user` isn't empty, and no table with ≥ 20 rows (nor the total) fell below half of the last good drill |
+| migrate | the repo's newer migrations apply on top |
+| test-db | `pnpm test:db` (the RLS suite) passes against the restored copy |
+
+The result lands in **Ops → Server → Restore drill** ("1 Dec, OK, 2 min 14 s,
+1,234 rows", with the run log), and osbot alerts (kind **Restore drill**) when
+a drill fails or none has passed for 35 days. Production is never touched:
+the runner's Postgres is a container of its own, the app only hands out a
+15-minute read link to one encrypted file, and the drill's only write is its
+report.
+
+**Where the keys live.** The backups' private key stays offline with you, as
+before. The drill has its **own** age key: its public half is a second
+recipient of every backup (`BACKUP_AGE_RECIPIENT` takes several), its private
+half is a GitHub secret. Remove it from `BACKUP_AGE_RECIPIENT` to revoke it
+(backups made after that can't be read with it). GitHub never holds a storage
+key: web signs the download link with its own S3 key. The repository is
+public, so the run log shows only check names and results; the details go to
+the app.
+
+**Set it up once:**
+
+1. On your laptop: `age-keygen -o anwar-os-drill.key` (prints `Public key: age1…`).
+2. On the server, `infra/.env`: append that public key to
+   `BACKUP_AGE_RECIPIENT` (space-separated, after yours), and add
+   `RESTORE_DRILL_SECRET=` the output of `openssl rand -hex 32`. Then
+   `deploy.sh <current sha>` so web picks the secret up (the backup timer reads
+   `.env` on every run).
+3. GitHub → the repository → **Settings → Secrets and variables → Actions**:
+   secrets `DRILL_AGE_IDENTITY` = the whole content of `anwar-os-drill.key`,
+   `RESTORE_DRILL_SECRET` = the same value as on the server; variable
+   `PUBLIC_URL` = `https://anwar-os.com` (already there for the deploy).
+   Then delete the key file from the laptop (`shred -u anwar-os-drill.key`;
+   the password manager can keep a copy).
+4. Wait for the next nightly backup (03:15): older backups weren't encrypted to
+   the drill key. Then **Actions → Restore drill → Run workflow** once and
+   look at Ops → Server.
+
+Without the secrets the workflow says what is missing and does nothing. If
+backups don't go to object storage (`BACKUP_TARGET=sftp`) the app can't hand
+out a link; run the drill from a laptop with a downloaded file instead.
+
+**By hand** (anywhere with Docker, age, jq, curl and python3; nothing is reported):
+
+```sh
+infra/backup/drill.sh --file b.dump.age -i ~/anwar-os-backup.key --migrate   # a downloaded backup
+infra/backup/drill.sh --self-test     # builds a fake backup from the repo's migrations and drills it
+```
+
+### Manual restore drill on the server
+
+The old by-hand drill still works. It restores into a scratch database next to
 production and never touches the live one:
 
 ```sh
@@ -678,7 +740,7 @@ Three layers, each covering what the one before can't see:
 
 | Layer | Runs | Catches | Tells you |
 |---|---|---|---|
-| **Server alerts** | osbot, every 5 min, on the server | disk, memory, backups, certificates, containers, pending reboot, ops-agent, and the weekly files storage check | Telegram (osbot), once on trouble and once on recovery |
+| **Server alerts** | osbot, every 5 min, on the server | disk, memory, backups, certificates, containers, pending reboot, ops-agent, the weekly files storage check, the monthly restore drill, and new errors in the error log | Telegram (osbot), once on trouble and once on recovery |
 | **Uptime** | GitHub Actions, every 10 min (`.github/workflows/uptime.yml`) | the whole server or a site down (from outside) | Telegram, once down and once back |
 | **Backup dead-man's switch** | healthchecks.io (optional) | the nightly backup silently not running at all | e-mail / its integrations |
 
@@ -702,15 +764,51 @@ after sending it).
 | Reboot | `/run/reboot-required` older than 2 days (unattended-upgrades should have rebooted at 04:30) |
 | Agent | ops-agent configured but not answering (everything else is paused then) |
 | Files storage | the weekly files storage check (below) found lost, wrong-size or orphaned files, failed, or hasn't run for 9 days |
+| Restore drill | the last monthly restore drill (§11) failed, or none passed for 35 days (nothing before the first one passes) |
+| Errors | a new error in the error log (below), or a resolved one that came back: one message each, with **Open** and **✓ Resolve** |
 
 If web itself doesn't answer two checks in a row (10 min), osbot says
 "anwar.os isn't answering" on its own and "answers again" when it's back.
 
 **Silencing:** Ops → Server → **Telegram alerts**: switch a kind off (it is not
-tracked at all until switched back on, then a problem still there is announced),
+tracked at all until switched back on, then a problem still there is announced;
+errors that came in meanwhile aren't replayed),
 or **Mute all** for 1, 8 or 24 h (held, not dropped: whatever is still wrong
 when the mute ends is sent then). Nothing to configure on the server beyond
 osbot (§14) and ops-agent (§15).
+
+### Error log (Ops → Errors)
+
+Server-side errors are kept in Postgres, so you hear about a broken page
+without reading container logs:
+
+- **What is caught:** everything Next catches while serving a request
+  (`onRequestError` in `src/instrumentation.ts`: Server Component renders,
+  route handlers, server actions, the proxy), unhandled rejections and
+  exceptions outside a request, failures the internal APIs answer with a 500,
+  and the bots' own unhandled exceptions (osbot and the expense bot send them
+  to `POST /api/internal/{osbot,budget-bot}/errors/report`; at most 10 a minute
+  each, the same one once a minute).
+- **What is kept:** the error's name, its message and a short stack (12
+  frames), with anything that looks like a secret, token, password, query
+  string or email address replaced; the route pattern (`/app/notes/[id]`,
+  never the query string), method, where in Next it happened and the digest
+  shown on the error page. Never request bodies, headers, cookies or the
+  environment.
+- **Grouping:** one row per cause: the fingerprint is the source, the name,
+  the message with ids, numbers and quoted values replaced, and the top frame
+  of our own code without line numbers or build hashes, so a bug stays one
+  group across requests and deploys. Each group counts occurrences and keeps
+  a 24-hour histogram (the sparkline).
+- **Resolve** in one tap (Undo in the toast, or ✓ Resolve in Telegram). A
+  resolved error that happens again reopens ("came back") and is announced
+  again. The Ops card's badge counts unresolved groups.
+- **Telegram:** at most 4 messages an hour; when more errors are waiting, the
+  4th is a summary of the rest, and anything past that waits for the next hour.
+- **Limits:** the only write path is `app.record_error()` (security definer):
+  120 occurrences a minute in total (the rest are dropped, so a storm can't
+  fill the disk), at most 1000 groups (resolved and long-quiet ones go first),
+  and groups unseen for 90 days are deleted.
 
 ### Files storage check (weekly)
 

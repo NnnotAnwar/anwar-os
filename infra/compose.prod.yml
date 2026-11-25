@@ -76,6 +76,13 @@ services:
       # (BACKUP_PREFIX/, or the list in FILES_CHECK_IGNORE_PREFIXES).
       BACKUP_PREFIX: ${BACKUP_PREFIX:-postgres}
       FILES_CHECK_IGNORE_PREFIXES: ${FILES_CHECK_IGNORE_PREFIXES:-}
+      # Monthly restore drill (GitHub Actions): web hands it a 15-minute read
+      # link to the newest daily backup (with the S3_* key; BACKUP_S3_BUCKET if
+      # backups have their own bucket) and stores its report. Empty secret =
+      # /api/ops/restore-drill/* answer 404. docs/DEPLOY.md §11.
+      RESTORE_DRILL_SECRET: ${RESTORE_DRILL_SECRET:-}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      BACKUP_TARGET: ${BACKUP_TARGET:-s3}
       # osbot (bots/osbot). OSBOT_API_SECRET turns on the signed internal API
       # (/api/internal/osbot/*) the bot calls; token + chat id are the direct
       # feedback-alert fallback while the bot is down or not deployed.

@@ -1,0 +1,102 @@
+name: Restore drill
+
+# "Untested backups don't count" (docs/ARCHITECTURE.md §3). Once a month this
+# restores the newest nightly backup into a throwaway Postgres on the runner
+# and checks it (infra/backup/drill.sh): it decrypts and restores, its
+# migrations are the repo's, every public table has RLS and policies, the key
+# tables have rows (and haven't shrunk since the last good drill), the repo's
+# newer migrations apply on top, and the RLS suite (pnpm test:db) passes
+# against it. The result goes to Ops → Server → Restore drill; osbot alerts on
+# a failure, or when no drill passed for 35 days. docs/DEPLOY.md §11.
+#
+# The backup never touches the server's database. The runner gets a 15-minute
+# read link to one encrypted file from the app (no storage key on GitHub) and
+# decrypts it with the drill's own age key, a second recipient of the backups
+# (the owner's key stays offline).
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   DRILL_AGE_IDENTITY    the drill key (contents of drill.key: AGE-SECRET-KEY-1…)
+#   RESTORE_DRILL_SECRET  same value as RESTORE_DRILL_SECRET in infra/.env
+# Repository variable PUBLIC_URL (https://anwar-os.com), as for the deploy.
+# Without them the run says what is missing and does nothing.
+
+on:
+  schedule:
+    # The 2nd of each month, 04:17 UTC: after the nightly backup (03:15 Prague).
+    - cron: "17 4 2 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restore-drill
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    name: Restore the newest backup and check it
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check the setup
+        id: setup
+        env:
+          HAS_KEY: ${{ secrets.DRILL_AGE_IDENTITY != '' }}
+          HAS_SECRET: ${{ secrets.RESTORE_DRILL_SECRET != '' }}
+          APP_URL: ${{ vars.PUBLIC_URL }}
+        run: |
+          missing=""
+          [ "$HAS_KEY" = true ] || missing="$missing secret DRILL_AGE_IDENTITY,"
+          [ "$HAS_SECRET" = true ] || missing="$missing secret RESTORE_DRILL_SECRET,"
+          [ -n "$APP_URL" ] || missing="$missing variable PUBLIC_URL,"
+          if [ -n "$missing" ]; then
+            echo "::notice title=Restore drill not set up::Missing${missing%,}. Nothing was restored. One-time steps: docs/DEPLOY.md §11."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.setup.outputs.ready == 'true'
+
+      - uses: pnpm/action-setup@v4
+        if: steps.setup.outputs.ready == 'true'
+
+      - uses: actions/setup-node@v5
+        if: steps.setup.outputs.ready == 'true'
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        if: steps.setup.outputs.ready == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq age
+          pnpm install --frozen-lockfile
+
+      - name: Drill
+        if: steps.setup.outputs.ready == 'true'
+        env:
+          DRILL_APP_URL: ${{ vars.PUBLIC_URL }}
+          DRILL_AGE_IDENTITY: ${{ secrets.DRILL_AGE_IDENTITY }}
+          RESTORE_DRILL_SECRET: ${{ secrets.RESTORE_DRILL_SECRET }}
+          # The repository is public, so are its logs: check names and results
+          # only. Details (row counts, error text) go to the app.
+          DRILL_QUIET: "1"
+        run: bash infra/backup/drill.sh --from-app --test-db --report --out "$RUNNER_TEMP/drill-report.json"
+
+      - name: Summary
+        if: always() && steps.setup.outputs.ready == 'true'
+        run: |
+          r="$RUNNER_TEMP/drill-report.json"
+          [ -f "$r" ] || { echo "No report: the drill stopped before it could write one (see the Drill step)." >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+          {
+            echo "### Restore drill: $(jq -r .status "$r")"
+            echo
+            echo "Backup \`$(jq -r .backup.file "$r")\` · $(( $(jq -r .durationMs "$r") / 1000 )) s · details in Ops → Server"
+            echo
+            jq -r '.checks[] | "- \(if .ok then "✅" else "❌" end) \(.name)"' "$r"
+          } >> "$GITHUB_STEP_SUMMARY"
+          rm -f "$r"
