@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import * as db from "@/db/schema/feedback"
-import { contactFormInput, contactStatuses, contactTopics, replyHref } from "./schema"
+import { contactFormInput, contactStatuses, contactTopics, mailtoHref, replyHref } from "./schema"
 
 describe("constants", () => {
   it("match the database schema", () => {
@@ -48,5 +48,15 @@ describe("replyHref", () => {
     expect(decodeURIComponent(url.pathname)).toBe("jana+jobs@example.com")
     expect(url.searchParams.get("subject")).toBe("Re: Freelance project — anwar-os.com")
     expect(url.searchParams.get("body")).toBe("Hi Jana,\n\n\n\n> Line 1\n> Line 2")
+  })
+})
+
+describe("mailtoHref", () => {
+  it("keeps the address as one recipient, whatever was typed", () => {
+    const href = mailtoHref("a@b.co?bcc=x@evil.example&body=hi")
+    const url = new URL(href)
+    expect(url.search).toBe("")
+    expect(decodeURIComponent(url.pathname)).toBe("a@b.co?bcc=x@evil.example&body=hi")
+    expect(mailtoHref("jana@example.com")).toBe("mailto:jana@example.com")
   })
 })

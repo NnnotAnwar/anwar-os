@@ -39,6 +39,11 @@ describe("contactHref", () => {
     expect(contactHref("@jana_k")).toBe("https://t.me/jana_k")
     expect(contactHref("whatever")).toBeNull()
   })
+
+  it("can't smuggle mailto: parameters through the address", () => {
+    const href = contactHref("a@b.co?cc=evil.example&body=hi")!
+    expect(new URL(href).search).toBe("")
+  })
 })
 
 describe("submitFeedbackInput", () => {

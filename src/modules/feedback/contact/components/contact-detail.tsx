@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { contactStatusLabels, replyHref, type ContactMessage, type ContactStatus } from "../schema"
+import { contactStatusLabels, mailtoHref, replyHref, type ContactMessage, type ContactStatus } from "../schema"
 import { deleteContact, setContactStatus } from "../server-actions"
 import { ContactStatusBadge, TopicBadge } from "./badges"
 
@@ -139,7 +139,7 @@ export function ContactDetail({ message, timezone, locale }: { message: ContactM
           )}
           <dt className="text-muted-foreground">Email</dt>
           <dd className="[overflow-wrap:anywhere]">
-            <a href={`mailto:${message.email}`} className="text-text-accent hover:underline">
+            <a href={mailtoHref(message.email)} className="text-text-accent hover:underline">
               {message.email}
             </a>
           </dd>
