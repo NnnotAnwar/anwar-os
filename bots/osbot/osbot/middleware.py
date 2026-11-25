@@ -35,9 +35,12 @@ class OwnerOnlyMiddleware(BaseMiddleware):
         )
         if isinstance(event, Update):
             try:
-                if event.message is not None:
+                # Refuse only in private chats: in a group someone added the bot
+                # to, every message would get a reply (noise, and it shows the
+                # bot is alive).
+                if event.message is not None and event.message.chat.type == "private":
                     await event.message.answer(NOT_OWNER)
-                elif event.callback_query is not None:
+                elif event.callback_query is not None and getattr(chat, "type", None) == "private":
                     await event.callback_query.answer(NOT_OWNER, show_alert=True)
             except Exception:
                 log.warning("could not send the refusal", exc_info=True)

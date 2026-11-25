@@ -11,7 +11,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from aiogram import BaseMiddleware
-from aiogram.types import TelegramObject, Update, User
+from aiogram.types import Chat, TelegramObject, Update, User
 
 log = logging.getLogger(__name__)
 
@@ -29,10 +29,14 @@ class OwnerOnlyMiddleware(BaseMiddleware):
         data: dict[str, Any],
     ) -> Any:
         user: User | None = data.get("event_from_user")
-        if user is not None and user.id == self.owner_id and not user.is_bot:
+        chat: Chat | None = data.get("event_chat")
+        # The owner, and only in the private chat with the bot: in a group the
+        # owner is in, replies (totals, history, the CSV export) would be read
+        # by everyone there. A private chat's id is the user's id.
+        in_private_chat = chat is None or chat.id == self.owner_id
+        if user is not None and user.id == self.owner_id and not user.is_bot and in_private_chat:
             return await handler(event, data)
 
-        chat = data.get("event_chat")
         log.info(
             "refused update from someone else",
             extra={"chat_id": getattr(chat, "id", None), "user_id": getattr(user, "id", None)},
@@ -41,7 +45,7 @@ class OwnerOnlyMiddleware(BaseMiddleware):
             try:
                 if event.message is not None and event.message.chat.type == "private":
                     await event.message.answer(NOT_OWNER)
-                elif event.callback_query is not None:
+                elif event.callback_query is not None and getattr(chat, "type", None) == "private":
                     await event.callback_query.answer(NOT_OWNER, show_alert=True)
             except Exception:
                 log.warning("could not send the refusal", exc_info=True)
