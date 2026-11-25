@@ -17,7 +17,7 @@ import { formatBytes } from "@/modules/files/lib/validation"
 import { addDaysIso, formatDate, formatShortDate } from "../lib/dates"
 import { describeReminders } from "../lib/format"
 import { REMINDER_TIME, reminderStages } from "../lib/reminders"
-import { needsAttention } from "../lib/status"
+import { expiredAgo, needsAttention } from "../lib/status"
 import { kindLabels, type AttachedFile, type DocumentDetail } from "../schema"
 import { deleteDocument, renewDocument } from "../server-actions"
 import { Attachments } from "./attachments"
@@ -89,7 +89,9 @@ export function DocumentView({ document, renew }: { document: DocumentDetail; re
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <StatusChip status={document.status} />
-          <p className="text-meta text-muted-foreground">{document.status.detail}</p>
+          {document.status.tone === "expired" && (
+            <p className="text-meta text-muted-foreground">Expired {expiredAgo(document.status.daysLeft)}</p>
+          )}
         </div>
         <dl className="grid grid-cols-2 gap-3 border-t border-hairline pt-4">
           <div className="grid gap-0.5">
@@ -159,7 +161,7 @@ function RenewPanel({ document, onDone }: { document: DocumentDetail; onDone: ()
 
   useEffect(() => {
     panel.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })
-    dateInput.current?.focus()
+    dateInput.current?.focus({ preventScroll: true })
   }, [])
 
   function submit(e: FormEvent) {
@@ -217,7 +219,7 @@ function RenewPanel({ document, onDone }: { document: DocumentDetail; onDone: ()
                           setError(null)
                         }}
                         className={cn(
-                          "text-caption h-8 rounded-full px-2.5 outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+                          "text-caption h-11 rounded-full px-3 outline-none md:h-8 md:px-2.5 transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
                           expiresOn === value ? "bg-accent-500/15 text-text-accent" : "bg-track text-muted-foreground hover:text-foreground",
                         )}
                         aria-label={`${years} ${years === 1 ? "year" : "years"} later: ${formatDate(value)}`}
@@ -262,13 +264,18 @@ function RenewPanel({ document, onDone }: { document: DocumentDetail; onDone: ()
   )
 }
 
+/** "26 Sept" this year, "26 Sept 2031" in another. */
+function dayLabel(day: string, today: string) {
+  return day.slice(0, 4) === today.slice(0, 4) ? formatShortDate(day) : formatDate(day)
+}
+
 function RemindersCard({ document }: { document: DocumentDetail }) {
   const { today } = document
   const stages = reminderStages(document.expiresOn, document.reminderDays)
   const next = stages.find((s) => s.day >= today)
   const snoozed = document.snoozedUntil && document.snoozedUntil >= today ? document.snoozedUntil : null
   const nextLabel = next
-    ? `${next.day === today ? "Today" : formatShortDate(next.day)} at ${REMINDER_TIME} · ${
+    ? `${next.day === today ? "today" : `${dayLabel(next.day, today)} at ${REMINDER_TIME}`} · ${
         next.stage === "expired" ? "the day after it expires" : next.stage === "0" ? "on the day" : `${next.stage} days before`
       }`
     : null
@@ -282,7 +289,7 @@ function RemindersCard({ document }: { document: DocumentDetail }) {
       <p className="text-meta text-muted-foreground">
         {off ? "Off for this document. Edit it to turn them on." : `At ${REMINDER_TIME}: ${describeReminders(document.reminderDays)}, and once when it has expired.`}
       </p>
-      {snoozed && <p className="text-meta">💤 Snoozed: osbot reminds you again on {formatShortDate(snoozed)}.</p>}
+      {snoozed && <p className="text-meta">💤 Snoozed: osbot reminds you again on {dayLabel(snoozed, today)}.</p>}
       {!off && nextLabel && <p className="text-meta">Next: {nextLabel}</p>}
     </section>
   )

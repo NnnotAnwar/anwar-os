@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import Link from "next/link"
-import { Bell, Plus, Stamp } from "@/components/icons"
+import { Lock, Plus, Stamp } from "@/components/icons"
 import { NAV_FORWARD, Page, Reveal, SkeletonExit } from "@/components/motion"
 import { PageHeader } from "@/components/shell/page-header"
 import { buttonVariants } from "@/components/ui/button"
@@ -71,7 +71,7 @@ function Empty() {
         Add your first document
       </Link>
       <p className="text-caption flex items-center gap-1.5 text-muted-foreground">
-        <Bell className="size-3.5" />
+        <Lock className="size-3.5" />
         Private: only you see them. No document numbers are stored.
       </p>
     </section>
