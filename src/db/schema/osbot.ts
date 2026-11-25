@@ -71,7 +71,7 @@ export const osbotFeedbackAlerts = pgTable(
   (t) => [check("osbot_feedback_alerts_channel_valid", sql`${t.channel} in ('osbot', 'direct')`)],
 )
 
-export const osbotDeliveryKinds = ["payment", "weekly", "budget-limit", "monthly"] as const
+export const osbotDeliveryKinds = ["payment", "weekly", "budget-limit", "monthly", "document"] as const
 export type OsbotDeliveryKind = (typeof osbotDeliveryKinds)[number]
 
 /**
@@ -80,8 +80,9 @@ export type OsbotDeliveryKind = (typeof osbotDeliveryKinds)[number]
  * charge (key `<recurring id>:<charge date>`), "weekly" = the Sunday review
  * (key = the week's Monday, `2026-11-16`), "budget-limit" = a Budget category
  * reaching 90 % or 100 % of its monthly limit (key `<category id>:<YYYY-MM>:<90|100>`),
- * "monthly" = the report on the 1st (key = the reported month, `2026-10`).
- * Pruned after 60 days.
+ * "monthly" = the report on the 1st (key = the reported month, `2026-10`),
+ * "document" = a document expiry reminder (key `<document id>:<expires on>:<90|…|0|expired|snooze-<date>>`).
+ * Pruned after 60 days ("document" rows after 800, longer than any reminder offset).
  */
 export const osbotDeliveries = pgTable(
   "osbot_deliveries",
@@ -95,7 +96,8 @@ export const osbotDeliveries = pgTable(
   (t) => [
     unique("osbot_deliveries_key").on(t.ownerId, t.kind, t.key),
     index("osbot_deliveries_owner_delivered_idx").on(t.ownerId, t.deliveredAt),
-    check("osbot_deliveries_kind_valid", sql`${t.kind} in ('payment', 'weekly', 'budget-limit', 'monthly')`),
+    // Derived from the list above, so adding a kind is a one-line change.
+    check("osbot_deliveries_kind_valid", sql`${t.kind} in (${sql.raw(osbotDeliveryKinds.map((k) => `'${k}'`).join(", "))})`),
     check("osbot_deliveries_key_length", sql`char_length(${t.key}) between 1 and 120`),
   ],
 )
