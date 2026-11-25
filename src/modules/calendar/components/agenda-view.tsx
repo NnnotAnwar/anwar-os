@@ -3,7 +3,8 @@
 import { cn } from "@/lib/utils"
 import { formatDayMonth, formatWeekdayShort } from "../lib/format"
 import { addDays, formatIsoDate, utcMidnight, type LocalDate } from "../lib/zoned"
-import type { Occurrence } from "../schema"
+import type { DayTask, Occurrence } from "../schema"
+import { DayTaskRow } from "./day-task"
 import { EventRow } from "./event-row"
 
 /**
@@ -17,6 +18,7 @@ export function AgendaView({
   today,
   now,
   byDay,
+  tasksByDay,
   timeZone,
   locale,
   onOpen,
@@ -26,14 +28,15 @@ export function AgendaView({
   today: LocalDate
   now: Date
   byDay: Map<string, Occurrence[]>
+  tasksByDay: Map<string, DayTask[]>
   timeZone: string
   locale: string
   onOpen: (eventId: string) => void
 }) {
   const todayIso = formatIsoDate(today)
   const list = Array.from({ length: days }, (_, i) => addDays(from, i))
-    .map((d) => ({ date: d, iso: formatIsoDate(d), events: byDay.get(formatIsoDate(d)) ?? [] }))
-    .filter((d) => d.events.length > 0 || d.iso === todayIso)
+    .map((d) => ({ date: d, iso: formatIsoDate(d), events: byDay.get(formatIsoDate(d)) ?? [], tasks: tasksByDay.get(formatIsoDate(d)) ?? [] }))
+    .filter((d) => d.events.length > 0 || d.tasks.length > 0 || d.iso === todayIso)
 
   if (list.length === 0) {
     return (
@@ -46,7 +49,7 @@ export function AgendaView({
 
   return (
     <ol className="glass divide-y divide-hairline overflow-hidden rounded-xl">
-      {list.map(({ date, iso, events }) => {
+      {list.map(({ date, iso, events, tasks }) => {
         const isToday = iso === todayIso
         const label = utcMidnight(date)
         const nowIndex = isToday ? events.findIndex((o) => !o.allDay && new Date(o.start) > now) : -1
@@ -69,9 +72,14 @@ export function AgendaView({
               {insertAt === events.length && (
                 <li>
                   <NowLine />
-                  {events.length === 0 && <p className="text-meta px-2 py-2 text-muted-foreground">Nothing planned today.</p>}
+                  {events.length === 0 && tasks.length === 0 && <p className="text-meta px-2 py-2 text-muted-foreground">Nothing planned today.</p>}
                 </li>
               )}
+              {tasks.map((t) => (
+                <li key={t.id}>
+                  <DayTaskRow task={t} />
+                </li>
+              ))}
             </ul>
           </li>
         )

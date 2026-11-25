@@ -7,7 +7,8 @@ import { minutesIntoDay, sameDay, startOfWeek } from "../lib/days"
 import { dragSpan, slotAt, type Span } from "../lib/drag"
 import { formatClock } from "../lib/format"
 import { addDays, formatIsoDate, formatTime, wallClock, type LocalDate } from "../lib/zoned"
-import type { Occurrence } from "../schema"
+import type { DayTask, Occurrence } from "../schema"
+import { TaskMark } from "./day-task"
 import { CategoryDot } from "./event-row"
 
 const HOUR_PX = 44
@@ -82,9 +83,11 @@ export function WeekView({
   today,
   now,
   byDay,
+  tasksByDay,
   timeZone,
   onSelectDay,
   onOpen,
+  onOpenTask,
   onAdd,
   onReschedule,
 }: {
@@ -92,9 +95,11 @@ export function WeekView({
   today: LocalDate
   now: Date
   byDay: Map<string, Occurrence[]>
+  tasksByDay: Map<string, DayTask[]>
   timeZone: string
   onSelectDay: (date: LocalDate) => void
   onOpen: (eventId: string) => void
+  onOpenTask: (taskId: string) => void
   onAdd: (date: LocalDate, start: number, end: number) => void
   onReschedule: (o: Occurrence, span: Span, weekStart: LocalDate) => void
 }) {
@@ -117,7 +122,9 @@ export function WeekView({
   }, [showsToday, nowTop])
 
   const allDay = days.map((d) => (byDay.get(formatIsoDate(d)) ?? []).filter((o) => o.allDay))
-  const hasAllDay = allDay.some((l) => l.length > 0)
+  // Tasks sit with the all-day events: a due date is a day, not a slot to block out.
+  const dayTasks = days.map((d) => tasksByDay.get(formatIsoDate(d)) ?? [])
+  const hasAllDay = allDay.some((l) => l.length > 0) || dayTasks.some((l) => l.length > 0)
 
   function update(next: DragState | null) {
     dragRef.current = next
@@ -224,7 +231,7 @@ export function WeekView({
       </div>
       {hasAllDay && (
         <div className="grid grid-cols-[2.75rem_repeat(7,minmax(0,1fr))] border-b border-hairline">
-          <span className="text-micro self-center pl-1 text-muted-foreground">All day</span>
+          <span className="text-micro self-center pl-1 text-muted-foreground">{allDay.some((l) => l.length > 0) ? "All day" : "Tasks"}</span>
           {allDay.map((list, i) => (
             <ul key={i} className="grid grid-cols-1 content-start gap-0.5 border-l border-hairline p-0.5">
               {list.map((o) => (
@@ -236,6 +243,22 @@ export function WeekView({
                   >
                     <CategoryDot category={o.category} className="size-1.5" />
                     <span className="truncate">{o.title}</span>
+                  </button>
+                </li>
+              ))}
+              {dayTasks[i]!.map((t) => (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    onClick={() => onOpenTask(t.id)}
+                    aria-label={`Open task ${t.title}`}
+                    className={cn(
+                      "text-caption flex w-full items-center gap-1 truncate rounded-md px-1 py-0.5 text-left outline-none hover:bg-white/40 focus-visible:ring-3 focus-visible:ring-ring/50 dark:hover:bg-white/5",
+                      t.done && "opacity-60",
+                    )}
+                  >
+                    <TaskMark done={t.done} className="size-2.5 border" />
+                    <span className={cn("truncate", t.done && "line-through")}>{t.time ? `${t.time} ${t.title}` : t.title}</span>
                   </button>
                 </li>
               ))}

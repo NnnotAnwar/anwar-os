@@ -14,9 +14,10 @@ import { AGENDA_DAYS, calendarHref, type View } from "../lib/links"
 import { parseQuickAdd } from "../lib/quick-add"
 import { spanToFields, type Span } from "../lib/drag"
 import { addDays, formatIsoDate, formatTime, parseIsoDate, utcMidnight, zonedToUtc, type LocalDate } from "../lib/zoned"
-import type { FeedInfo, Occurrence } from "../schema"
+import type { DayTask, FeedInfo, Occurrence } from "../schema"
 import { createEvent, deleteEvent, getEvent, updateEvent } from "../server-actions"
 import { AgendaView, NowLine } from "./agenda-view"
+import { DayTaskRow, sortDayTasks, taskHref } from "./day-task"
 import { draftFields, EventEditor, type EditorState } from "./event-editor"
 import { EventRow } from "./event-row"
 import { FeedDialog } from "./feed-dialog"
@@ -31,6 +32,8 @@ type Props = {
   timezone: string
   locale: string
   occurrences: Occurrence[]
+  /** Tasks due in the range, shown on their days. */
+  tasks: DayTask[]
   openEventId: string | null
   openNew: boolean
   feed: FeedInfo
@@ -70,6 +73,13 @@ export function CalendarApp(props: Props) {
     [props.occurrences, hiddenEvents, moved],
   )
   const byDay = useMemo(() => groupByDay(visible, timezone), [visible, timezone])
+  const tasksByDay = useMemo(() => {
+    const map = new Map<string, DayTask[]>()
+    for (const t of props.tasks) map.set(t.date, [...(map.get(t.date) ?? []), t])
+    for (const [day, list] of map) map.set(day, sortDayTasks(list))
+    return map
+  }, [props.tasks])
+  const openTask = (id: string) => router.push(taskHref(id))
   const zones = useMemo(() => {
     try {
       return Intl.supportedValuesOf("timeZone")
@@ -263,6 +273,7 @@ export function CalendarApp(props: Props) {
 
   const selectedIso = formatIsoDate(selected)
   const dayEvents = byDay.get(selectedIso) ?? []
+  const dayTasks = tasksByDay.get(selectedIso) ?? []
   const selectedIsToday = sameDay(selected, today)
 
   return (
@@ -345,7 +356,7 @@ export function CalendarApp(props: Props) {
       </form>
 
       {view === "agenda" ? (
-        <AgendaView from={anchor} days={AGENDA_DAYS} today={today} now={now} byDay={byDay} timeZone={timezone} locale={locale} onOpen={(id) => void openEvent(id)} />
+        <AgendaView from={anchor} days={AGENDA_DAYS} today={today} now={now} byDay={byDay} tasksByDay={tasksByDay} timeZone={timezone} locale={locale} onOpen={(id) => void openEvent(id)} />
       ) : view === "week" ? (
         <div {...swipeHandlers} className="touch-pan-y">
         <WeekView
@@ -353,9 +364,11 @@ export function CalendarApp(props: Props) {
           today={today}
           now={now}
           byDay={byDay}
+          tasksByDay={tasksByDay}
           timeZone={timezone}
           onSelectDay={(d) => go({ view: "month", date: d })}
           onOpen={(id) => void openEvent(id)}
+          onOpenTask={openTask}
           onAdd={(d, start, end) => addOn(d, start, end)}
           onReschedule={reschedule}
         />
@@ -368,11 +381,13 @@ export function CalendarApp(props: Props) {
             selected={selected}
             today={today}
             byDay={byDay}
+            tasksByDay={tasksByDay}
             timeZone={timezone}
             onSelect={(d) => select(d)}
             onMove={move}
             onAdd={(d) => addOn(d)}
             onOpen={(id) => void openEvent(id)}
+            onOpenTask={openTask}
             focusKey={focusKey}
           />
           </div>
@@ -388,7 +403,7 @@ export function CalendarApp(props: Props) {
                 <Plus />
               </Button>
             </header>
-            {dayEvents.length === 0 ? (
+            {dayEvents.length === 0 && dayTasks.length === 0 ? (
               <>
                 {selectedIsToday && <NowLine />}
                 <p className="text-meta px-1 text-muted-foreground">Nothing planned. Double-click a day or press Enter to add.</p>
@@ -404,6 +419,16 @@ export function CalendarApp(props: Props) {
                     </li>
                   )
                 })}
+                {dayTasks.length > 0 && (
+                  <li className={cn("text-micro px-2 text-muted-foreground", dayEvents.length > 0 && "pt-2")}>
+                    Tasks
+                  </li>
+                )}
+                {dayTasks.map((t) => (
+                  <li key={t.id}>
+                    <DayTaskRow task={t} />
+                  </li>
+                ))}
               </ul>
             )}
             <p className="text-caption px-1 text-muted-foreground max-lg:hidden">

@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils"
 import { monthGrid, sameDay } from "../lib/days"
 import { formatClock } from "../lib/format"
 import { formatIsoDate, wallClock, weekdayOf, type LocalDate } from "../lib/zoned"
-import type { Occurrence } from "../schema"
+import type { DayTask, Occurrence } from "../schema"
+import { TaskMark } from "./day-task"
 import { CategoryDot } from "./event-row"
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -20,10 +21,12 @@ export function MonthView({
   selected,
   today,
   byDay,
+  tasksByDay,
   onSelect,
   onMove,
   onAdd,
   onOpen,
+  onOpenTask,
   focusKey,
   timeZone,
 }: {
@@ -32,10 +35,12 @@ export function MonthView({
   selected: LocalDate
   today: LocalDate
   byDay: Map<string, Occurrence[]>
+  tasksByDay: Map<string, DayTask[]>
   onSelect: (date: LocalDate) => void
   onMove: (key: string, shift: boolean) => void
   onAdd: (date: LocalDate) => void
   onOpen: (eventId: string) => void
+  onOpenTask: (taskId: string) => void
   /** Changes when keyboard navigation should pull focus to the selected day. */
   focusKey: number
 }) {
@@ -83,6 +88,15 @@ export function MonthView({
           {days.slice(w * 7, w * 7 + 7).map((day) => {
             const iso = formatIsoDate(day)
             const events = byDay.get(iso) ?? []
+            const tasks = tasksByDay.get(iso) ?? []
+            // Up to three titles: events first, then tasks; the rest is "+N more".
+            const shownEvents = events.slice(0, 3)
+            const shownTasks = tasks.slice(0, 3 - shownEvents.length)
+            const hidden = events.length + tasks.length - shownEvents.length - shownTasks.length
+            const counts = [
+              events.length ? `${events.length} ${events.length === 1 ? "event" : "events"}` : "",
+              tasks.length ? `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}` : "",
+            ].filter(Boolean)
             const inMonth = day.month === anchor.month
             const isToday = sameDay(day, today)
             const isSelected = sameDay(day, selected)
@@ -100,7 +114,7 @@ export function MonthView({
                   tabIndex={isSelected ? 0 : -1}
                   onClick={() => onSelect(day)}
                   onDoubleClick={() => onAdd(day)}
-                  aria-label={`${new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(Date.UTC(day.year, day.month - 1, day.day))}${isToday ? ", today" : ""}, ${events.length ? `${events.length} ${events.length === 1 ? "event" : "events"}` : "no events"}`}
+                  aria-label={`${new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(Date.UTC(day.year, day.month - 1, day.day))}${isToday ? ", today" : ""}, ${counts.length ? counts.join(", ") : "nothing planned"}`}
                   className={cn(
                     "absolute inset-0 rounded-none outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset",
                     isSelected && "bg-secondary",
@@ -118,15 +132,18 @@ export function MonthView({
                     {day.day}
                   </span>
                   {/* Phones: dots. Wider: up to three titles. */}
-                  {events.length > 0 && (
-                    <span className="flex flex-wrap gap-0.5 px-1 sm:hidden" aria-hidden>
+                  {events.length + tasks.length > 0 && (
+                    <span className="flex flex-wrap items-center gap-0.5 px-1 sm:hidden" aria-hidden>
                       {events.slice(0, 4).map((o) => (
                         <CategoryDot key={o.key} category={o.category} className="size-1.5" />
+                      ))}
+                      {tasks.slice(0, Math.max(0, 4 - events.length)).map((t) => (
+                        <TaskMark key={t.id} done={t.done} className="size-1.5 border" />
                       ))}
                     </span>
                   )}
                   <ul className="hidden grid-cols-1 gap-0.5 sm:grid">
-                    {events.slice(0, 3).map((o) => (
+                    {shownEvents.map((o) => (
                       <li key={o.key}>
                         <button
                           type="button"
@@ -146,9 +163,25 @@ export function MonthView({
                         </button>
                       </li>
                     ))}
-                    {events.length > 3 && (
-                      <li className="text-caption px-1 text-muted-foreground tabular-nums">+{events.length - 3} more</li>
-                    )}
+                    {shownTasks.map((t) => (
+                      <li key={t.id}>
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          aria-label={`Open task ${t.title}`}
+                          onClick={() => onOpenTask(t.id)}
+                          className={cn(
+                            "text-caption pointer-events-auto flex w-full items-center gap-1 truncate rounded-md px-1 py-0.5 text-left hover:bg-white/60 dark:hover:bg-white/10",
+                            (!inMonth || t.done) && "opacity-60",
+                          )}
+                        >
+                          <TaskMark done={t.done} className="size-2.5 border" />
+                          {t.time && <span className="shrink-0 text-muted-foreground tabular-nums">{t.time}</span>}
+                          <span className={cn("truncate", t.done && "line-through")}>{t.title}</span>
+                        </button>
+                      </li>
+                    ))}
+                    {hidden > 0 && <li className="text-caption px-1 text-muted-foreground tabular-nums">+{hidden} more</li>}
                   </ul>
                 </div>
               </div>

@@ -1,5 +1,5 @@
 import "server-only"
-import { and, asc, desc, eq, gt, ilike, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm"
+import { and, asc, desc, eq, gt, gte, ilike, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm"
 import { z } from "zod"
 import { asViewer, requireViewer } from "@/core/auth"
 import { defineAction } from "@/core/module"
@@ -13,6 +13,7 @@ import { nextDueIso } from "./lib/repeat"
 import {
   createListInput,
   createTaskInput,
+  dueBetweenInput,
   listIdInput,
   listTasksInput,
   quickAddInput,
@@ -126,7 +127,7 @@ async function insertTask(tx: Tx, input: z.infer<typeof createTaskInput>, id?: s
 export const actions = {
   view: defineAction({
     description:
-      "Load one view of the user's tasks: today (overdue and due today), upcoming (the next 7 days), lists (open tasks in one list, or in no list when listId is null) or done (recently completed). Also returns the user's lists with open counts.",
+      "Load one view of the user's tasks: today (overdue and due today), upcoming (everything else still open: the next 7 days, later dates, then tasks with no date), lists (open tasks in one list, or in no list when listId is null) or done (recently completed). Also returns the user's lists with open counts.",
     kind: "read",
     input: listTasksInput,
     handler: async ({ view, listId }): Promise<TasksData> => {
@@ -141,7 +142,9 @@ export const actions = {
             where = and(open, lte(t.dueDate, todayIso))
             break
           case "upcoming":
-            where = and(open, gt(t.dueDate, todayIso), lte(t.dueDate, horizon))
+            // Dated after today (nulls sort last in byDue), then tasks with no date:
+            // an undated task always has a place to show up.
+            where = and(open, or(gt(t.dueDate, todayIso), isNull(t.dueDate)))
             break
           case "lists":
             where = and(open, listId ? eq(t.listId, listId) : isNull(t.listId))
@@ -198,6 +201,22 @@ export const actions = {
         return { tasks: rows.map(toTask), total: count?.n ?? 0, today }
       })
     },
+  }),
+  between: defineAction({
+    description:
+      "Tasks due between two dates (YYYY-MM-DD, both included), open and completed, by date then time. The calendar shows these on their days.",
+    kind: "read",
+    input: dueBetweenInput,
+    handler: ({ from, to }): Promise<Task[]> =>
+      asViewer(async (tx) => {
+        const rows = await tx
+          .select(columns)
+          .from(t)
+          .where(and(gte(t.dueDate, from), lte(t.dueDate, to)))
+          .orderBy(...byDue)
+          .limit(1000)
+        return rows.map(toTask)
+      }),
   }),
   counts: defineAction({
     description: "How many open tasks are overdue and how many are due today.",

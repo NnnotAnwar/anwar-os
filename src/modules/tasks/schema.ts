@@ -56,6 +56,9 @@ export const quickAddInput = z.object({
   dueToday: z.boolean().default(false),
 })
 export const scheduleInput = z.object({ id: z.uuid(), dueDate: isoDate.nullable() })
+export const dueBetweenInput = z
+  .object({ from: isoDate, to: isoDate })
+  .refine((v) => v.from <= v.to, { message: "The range ends before it starts.", path: ["to"] })
 export const reorderInput = z.object({ ids: z.array(z.uuid()).min(1).max(1000) })
 export const searchTasksInput = z.object({
   query: z.string().trim().min(1).max(100),

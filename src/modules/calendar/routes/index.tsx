@@ -4,11 +4,29 @@ import { Page, Reveal, SkeletonExit } from "@/components/motion"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shell/page-header"
 import { requireViewer } from "@/core/auth"
+import { runModuleAction } from "@/core/module-actions"
 import { actions } from "../actions"
 import { CalendarApp } from "../components/calendar-app"
 import { monthGrid, startOfWeek } from "../lib/days"
 import { AGENDA_DAYS, views, type View } from "../lib/links"
 import { addDays, formatIsoDate, parseIsoDate, startOfLocalDay, wallClock, type LocalDate } from "../lib/zoned"
+import type { DayTask } from "../schema"
+
+type TaskRow = { id: string; title: string; dueDate: string | null; dueTime: string | null; doneAt: string | null; priority: string }
+
+/** Tasks due in the range, through the tasks module; none when it isn't available. */
+async function tasksBetween(from: LocalDate, to: LocalDate): Promise<DayTask[]> {
+  try {
+    const rows = await runModuleAction<TaskRow[]>("tasks", "between", { from: formatIsoDate(from), to: formatIsoDate(to) })
+    return rows.flatMap((t) =>
+      t.dueDate
+        ? [{ id: t.id, title: t.title, date: t.dueDate, time: t.dueTime, done: t.doneAt !== null, highPriority: t.priority === "high" }]
+        : [],
+    )
+  } catch {
+    return []
+  }
+}
 
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined)
 
@@ -58,9 +76,10 @@ async function CalendarBody({ searchParams }: Pick<PageProps<"/app/calendar">, "
   const openEventId = eventParam && z.uuid().safeParse(eventParam).success ? eventParam : null
 
   const [from, to] = rangeFor(view, anchor)
-  const [occurrences, feed] = await Promise.all([
+  const [occurrences, feed, tasks] = await Promise.all([
     actions.range.handler({ from: startOfLocalDay(from, viewer.timezone), to: startOfLocalDay(to, viewer.timezone) }),
     actions.getFeed.handler({}),
+    tasksBetween(from, to),
   ])
 
   return (
@@ -72,6 +91,7 @@ async function CalendarBody({ searchParams }: Pick<PageProps<"/app/calendar">, "
       timezone={viewer.timezone}
       locale={viewer.locale}
       occurrences={occurrences}
+      tasks={tasks}
       openEventId={openEventId}
       openNew={one(params.new) === "1"}
       feed={feed}

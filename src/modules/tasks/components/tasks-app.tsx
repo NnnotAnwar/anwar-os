@@ -29,7 +29,16 @@ import { TaskRow } from "./task-row"
 import { useDragReorder } from "./use-drag-reorder"
 import { useTaskMutations } from "./use-task-mutations"
 
-type Section = { key: string; title?: string; meta?: string; tone?: "warning"; tasks: Task[]; empty?: string }
+type Section = {
+  key: string
+  title?: string
+  meta?: string
+  tone?: "warning"
+  tasks: Task[]
+  empty?: string
+  /** Rows show their due date (sections that span several days). */
+  showDue?: boolean
+}
 
 export function viewHref(view: TaskView, listId?: string | null) {
   if (view === "today") return "/app/tasks"
@@ -46,11 +55,20 @@ function sectionsFor(view: TaskView, tasks: Task[], today: string, locale: strin
       ].filter((s) => s.tasks.length > 0) as Section[]
     case "upcoming": {
       const start = parseIsoDate(today)!
-      return Array.from({ length: UPCOMING_DAYS }, (_, i) => {
+      const horizon = formatIsoDate(addDays(start, UPCOMING_DAYS))
+      const days: Section[] = Array.from({ length: UPCOMING_DAYS }, (_, i) => {
         const iso = formatIsoDate(addDays(start, i + 1))
         const heading = dayHeading(iso, today, locale)
         return { key: iso, title: heading.title, meta: heading.meta, tasks: tasks.filter((t) => t.dueDate === iso), empty: "Nothing planned" }
       })
+      // Past the week, and with no date at all: every open task has a place here.
+      const later = tasks.filter((t) => t.dueDate !== null && t.dueDate > horizon)
+      const undated = tasks.filter((t) => t.dueDate === null)
+      return [
+        ...days,
+        ...(later.length ? [{ key: "later", title: "Later", tasks: later, showDue: true }] : []),
+        ...(undated.length ? [{ key: "no-date", title: "No date", meta: "Whenever you get to them", tasks: undated }] : []),
+      ]
     }
     case "lists":
       return [{ key: "list", tasks }]
@@ -161,17 +179,15 @@ export function TasksApp({
   }
 
   function onAdded(task: Task) {
+    const dueToday = task.dueDate !== null && task.dueDate <= today
     const inView =
-      (view === "today" && task.dueDate !== null && task.dueDate <= today) ||
-      (view === "upcoming" && task.dueDate !== null && task.dueDate > today && task.dueDate <= formatIsoDate(addDays(parseIsoDate(today)!, UPCOMING_DAYS))) ||
+      (view === "today" && dueToday) ||
+      (view === "upcoming" && !dueToday) ||
       (view === "lists" && task.listId === data.selectedListId)
     if (inView) return
-    const where = task.dueDate ? dueLabel(task.dueDate, today, locale).text : (listName(task.listId) ?? "No list")
-    const target = task.dueDate
-      ? task.dueDate <= today
-        ? viewHref("today")
-        : viewHref("upcoming")
-      : viewHref("lists", task.listId)
+    // Undated tasks live at the end of Upcoming ("No date"), and in their list.
+    const where = task.dueDate ? dueLabel(task.dueDate, today, locale).text : "No date"
+    const target = dueToday ? viewHref("today") : viewHref("upcoming")
     toast.success(`Added · ${where}`, { action: { label: "Show", onClick: () => router.push(target) } })
   }
 
@@ -319,7 +335,7 @@ export function TasksApp({
                             today={today}
                             locale={locale}
                             listName={view === "lists" ? null : listName(task.listId)}
-                            showDue={view === "lists" || (view === "today" && task.dueDate !== today)}
+                            showDue={view === "lists" || section.showDue === true || (view === "today" && task.dueDate !== today)}
                             focused={focusedId === task.id}
                             editing={renamingId === task.id}
                             onFocusRow={() => setFocusedId(task.id)}

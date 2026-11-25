@@ -207,6 +207,18 @@ export type Occurrence = {
   recurring: boolean
 }
 
+/** A task due on a day (from the tasks module), shown beside the events. */
+export type DayTask = {
+  id: string
+  title: string
+  /** "2026-11-17" */
+  date: string
+  /** "10:00", or null for any time that day. */
+  time: string | null
+  done: boolean
+  highPriority: boolean
+}
+
 export type EventDetail = EventFields & { id: string; recurrenceText: string | null }
 
 export type FeedInfo = { url: string; createdAt: string } | null
