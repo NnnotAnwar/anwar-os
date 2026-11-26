@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Agent worktrees are separate checkouts with their own lint runs.
     ".claude/**",
+    // The OCR engine copied from node_modules (scripts/ocr-assets.mjs).
+    "public/ocr/**",
   ]),
 ]);
 

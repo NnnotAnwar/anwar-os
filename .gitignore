@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# on-device OCR engine, copied from node_modules (scripts/ocr-assets.mjs)
+/public/ocr/
+
 # next.js
 /.next/
 /out/

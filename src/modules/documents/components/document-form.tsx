@@ -1,21 +1,24 @@
 "use client"
 
-import { useState, useTransition, type FormEvent } from "react"
+import { useRef, useState, useTransition, type FormEvent } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Field, fieldClass } from "@/components/editor-fields"
-import { ArrowLeft, Plus } from "@/components/icons"
+import { ArrowLeft, Plus, Scan } from "@/components/icons"
 import { NAV_BACK, NAV_FORWARD } from "@/components/motion"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { describeReminders, reminderLabel } from "../lib/format"
 import { MAX_REMINDER_DAYS, MAX_REMINDERS, normalizeReminderDays } from "../lib/reminders"
-import { sideIds } from "../lib/sides"
+import { formatDate } from "../lib/dates"
+import { attach, markSide, sideIds } from "../lib/sides"
 import { DEFAULT_REMINDER_DAYS, documentKinds, kindLabels, type AttachedFile, type DocumentDetail, type DocumentKind } from "../schema"
 import { createDocument, updateDocument } from "../server-actions"
 import { Attachments } from "./attachments"
+import { cameraAvailable } from "./scan-camera"
+import { ScanDialog, type ScanResult, type ScanStart } from "./scan-dialog"
 
 const PRESET_DAYS = [180, 90, 60, 30, 14, 7, 1, 0]
 
@@ -43,7 +46,41 @@ export function DocumentForm({ document }: { document: DocumentDetail | null }) 
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<{ field: string; message: string } | null>(null)
   const [pending, start] = useTransition()
+  const [scanning, setScanning] = useState<ScanStart | null>(null)
+  const [scanNote, setScanNote] = useState<string | null>(null)
+  const scanInput = useRef<HTMLInputElement>(null)
   const back = document ? `/app/documents/${document.id}` : "/app/documents"
+
+  /** The scanner's photos join the files (a straightened one replaces its original); what it read fills the form. */
+  function applyScan({ files: scanned, reading, replaced }: ScanResult) {
+    setScanning(null)
+    setFiles((list) => {
+      let next = replaced ? list.filter((f) => f.id !== replaced.id) : list
+      for (const f of scanned) next = markSide(attach(next, f), f.id, f.side ?? null)
+      return next
+    })
+    const filled: string[] = []
+    if (reading.kind) {
+      pickKind(reading.kind)
+      filled.push(kindLabels[reading.kind])
+    }
+    if (reading.expiresOn) {
+      setExpiresOn(reading.expiresOn)
+      filled.push(`valid until ${formatDate(reading.expiresOn)}${reading.expirySource === "mrz" ? " (checked against the code on the card)" : ""}`)
+    }
+    if (reading.issuedOn) {
+      setIssuedOn(reading.issuedOn)
+      filled.push(`issued ${formatDate(reading.issuedOn)}`)
+    }
+    setError(null)
+    setScanNote(
+      filled.length
+        ? `From the scan: ${filled.join(" · ")}. Check them before saving.`
+        : replaced
+          ? "The photo is straightened. No dates could be read from it."
+          : "The photos are straightened, but no dates could be read. Fill them in below.",
+    )
+  }
 
   function pickKind(next: DocumentKind) {
     // Follow the kind while the name is still the suggestion (or empty).
@@ -107,6 +144,45 @@ export function DocumentForm({ document }: { document: DocumentDetail | null }) 
 
       <form onSubmit={submit} noValidate className="glass grid gap-5 rounded-xl p-4 md:p-6" aria-label={document ? "Edit document" : "New document"}>
         <h1 className="text-card-title">{document ? "Edit document" : "New document"}</h1>
+
+        <div className="grid gap-2 rounded-lg bg-accent-500/8 p-3 ring-1 ring-accent-500/15">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="text-meta min-w-0 flex-1 basis-56 text-muted-foreground">
+              Photograph both sides: they&apos;re straightened, and the kind and dates fill in. All on your device.
+            </span>
+            <Button
+              type="button"
+              className="h-11 md:h-9"
+              onClick={() => (cameraAvailable() ? setScanning({ camera: true }) : scanInput.current?.click())}
+              disabled={uploading}
+            >
+              <Scan />
+              Scan the document
+            </Button>
+            <Button type="button" variant="ghost" className="h-11 md:h-9" onClick={() => scanInput.current?.click()} disabled={uploading}>
+              From photos
+            </Button>
+            <input
+              ref={scanInput}
+              type="file"
+              accept="image/*"
+              multiple
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden
+              onChange={(e) => {
+                const picked = Array.from(e.target.files ?? [])
+                e.target.value = ""
+                if (picked.length) setScanning({ files: picked })
+              }}
+            />
+          </div>
+          {scanNote && (
+            <p role="status" className="text-caption text-foreground">
+              {scanNote}
+            </p>
+          )}
+        </div>
 
         <fieldset className="grid gap-2">
           <legend className="text-small mb-1.5 text-muted-foreground">Kind</legend>
@@ -268,7 +344,8 @@ export function DocumentForm({ document }: { document: DocumentDetail | null }) 
           )}
         </Field>
 
-        <Attachments files={files} onChange={setFiles} onBusy={setUploading} />
+        <Attachments files={files} onChange={setFiles} onBusy={setUploading} onStraighten={(file) => setScanning({ replace: file })} />
+        <ScanDialog start={scanning} onClose={() => setScanning(null)} onDone={applyScan} />
         {errorFor("files")}
 
         {errorFor("form")}

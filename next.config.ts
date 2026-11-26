@@ -22,6 +22,17 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // The document scanner's OCR engine (scripts/ocr-assets.mjs): a worker
+        // that compiles WebAssembly and fetches its language data from here.
+        // Paths carry the package version, so they never change.
+        source: "/ocr/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'" },
+          { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+        ],
+      },
+      {
         source: "/offline.html",
         headers: [
           {

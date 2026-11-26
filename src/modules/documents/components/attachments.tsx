@@ -1,33 +1,21 @@
 "use client"
 
 import { useEffect, useRef, useState, useTransition } from "react"
-import { Camera, Check, FolderOpen, Search, TriangleAlertIcon, X } from "@/components/icons"
+import { Camera, Check, Crop, FolderOpen, Search, TriangleAlertIcon, X } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { ItemIcon } from "@/modules/files/components/file-type-icon"
 import { rawHref } from "@/modules/files/lib/links"
-import { checkUpload, formatBytes } from "@/modules/files/lib/validation"
+import { formatBytes } from "@/modules/files/lib/validation"
 import { attach, markSide } from "../lib/sides"
 import { isCardPhoto, MAX_FILES, type AttachedFile, type DocumentSide } from "../schema"
-import { confirmScanUpload, prepareScanUpload, searchFiles } from "../server-actions"
+import { searchFiles } from "../server-actions"
 import type { PickableFile } from "../scans"
+import { uploadScan } from "./upload-scan"
 
 type Upload = { id: string; name: string; loaded: number; size: number; error?: string }
-
-/** PUT straight to object storage with progress (fetch has no upload progress). */
-function put(url: string, file: File, mime: string, onProgress: (loaded: number) => void) {
-  return new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open("PUT", url)
-    xhr.setRequestHeader("Content-Type", mime)
-    xhr.upload.onprogress = (e) => onProgress(e.loaded)
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Storage refused the upload (${xhr.status}).`)))
-    xhr.onerror = () => reject(new Error("The upload was interrupted. Check your connection and try again."))
-    xhr.send(file)
-  })
-}
 
 /**
  * The files attached to a document: upload a scan (it lands in Files →
@@ -39,11 +27,14 @@ export function Attachments({
   files,
   onChange,
   onBusy,
+  onStraighten,
   label = "Scans and files",
 }: {
   files: AttachedFile[]
   onChange: (update: (files: AttachedFile[]) => AttachedFile[]) => void
   onBusy?: (busy: boolean) => void
+  /** Opens the scanner on an attached photo (crop it to the card, read it again). */
+  onStraighten?: (file: AttachedFile) => void
   label?: string
 }) {
   const input = useRef<HTMLInputElement>(null)
@@ -58,15 +49,9 @@ export function Attachments({
     const id = crypto.randomUUID()
     const patch = (next: Partial<Upload>) => setUploads((list) => list.map((u) => (u.id === id ? { ...u, ...next } : u)))
     setUploads((list) => [...list, { id, name: file.name, loaded: 0, size: file.size }])
-    const check = checkUpload(file)
-    if (!check.ok) return patch({ error: check.error })
     try {
-      const prepared = await prepareScanUpload({ name: file.name, size: file.size, type: file.type })
-      if (!prepared.ok) throw new Error(prepared.error)
-      await put(prepared.value.url, file, prepared.value.mime, (loaded) => patch({ loaded }))
-      const confirmed = await confirmScanUpload({ key: prepared.value.key, name: file.name, folderId: prepared.value.folderId })
-      if (!confirmed.ok) throw new Error(confirmed.error)
-      onChange((list) => attach(list, confirmed.value))
+      const uploaded = await uploadScan(file, (loaded) => patch({ loaded }))
+      onChange((list) => attach(list, uploaded))
       setUploads((list) => list.filter((u) => u.id !== id))
     } catch (error) {
       patch({ error: error instanceof Error ? error.message : "The upload failed." })
@@ -96,6 +81,19 @@ export function Attachments({
                   side={file.side ?? null}
                   onPick={(side) => onChange((list) => markSide(list, file.id, side))}
                 />
+              )}
+              {onStraighten && isCardPhoto(file.mime) && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-11 shrink-0 text-muted-foreground md:size-9"
+                  onClick={() => onStraighten(file)}
+                  aria-label={`Straighten ${file.name}`}
+                  title="Straighten and read"
+                >
+                  <Crop />
+                </Button>
               )}
               <Button
                 type="button"

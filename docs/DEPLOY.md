@@ -708,7 +708,7 @@ different values:
 | `Referrer-Policy` | `infra/edge/Caddyfile` | `strict-origin-when-cross-origin` (the files `raw` route sends `no-referrer` itself) |
 | `X-Frame-Options` | `infra/edge/Caddyfile` | `DENY`, for old browsers; the CSP's `frame-ancestors 'none'` says the same |
 | `Cross-Origin-Opener-Policy` | `infra/edge/Caddyfile` | `same-origin` |
-| `Permissions-Policy` | `infra/edge/Caddyfile` | camera, microphone, geolocation, payment, usb off (passkeys use WebAuthn, which isn't listed, so it stays allowed) |
+| `Permissions-Policy` | `infra/edge/Caddyfile`, overridden in `infra/edge/sites/anwar-os.caddy.tmpl` | camera, microphone, geolocation, payment, usb off (passkeys use WebAuthn, which isn't listed, so it stays allowed); anwar.os allows `camera=(self)` for the document scanner's viewfinder |
 | `Server`, `X-Powered-By` | removed by Caddy | Next's `X-Powered-By` is also off (`poweredByHeader: false`) |
 | `Content-Security-Policy` (pages) | `src/proxy.ts` → `src/core/csp.ts` | per request, fresh nonce: `script-src 'self' 'nonce-…' 'strict-dynamic'`, Fontshare for styles/fonts, `https:` images, the `S3_ENDPOINT` origin (and `bucket.host` when not path-style) for uploads and previews, `frame-ancestors 'none'`, `upgrade-insecure-requests` |
 | `Content-Security-Policy` (`/sw.js`, `/offline.html`) | `next.config.ts` | static strict policies; these files skip the proxy |

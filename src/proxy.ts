@@ -45,6 +45,6 @@ export const config = {
   matcher: [
     // Everything except API routes, build assets, the static PWA/metadata files,
     // the /writing feeds and generated social images (no HTML, so no CSP needed).
-    "/((?!api/|_next/static/|_next/image|favicon\\.ico|icon\\.svg|apple-icon\\.png|icons/|sw\\.js|offline\\.html|manifest\\.webmanifest|robots\\.txt|sitemap\\.xml|feed\\.xml|writing/feed\\.xml|writing/atom\\.xml|.*opengraph-image|.*twitter-image).*)",
+    "/((?!api/|_next/static/|_next/image|favicon\\.ico|icon\\.svg|apple-icon\\.png|icons/|ocr/|sw\\.js|offline\\.html|manifest\\.webmanifest|robots\\.txt|sitemap\\.xml|feed\\.xml|writing/feed\\.xml|writing/atom\\.xml|.*opengraph-image|.*twitter-image).*)",
   ],
 }

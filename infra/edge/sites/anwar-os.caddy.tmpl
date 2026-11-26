@@ -3,6 +3,11 @@
 
 __DOMAIN__ {
 	import security_headers
+	# The shared snippet turns the camera off for every site. anwar.os's
+	# document scanner (live viewfinder, src/modules/documents/components/
+	# scan-camera.tsx) needs it: this origin only, never an embedded one. This
+	# header comes after the snippet's, so it's the one sent.
+	header Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=(), usb=()"
 
 	# zstd/gzip for text responses. Streaming (Suspense / PPR) still works:
 	# responses without Content-Length are flushed as they arrive.

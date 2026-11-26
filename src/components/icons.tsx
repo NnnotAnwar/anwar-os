@@ -228,6 +228,8 @@ export const FirstAid = bold(P.FirstAid)
 export const Paperclip = bold(P.Paperclip)
 export const ArrowsClockwise = bold(P.ArrowsClockwise)
 export const CornersOut = bold(P.CornersOut)
+export const Scan = bold(P.Scan)
+export const Crop = bold(P.Crop)
 // ops: error log + restore drill
 export const Bug = bold(P.Bug)
 export const ClockCounterClockwise = bold(P.ClockCounterClockwise)
