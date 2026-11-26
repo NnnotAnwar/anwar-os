@@ -6,6 +6,7 @@ import { canWrite } from "@/core/api-tokens/token"
 import { requireViewer } from "@/core/auth"
 import { modulesFor } from "@/core/module"
 import { modules } from "@/modules/_registry"
+import { callsTool, finishReply } from "./reply"
 import { generateTools, resultText, type ToolSource, type ToolSpec } from "./tools"
 
 // The MCP server at /api/mcp (Streamable HTTP, served statelessly: one fresh
@@ -97,11 +98,8 @@ async function serve({ request, token }: ApiContext): Promise<Response> {
     scopes: token.scopes,
     expiresAt: token.expiresAt ? Math.floor(token.expiresAt.getTime() / 1000) : undefined,
   }
-  const response = await handler.fetch(request, { authInfo })
-  const headers = new Headers(response.headers)
-  headers.set("Cache-Control", "no-store")
-  headers.set("X-Robots-Tag", "noindex")
-  return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
+  const toolCall = await callsTool(request)
+  return finishReply(await handler.fetch(request, { authInfo }), toolCall)
 }
 
 /** Errors before MCP takes over (auth, limits) as JSON-RPC-shaped JSON with the HTTP status. */
