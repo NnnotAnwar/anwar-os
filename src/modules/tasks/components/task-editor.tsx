@@ -184,7 +184,7 @@ function EditorForm({
             </button>
           )}
         </div>
-        <div className="grid grid-cols-[1fr_7rem] gap-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,7.5rem)] gap-2">
           <div className="grid gap-1">
             <label htmlFor="task-date" className="text-caption text-muted-foreground">
               Date

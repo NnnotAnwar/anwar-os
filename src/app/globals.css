@@ -402,6 +402,23 @@
   :where(a, button, input, label, select, textarea, summary, [role="button"], [role="checkbox"], [role="tab"]) {
     touch-action: manipulation;
   }
+  /* iOS Safari gives date and time inputs a native minimum width (wider than
+     a narrow column, so they spill out of it) and its own rounded box inside.
+     Without the native look they size like any other input, the value sits
+     on the left, and tapping still opens the wheel picker. iOS only
+     (-webkit-touch-callout): desktop browsers keep their calendar button. */
+  @supports (-webkit-touch-callout: none) {
+    input:is([type="date"], [type="time"], [type="datetime-local"], [type="month"], [type="week"]) {
+      -webkit-appearance: none;
+      appearance: none;
+      min-width: 0;
+      display: block;
+    }
+    input::-webkit-date-and-time-value {
+      text-align: left;
+      margin: 0;
+    }
+  }
   body {
     @apply text-foreground;
     /* The canvas: the only thing that paints the page. */
