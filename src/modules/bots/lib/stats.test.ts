@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { botInput } from "../schema"
-import { counterLabel, fillDays, formatMoney, liveness, readOverview } from "./stats"
+import { counterLabel, fillDays, formatMoney, liveness, readOverview, viewerToday } from "./stats"
 
 const now = new Date("2026-11-16T12:00:00Z")
 
@@ -91,5 +91,21 @@ describe("bot input", () => {
     expect(botInput.safeParse({ name: "x", telegramUsername: "", serviceName: "", statsSource: "osbot", description: "" }).success).toBe(true)
     expect(botInput.safeParse({ name: "x", telegramUsername: "", serviceName: "", statsSource: "budget-bot", description: "" }).success).toBe(true)
     expect(botInput.safeParse({ name: "x", telegramUsername: "", serviceName: "", statsSource: "budget-bots", description: "" }).success).toBe(false)
+  })
+})
+
+describe("viewerToday", () => {
+  it("is the owner's calendar day, not UTC's", () => {
+    // 23:30 UTC on 26 Nov is already 00:30 on 27 Nov in Prague.
+    const lateUtc = new Date("2026-11-26T23:30:00Z")
+    expect(viewerToday({ timezone: "Europe/Prague" }, lateUtc)).toBe("2026-11-27")
+    expect(viewerToday({ timezone: "UTC" }, lateUtc)).toBe("2026-11-26")
+    expect(viewerToday({ timezone: "America/New_York" }, lateUtc)).toBe("2026-11-26")
+  })
+
+  it("puts the chart's last bar on that day", () => {
+    const days = fillDays([], viewerToday({ timezone: "Europe/Prague" }, new Date("2026-11-26T23:30:00Z")))
+    expect(days.at(-1)?.day).toBe("2026-11-27")
+    expect(days).toHaveLength(14)
   })
 })

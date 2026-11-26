@@ -1,3 +1,4 @@
+import { formatIsoDate, wallClock } from "@/modules/calendar/lib/zoned"
 import type { DailyPoint } from "../schema"
 
 /** Bots beat every 60 s; three missed beats mean something is wrong. */
@@ -73,4 +74,10 @@ export function fillDays(points: DailyPoint[], today: string, days = 14): DailyP
     const d = new Date(end.getTime() - (days - 1 - i) * 86_400_000).toISOString().slice(0, 10)
     return byDay.get(d) ?? { day: d, messages: 0, activeUsers: 0, expenses: 0 }
   })
+}
+
+/** The viewer's calendar date right now ("2026-11-27"), in their timezone. */
+export function viewerToday(viewer: { timezone: string }, now = new Date()) {
+  const w = wallClock(now, viewer.timezone)
+  return formatIsoDate({ year: w.year, month: w.month, day: w.day })
 }

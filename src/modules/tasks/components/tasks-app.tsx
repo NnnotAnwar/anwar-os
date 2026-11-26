@@ -162,6 +162,19 @@ export function TasksApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLink])
 
+  /**
+   * Closes the details. A deep link that opened them leaves the address too:
+   * otherwise a reload reopens the task, and following the same link again
+   * (the calendar, ⌘K) changes nothing here, so the task wouldn't open.
+   */
+  function closeEditor() {
+    setEditing(null)
+    if (!openTaskId) return
+    const url = new URL(window.location.href)
+    url.searchParams.delete("task")
+    router.replace(`${url.pathname}${url.search}`, { scroll: false })
+  }
+
   function neighbour(id: string) {
     const i = flat.findIndex((t) => t.id === id)
     return flat[i + 1]?.id ?? flat[i - 1]?.id ?? null
@@ -174,7 +187,7 @@ export function TasksApp({
 
   function remove(task: Task) {
     if (focusedId === task.id) setFocusedId(neighbour(task.id))
-    setEditing(null)
+    closeEditor()
     m.remove(task)
   }
 
@@ -373,7 +386,7 @@ export function TasksApp({
         lists={data.lists}
         today={today}
         locale={locale}
-        onClose={() => setEditing(null)}
+        onClose={closeEditor}
         onSave={(task, patch) => void m.save(task, patch)}
         onDelete={remove}
       />

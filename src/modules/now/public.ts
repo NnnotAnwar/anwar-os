@@ -17,8 +17,9 @@ import { NOW_PUBLIC_TAG, type NowGoal, type NowHabits, type NowSettings } from "
 // lets visitors see comes back: the site owner's settings row (its RLS
 // policy), and goals and habits through app.now_goals() / app.now_habits(),
 // which check the owner, the per-goal flag and the section switches themselves.
-// Cached for an hour at most (goal progress logged over MCP or a habit checked
-// in doesn't drop the tag) and dropped at once by the owner's edits in the app.
+// Cached for an hour at most, and dropped at once by every write to what it
+// shows (settings, goals, habits, projects, notes, CV), wherever it came from:
+// the app, MCP, the API or a bot (src/core/public-cache.ts).
 // Render after `await connection()`: no database at build time.
 
 export async function getPublicNowSettings(): Promise<NowSettings> {

@@ -6,7 +6,7 @@ import { defineAction } from "@/core/module"
 import { botsBots } from "@/db/schema"
 import { budgetBotStatus } from "@/modules/budget/bot-api/service"
 import { osbotStatus } from "@/modules/osbot/service"
-import { fillDays, liveness, readOverview } from "./lib/stats"
+import { fillDays, liveness, readOverview, viewerToday } from "./lib/stats"
 import {
   botIdInput,
   botInput,
@@ -41,6 +41,9 @@ function isUniqueViolation(e: unknown): boolean {
  */
 async function schemaStats(schema: string): Promise<BotStats> {
   if (!/^bot_[a-z0-9_]{1,40}$/.test(schema)) return { kind: "unavailable", reason: "Not a bot schema." }
+  // The owner's calendar day, not the server's (UTC): after midnight in Prague
+  // the chart already has a new "today", an hour or two before UTC does.
+  const today = viewerToday(await requireViewer())
   try {
     return await asViewer(async (tx) => {
       const [check] = (await tx.execute(sql`
@@ -61,7 +64,7 @@ async function schemaStats(schema: string): Promise<BotStats> {
         const rows = (await tx.execute(sql`
           select day::text as day, messages, active_users, expenses
           from ${sql.identifier(schema)}.stats_daily
-          where day > current_date - 14
+          where day > ${today}::date - 14 and day <= ${today}::date
           order by day`)) as unknown as { day: string; messages: number; active_users: number; expenses: number }[]
         daily = rows.map((r) => ({
           day: r.day,
@@ -70,7 +73,6 @@ async function schemaStats(schema: string): Promise<BotStats> {
           expenses: Number(r.expenses ?? 0),
         }))
       }
-      const today = new Date().toISOString().slice(0, 10)
       return { kind: "schema", ...readOverview(row ?? {}), daily: fillDays(daily, today) } satisfies BotStats
     })
   } catch (e) {

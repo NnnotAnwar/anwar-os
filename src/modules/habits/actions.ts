@@ -1,4 +1,6 @@
 import "server-only"
+import { droppingPublicCache } from "@/core/public-cache"
+import { NOW_PUBLIC_TAG } from "@/modules/now/schema"
 import { and, asc, eq, ilike, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 import { z } from "zod"
 import { asViewer, requireViewer } from "@/core/auth"
@@ -147,7 +149,7 @@ export async function readSettings(tx: Tx): Promise<HabitsSettings & { lastNudge
   return { nudgeEnabled: row.nudgeEnabled, nudgeTime: row.nudgeTime.slice(0, 5), lastNudgedOn: row.lastNudgedOn }
 }
 
-export const actions = {
+export const actions = droppingPublicCache([NOW_PUBLIC_TAG], {
   overview: defineAction({
     description:
       "The user's habits with today's state: whether each is scheduled and done today, its current and best streak (in scheduled days) and the last 30 days. Optionally also the archived habits.",
@@ -322,4 +324,4 @@ export const actions = {
         return input
       }),
   }),
-}
+})
