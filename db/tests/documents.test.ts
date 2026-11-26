@@ -206,6 +206,8 @@ describe("documents actions (as a signed-in viewer)", () => {
         notes: "MV ČR",
         reminderDays: [60, 7],
         fileIds: [aliceFile],
+        frontFileId: null,
+        backFileId: null,
       }),
     )
     expect(created).toMatchObject({ name: `Residence permit ${marker}`, reminderDays: [60, 7], fileCount: 1 })
@@ -296,7 +298,7 @@ describe("documents actions (as a signed-in viewer)", () => {
   })
 
   it("lists what's coming up, and deletes", async () => {
-    const soon = await asAlice(() => actions.create.handler({ name: `Insurance ${marker}`, kind: "insurance", expiresOn: "2000-01-01", issuedOn: null, notes: "", reminderDays: [], fileIds: [] }))
+    const soon = await asAlice(() => actions.create.handler({ name: `Insurance ${marker}`, kind: "insurance", expiresOn: "2000-01-01", issuedOn: null, notes: "", reminderDays: [], fileIds: [], frontFileId: null, backFileId: null }))
     const { documents } = await asAlice(() => actions.upcoming.handler({ days: 90, includeExpired: true }))
     expect(documents.find((d) => d.id === soon.id)?.status.tone).toBe("expired")
     const { documents: notExpired } = await asAlice(() => actions.upcoming.handler({ days: 90, includeExpired: false }))
