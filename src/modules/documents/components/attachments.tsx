@@ -7,8 +7,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { ItemIcon } from "@/modules/files/components/file-type-icon"
+import { rawHref } from "@/modules/files/lib/links"
 import { checkUpload, formatBytes } from "@/modules/files/lib/validation"
-import { MAX_FILES, type AttachedFile } from "../schema"
+import { attach, markSide } from "../lib/sides"
+import { isCardPhoto, MAX_FILES, type AttachedFile, type DocumentSide } from "../schema"
 import { confirmScanUpload, prepareScanUpload, searchFiles } from "../server-actions"
 import type { PickableFile } from "../scans"
 
@@ -30,7 +32,8 @@ function put(url: string, file: File, mime: string, onProgress: (loaded: number)
 /**
  * The files attached to a document: upload a scan (it lands in Files →
  * Documents through the files module's own upload) or pick existing Files
- * items. Changes apply when the form is saved.
+ * items. Photos can be the card's front or back (the first two take those
+ * sides by themselves). Changes apply when the form is saved.
  */
 export function Attachments({
   files,
@@ -63,7 +66,7 @@ export function Attachments({
       await put(prepared.value.url, file, prepared.value.mime, (loaded) => patch({ loaded }))
       const confirmed = await confirmScanUpload({ key: prepared.value.key, name: file.name, folderId: prepared.value.folderId })
       if (!confirmed.ok) throw new Error(confirmed.error)
-      onChange((list) => (list.some((f) => f.id === confirmed.value.id) ? list : [...list, confirmed.value]))
+      onChange((list) => attach(list, confirmed.value))
       setUploads((list) => list.filter((u) => u.id !== id))
     } catch (error) {
       patch({ error: error instanceof Error ? error.message : "The upload failed." })
@@ -76,12 +79,24 @@ export function Attachments({
       {files.length > 0 && (
         <ul className="grid gap-1" aria-label="Attached files">
           {files.map((file) => (
-            <li key={file.id} className="flex min-h-11 items-center gap-2.5 rounded-lg bg-field px-2 py-1.5">
-              <ItemIcon item={{ kind: "file", mime: file.mime }} />
+            <li key={file.id} className="flex min-h-11 flex-wrap items-center gap-x-2.5 gap-y-1.5 rounded-lg bg-field px-2 py-1.5">
+              {isCardPhoto(file.mime) ? (
+                // eslint-disable-next-line @next/next/no-img-element -- a presigned redirect, not an optimizable asset
+                <img src={rawHref(file.id, "inline")} alt="" loading="lazy" className="size-10 shrink-0 rounded-md bg-muted object-cover" />
+              ) : (
+                <ItemIcon item={{ kind: "file", mime: file.mime }} />
+              )}
               <span className="grid min-w-0 flex-1">
                 <span className="text-body truncate">{file.name}</span>
                 <span className="text-caption text-muted-foreground tabular-nums">{formatBytes(file.size)}</span>
               </span>
+              {isCardPhoto(file.mime) && (
+                <SidePicker
+                  name={file.name}
+                  side={file.side ?? null}
+                  onPick={(side) => onChange((list) => markSide(list, file.id, side))}
+                />
+              )}
               <Button
                 type="button"
                 variant="ghost"
@@ -161,7 +176,8 @@ export function Attachments({
         </Button>
       </div>
       <p className="text-caption text-muted-foreground">
-        A photo or PDF. Scans are saved privately in Files → Documents; only you can open them.
+        A photo or PDF. Photos marked Front and Back make the card you can flip on the document&apos;s page. Scans are saved privately
+        in Files → Documents; only you can open them.
       </p>
       <FilePicker
         open={picking}
@@ -169,11 +185,41 @@ export function Attachments({
         selected={files}
         onToggle={(file) =>
           onChange((list) =>
-            list.some((f) => f.id === file.id) ? list.filter((f) => f.id !== file.id) : list.length >= MAX_FILES ? list : [...list, file],
+            list.some((f) => f.id === file.id) ? list.filter((f) => f.id !== file.id) : list.length >= MAX_FILES ? list : attach(list, file),
           )
         }
       />
     </fieldset>
+  )
+}
+
+const SIDES: { side: DocumentSide; label: string }[] = [
+  { side: "front", label: "Front" },
+  { side: "back", label: "Back" },
+]
+
+/** Front / Back for one photo: tap a side to give it this photo, tap it again to unmark. */
+function SidePicker({ name, side, onPick }: { name: string; side: DocumentSide | null; onPick: (side: DocumentSide | null) => void }) {
+  return (
+    <span role="group" aria-label={`Card side of ${name}`} className="flex shrink-0 rounded-full bg-track p-0.5 max-sm:order-last max-sm:ml-[3.125rem] max-sm:basis-[calc(100%-3.125rem)] max-sm:*:flex-1">
+      {SIDES.map((option) => {
+        const on = side === option.side
+        return (
+          <button
+            key={option.side}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onPick(on ? null : option.side)}
+            className={cn(
+              "text-caption h-9 rounded-full px-3 outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 md:h-7 md:px-2.5",
+              on ? "bg-accent-500 text-white" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {option.label}
+          </button>
+        )
+      })}
+    </span>
   )
 }
 

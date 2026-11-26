@@ -1,12 +1,12 @@
 // Inputs and shared types for the documents module. Client-safe.
 import { z } from "zod"
-import { documentKinds, type DocumentHistoryEntry, type DocumentKind } from "@/db/schema/documents"
+import { documentKinds, documentSides, type DocumentHistoryEntry, type DocumentKind, type DocumentSide } from "@/db/schema/documents"
 import { isIsoDay } from "./lib/dates"
 import { DEFAULT_REMINDER_DAYS, MAX_REMINDER_DAYS, MAX_REMINDERS, normalizeReminderDays } from "./lib/reminders"
 import type { DocumentStatus } from "./lib/status"
 
-export { documentKinds, DEFAULT_REMINDER_DAYS }
-export type { DocumentKind, DocumentHistoryEntry }
+export { documentKinds, documentSides, DEFAULT_REMINDER_DAYS }
+export type { DocumentKind, DocumentHistoryEntry, DocumentSide }
 
 /** Where scans uploaded from the document form land in Files (top level, made on first use). */
 export const DOCUMENTS_FOLDER = "Documents"
@@ -53,10 +53,14 @@ export const documentFields = {
     .array(z.uuid())
     .max(MAX_FILES, `Attach up to ${MAX_FILES} files.`)
     .transform((ids) => [...new Set(ids)]),
+  /** The photo of the card's front / back: one of the attached files (an image); null = none. */
+  sideFileId: z.uuid().nullable(),
 }
 
 const issuedBeforeExpiry = (v: { issuedOn?: string | null; expiresOn?: string }) => !v.issuedOn || !v.expiresOn || v.issuedOn <= v.expiresOn
 const issuedMessage = { message: "The issue date can't be after the expiry date.", path: ["issuedOn"] }
+const twoSides = (v: { frontFileId?: string | null; backFileId?: string | null }) => !v.frontFileId || v.frontFileId !== v.backFileId
+const sidesMessage = { message: "Pick different photos for the front and the back.", path: ["backFileId"] }
 
 export const createDocumentInput = z
   .object({
@@ -67,8 +71,11 @@ export const createDocumentInput = z
     notes: documentFields.notes.default(""),
     reminderDays: documentFields.reminderDays.default([...DEFAULT_REMINDER_DAYS]),
     fileIds: documentFields.fileIds.default([]),
+    frontFileId: documentFields.sideFileId.default(null),
+    backFileId: documentFields.sideFileId.default(null),
   })
   .refine(issuedBeforeExpiry, issuedMessage)
+  .refine(twoSides, sidesMessage)
 
 /** Only the fields given change; `fileIds`, when given, replaces the attached files. */
 export const updateDocumentInput = z
@@ -81,8 +88,12 @@ export const updateDocumentInput = z
     notes: documentFields.notes.optional(),
     reminderDays: documentFields.reminderDays.optional(),
     fileIds: documentFields.fileIds.optional(),
+    /** Omitted = kept (while that file stays attached); null = no front photo. */
+    frontFileId: documentFields.sideFileId.optional(),
+    backFileId: documentFields.sideFileId.optional(),
   })
   .refine(issuedBeforeExpiry, issuedMessage)
+  .refine(twoSides, sidesMessage)
 
 export const renewDocumentInput = z
   .object({
@@ -92,8 +103,12 @@ export const renewDocumentInput = z
     issuedOn: documentFields.issuedOn.default(null),
     /** Files to attach as well (the new scan); the attached ones stay. */
     addFileIds: documentFields.fileIds.default([]),
+    /** The new card's photos (attached or among addFileIds); omitted = the current ones stay. */
+    frontFileId: documentFields.sideFileId.optional(),
+    backFileId: documentFields.sideFileId.optional(),
   })
   .refine(issuedBeforeExpiry, issuedMessage)
+  .refine(twoSides, sidesMessage)
 
 export const documentIdInput = z.object({ id: z.uuid() })
 
@@ -108,7 +123,10 @@ export const upcomingInput = z.object({
   includeExpired: z.boolean().default(true),
 })
 
-export type AttachedFile = { id: string; name: string; size: number; mime: string }
+export type AttachedFile = { id: string; name: string; size: number; mime: string; side?: DocumentSide | null }
+
+/** Files that can be a side of the card: photos the browser shows inline (no SVG). */
+export const isCardPhoto = (mime: string) => mime.startsWith("image/") && mime !== "image/svg+xml"
 
 export type DocumentItem = {
   id: string
@@ -123,6 +141,8 @@ export type DocumentItem = {
   /** Earlier renewals, newest first. */
   history: DocumentHistoryEntry[]
   fileCount: number
+  /** The photo of the front, for the list's thumbnail. */
+  frontFileId: string | null
   status: DocumentStatus
   createdAt: string
   updatedAt: string

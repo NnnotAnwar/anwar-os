@@ -1,5 +1,5 @@
 import "server-only"
-import { and, asc, count, eq, gte, ilike, inArray, lte, notInArray, or, type SQL } from "drizzle-orm"
+import { and, asc, count, eq, gte, ilike, inArray, lte, notInArray, or, sql, type SQL } from "drizzle-orm"
 import { asViewer, requireViewer } from "@/core/auth"
 import { defineAction } from "@/core/module"
 import type { Tx } from "@/db"
@@ -11,6 +11,7 @@ import {
   createDocumentInput,
   documentIdInput,
   documentKinds,
+  isCardPhoto,
   kindLabels,
   listDocumentsInput,
   renewDocumentInput,
@@ -20,6 +21,7 @@ import {
   type DocumentDetail,
   type DocumentHistoryEntry,
   type DocumentItem,
+  type DocumentSide,
   type DocumentsList,
 } from "./schema"
 
@@ -60,7 +62,10 @@ type Row = {
 
 export type DocumentRow = Row
 
-function toItem(row: Row, today: string, fileCount: number): DocumentItem {
+type FileSummary = { count: number; front: string | null }
+const NO_FILES: FileSummary = { count: 0, front: null }
+
+function toItem(row: Row, today: string, files: FileSummary): DocumentItem {
   return {
     id: row.id,
     name: row.name,
@@ -71,7 +76,8 @@ function toItem(row: Row, today: string, fileCount: number): DocumentItem {
     reminderDays: row.reminderDays,
     snoozedUntil: row.snoozedUntil,
     history: row.history,
-    fileCount,
+    fileCount: files.count,
+    frontFileId: files.front,
     status: documentStatus(row.expiresOn, today),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -85,21 +91,22 @@ export async function viewerToday() {
   return ownerClock(viewer.timezone, new Date()).today
 }
 
-async function fileCounts(tx: Tx, ids: string[]) {
-  const map = new Map<string, number>()
+/** How many files each document has, and its front photo (the list's thumbnail). */
+async function fileSummaries(tx: Tx, ids: string[]) {
+  const map = new Map<string, FileSummary>()
   if (!ids.length) return map
   const rows = await tx
-    .select({ documentId: df.documentId, n: count() })
+    .select({ documentId: df.documentId, n: count(), front: sql<string | null>`(array_agg(${df.fileId}) filter (where ${df.side} = 'front'))[1]` })
     .from(df)
     .where(inArray(df.documentId, ids))
     .groupBy(df.documentId)
-  for (const row of rows) map.set(row.documentId, Number(row.n))
+  for (const row of rows) map.set(row.documentId, { count: Number(row.n), front: row.front })
   return map
 }
 
 async function attachedFiles(tx: Tx, id: string): Promise<AttachedFile[]> {
   return tx
-    .select({ id: filesFiles.id, name: filesFiles.name, size: filesFiles.sizeBytes, mime: filesFiles.mime })
+    .select({ id: filesFiles.id, name: filesFiles.name, size: filesFiles.sizeBytes, mime: filesFiles.mime, side: df.side })
     .from(df)
     .innerJoin(filesFiles, eq(filesFiles.id, df.fileId))
     .where(eq(df.documentId, id))
@@ -123,6 +130,31 @@ async function setFiles(tx: Tx, documentId: string, fileIds: string[]) {
   }
 }
 
+/**
+ * Makes `fileId` (one of the document's attached files, a photo) its `side`,
+ * or leaves that side empty. A file has one side, so marking the back's photo
+ * as the front moves it.
+ */
+async function setSide(tx: Tx, documentId: string, side: DocumentSide, fileId: string | null) {
+  if (fileId) {
+    const [file] = await tx
+      .select({ mime: filesFiles.mime })
+      .from(df)
+      .innerJoin(filesFiles, eq(filesFiles.id, df.fileId))
+      .where(and(eq(df.documentId, documentId), eq(df.fileId, fileId)))
+    if (!file) throw new DocumentInputError(`The ${side} of the card should be one of the attached files.`)
+    if (!isCardPhoto(file.mime)) throw new DocumentInputError(`The ${side} of the card needs a photo (JPEG or PNG), not a PDF.`)
+  }
+  await tx.update(df).set({ side: null }).where(and(eq(df.documentId, documentId), eq(df.side, side)))
+  if (fileId) await tx.update(df).set({ side }).where(and(eq(df.documentId, documentId), eq(df.fileId, fileId)))
+}
+
+/** Applies the sides given (undefined = unchanged). */
+async function setSides(tx: Tx, documentId: string, sides: { frontFileId?: string | null; backFileId?: string | null }) {
+  if (sides.frontFileId !== undefined) await setSide(tx, documentId, "front", sides.frontFileId)
+  if (sides.backFileId !== undefined) await setSide(tx, documentId, "back", sides.backFileId)
+}
+
 async function findRow(tx: Tx, id: string) {
   const [row] = await tx.select(columns).from(d).where(eq(d.id, id))
   return row ?? null
@@ -132,7 +164,8 @@ async function detail(tx: Tx, id: string, today: string): Promise<DocumentDetail
   const row = await findRow(tx, id)
   if (!row) return null
   const files = await attachedFiles(tx, id)
-  return { ...toItem(row, today, files.length), today, files }
+  const front = files.find((f) => f.side === "front")?.id ?? null
+  return { ...toItem(row, today, { count: files.length, front }), today, files }
 }
 
 function isCheckViolation(error: unknown) {
@@ -167,8 +200,8 @@ export const actions = {
           .where(where.length ? and(...where) : undefined)
           .orderBy(asc(d.expiresOn), asc(d.name))
           .limit(limit)
-        const counts = await fileCounts(tx, rows.map((r) => r.id))
-        return { today, documents: rows.map((row) => toItem(row, today, counts.get(row.id) ?? 0)) }
+        const files = await fileSummaries(tx, rows.map((r) => r.id))
+        return { today, documents: rows.map((row) => toItem(row, today, files.get(row.id) ?? NO_FILES)) }
       })
     },
   }),
@@ -195,17 +228,17 @@ export const actions = {
           .from(d)
           .where(includeExpired ? until : and(until, gte(d.expiresOn, today)))
           .orderBy(asc(d.expiresOn), asc(d.name))
-        const counts = await fileCounts(tx, rows.map((r) => r.id))
-        return { today, documents: rows.map((row) => toItem(row, today, counts.get(row.id) ?? 0)) }
+        const files = await fileSummaries(tx, rows.map((r) => r.id))
+        return { today, documents: rows.map((row) => toItem(row, today, files.get(row.id) ?? NO_FILES)) }
       })
     },
   }),
   create: defineAction({
     description:
-      "Add a document: a name (\"Passport\"), its kind, the expiry date (YYYY-MM-DD, the last valid day), optionally the issue date and a short note, the days before expiry to be reminded in Telegram (default 90, 30, 7 and 0 = the day itself; [] = no reminders) and ids of Files items to attach. Never store document numbers.",
+      "Add a document: a name (\"Passport\"), its kind, the expiry date (YYYY-MM-DD, the last valid day), optionally the issue date and a short note, the days before expiry to be reminded in Telegram (default 90, 30, 7 and 0 = the day itself; [] = no reminders), ids of Files items to attach, and which attached photos show the card's front and back. Never store document numbers.",
     kind: "write",
     input: createDocumentInput,
-    handler: async ({ fileIds, ...fields }): Promise<DocumentDetail> => {
+    handler: async ({ fileIds, frontFileId, backFileId, ...fields }): Promise<DocumentDetail> => {
       const today = await viewerToday()
       return asViewer(async (tx) => {
         try {
@@ -214,6 +247,7 @@ export const actions = {
             .values({ ...fields, remindersFrom: today })
             .returning({ id: d.id })
           await setFiles(tx, row!.id, fileIds)
+          await setSides(tx, row!.id, { frontFileId, backFileId })
           return (await detail(tx, row!.id, today))!
         } catch (error) {
           if (isCheckViolation(error)) throw new DocumentInputError("Check the dates and reminders: something is out of range.")
@@ -224,10 +258,10 @@ export const actions = {
   }),
   update: defineAction({
     description:
-      "Change a document: only the fields given change. Changing the expiry date or the reminder days restarts its reminders from today. `fileIds`, when given, replaces the attached files. To record a renewal (keeping the old dates in the history) use renew instead.",
+      "Change a document: only the fields given change. Changing the expiry date or the reminder days restarts its reminders from today. `fileIds`, when given, replaces the attached files; `frontFileId` / `backFileId` pick the attached photos of the card's two sides (null = none). To record a renewal (keeping the old dates in the history) use renew instead.",
     kind: "write",
     input: updateDocumentInput,
-    handler: async ({ id, fileIds, ...fields }): Promise<DocumentDetail> => {
+    handler: async ({ id, fileIds, frontFileId, backFileId, ...fields }): Promise<DocumentDetail> => {
       const today = await viewerToday()
       return asViewer(async (tx) => {
         const current = await findRow(tx, id)
@@ -249,6 +283,7 @@ export const actions = {
         try {
           if (Object.keys(set).length) await tx.update(d).set(set).where(eq(d.id, id))
           if (fileIds) await setFiles(tx, id, fileIds)
+          await setSides(tx, id, { frontFileId, backFileId })
         } catch (error) {
           if (isCheckViolation(error)) throw new DocumentInputError("Check the dates and reminders: something is out of range.")
           throw error
@@ -259,10 +294,10 @@ export const actions = {
   }),
   renew: defineAction({
     description:
-      "Record that a document was renewed: the new expiry date (later than the current one), optionally the new issue date and ids of Files items to attach as well (the new scan). The previous dates move to the document's history and its reminders start over for the new date.",
+      "Record that a document was renewed: the new expiry date (later than the current one), optionally the new issue date, ids of Files items to attach as well (the new scan) and which photos show the new card's front and back. The previous dates move to the document's history and its reminders start over for the new date.",
     kind: "write",
     input: renewDocumentInput,
-    handler: async ({ id, expiresOn, issuedOn, addFileIds }): Promise<DocumentDetail> => {
+    handler: async ({ id, expiresOn, issuedOn, addFileIds, frontFileId, backFileId }): Promise<DocumentDetail> => {
       const today = await viewerToday()
       return asViewer(async (tx) => {
         const current = await findRow(tx, id)
@@ -279,6 +314,7 @@ export const actions = {
           const attached = await tx.select({ id: df.fileId }).from(df).where(eq(df.documentId, id))
           await setFiles(tx, id, [...new Set([...attached.map((a) => a.id), ...addFileIds])])
         }
+        await setSides(tx, id, { frontFileId, backFileId })
         return (await detail(tx, id, today))!
       })
     },

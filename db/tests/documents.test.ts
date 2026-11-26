@@ -60,10 +60,10 @@ async function call(handler: Handler, method: "GET" | "POST", path: string, body
   return { status: response.status, json: (await response.json()) as Record<string, any> }
 }
 
-async function insertFile(owner: string, name: string) {
+async function insertFile(owner: string, name: string, mime = "application/pdf") {
   const [row] = await as(owner, (sql) => sql<{ id: string }[]>`
     insert into files_files (name, size_bytes, mime, storage_key)
-    values (${name}, 1234, 'application/pdf', ${`${owner}/${crypto.randomUUID()}`}) returning id`)
+    values (${name}, 1234, ${mime}, ${`${owner}/${crypto.randomUUID()}`}) returning id`)
   return row!.id
 }
 
@@ -134,6 +134,27 @@ describe("documents RLS", () => {
 
   it("can't edit a link (attach or detach only)", async () => {
     expect(await pgError(as(alice, (sql) => sql`update documents_files set file_id = ${aliceFile} where document_id = ${aliceDoc}`))).toBe("42501")
+  })
+
+  it("marks a link as the card's front or back: the owner only, one of each", async () => {
+    const [{ id: doc }] = await as(alice, (sql) => sql<{ id: string }[]>`
+      insert into documents_documents (name, expires_on) values (${`Card ${marker}`}, '2030-01-01') returning id`)
+    const a = await insertFile(alice, `a-${marker}.jpg`, "image/jpeg")
+    const b = await insertFile(alice, `b-${marker}.jpg`, "image/jpeg")
+    await as(alice, (sql) => sql`insert into documents_files (document_id, file_id) values (${doc}, ${a}), (${doc}, ${b})`)
+
+    const marked = await as(alice, (sql) => sql`update documents_files set side = 'front' where document_id = ${doc} and file_id = ${a}`)
+    expect(marked.count).toBe(1)
+    // A second front on the same document, and a side that isn't one.
+    expect(await pgError(as(alice, (sql) => sql`update documents_files set side = 'front' where file_id = ${b}`))).toBe("23505")
+    expect(await pgError(as(alice, (sql) => sql`update documents_files set side = 'inside' where file_id = ${b}`))).toBe("23514")
+    // Bob sees no row to change.
+    const bobs = await as(bob, (sql) => sql`update documents_files set side = 'back' where document_id = ${doc}`)
+    expect(bobs.count).toBe(0)
+    const [row] = await admin`select count(*)::int as n from documents_files where document_id = ${doc} and side is not null`
+    expect(row!.n).toBe(1)
+    // Out of the way of the list tests below.
+    await as(alice, (sql) => sql`delete from documents_documents where id = ${doc}`)
   })
 
   it("checks kinds, dates, reminder days, notes and history", async () => {
@@ -227,6 +248,51 @@ describe("documents actions (as a signed-in viewer)", () => {
     )
     expect(renewed).toMatchObject({ expiresOn: "2040-06-01", issuedOn: "2030-05-20", fileCount: 1 })
     expect(renewed.history).toEqual([{ expiresOn: "2030-06-01", issuedOn: null, renewedOn: renewed.today }])
+  })
+
+  it("keeps the card's photos: front and back, photos only, moved by a renewal", async () => {
+    const front = await insertFile(alice, `front-${marker}.jpg`, "image/jpeg")
+    const back = await insertFile(alice, `back-${marker}.png`, "image/png")
+    const pdf = await insertFile(alice, `letter-${marker}.pdf`)
+    const card = await asAlice(() =>
+      actions.create.handler({
+        name: `ID card ${marker}`,
+        kind: "id_card",
+        expiresOn: "2031-01-01",
+        issuedOn: null,
+        notes: "",
+        reminderDays: [],
+        fileIds: [front, back, pdf],
+        frontFileId: front,
+        backFileId: back,
+      }),
+    )
+    expect(card.frontFileId).toBe(front)
+    expect(Object.fromEntries(card.files.map((f) => [f.id, f.side]))).toEqual({ [front]: "front", [back]: "back", [pdf]: null })
+
+    // The list carries the front for its thumbnail.
+    const { documents } = await asAlice(() => actions.list.handler({ query: `ID card ${marker}`, limit: 5 }))
+    expect(documents[0]).toMatchObject({ id: card.id, fileCount: 3, frontFileId: front })
+
+    // A PDF can't be a side; a file that isn't attached can't either.
+    await expect(asAlice(() => actions.update.handler({ id: card.id, backFileId: pdf }))).rejects.toThrow(/needs a photo/)
+    await expect(asAlice(() => actions.update.handler({ id: card.id, frontFileId: aliceFile }))).rejects.toThrow(/attached files/)
+
+    // Sides stay while their files stay attached; swapping them works.
+    const kept = await asAlice(() => actions.update.handler({ id: card.id, fileIds: [front, back] }))
+    expect(Object.fromEntries(kept.files.map((f) => [f.id, f.side]))).toEqual({ [front]: "front", [back]: "back" })
+    const swapped = await asAlice(() => actions.update.handler({ id: card.id, frontFileId: back, backFileId: front }))
+    expect(swapped.frontFileId).toBe(back)
+    expect(swapped.files.find((f) => f.id === front)?.side).toBe("back")
+
+    // A renewal with a new photo makes it the front; the old photos stay attached.
+    const fresh = await insertFile(alice, `new-${marker}.jpg`, "image/jpeg")
+    const renewed = await asAlice(() =>
+      actions.renew.handler({ id: card.id, expiresOn: "2041-01-01", issuedOn: null, addFileIds: [fresh], frontFileId: fresh, backFileId: null }),
+    )
+    expect(renewed.frontFileId).toBe(fresh)
+    expect(renewed.files.filter((f) => f.side).map((f) => f.id)).toEqual([fresh])
+    expect(renewed.fileCount).toBe(3)
   })
 
   it("lists what's coming up, and deletes", async () => {

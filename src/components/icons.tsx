@@ -227,6 +227,7 @@ export const Car = bold(P.Car)
 export const FirstAid = bold(P.FirstAid)
 export const Paperclip = bold(P.Paperclip)
 export const ArrowsClockwise = bold(P.ArrowsClockwise)
+export const CornersOut = bold(P.CornersOut)
 // ops: error log + restore drill
 export const Bug = bold(P.Bug)
 export const ClockCounterClockwise = bold(P.ClockCounterClockwise)

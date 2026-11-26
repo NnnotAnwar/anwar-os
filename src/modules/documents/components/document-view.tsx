@@ -17,10 +17,12 @@ import { formatBytes } from "@/modules/files/lib/validation"
 import { addDaysIso, formatDate, formatShortDate } from "../lib/dates"
 import { describeReminders } from "../lib/format"
 import { REMINDER_TIME, reminderStages } from "../lib/reminders"
+import { sideIds } from "../lib/sides"
 import { expiredAgo, needsAttention } from "../lib/status"
 import { kindLabels, type AttachedFile, type DocumentDetail } from "../schema"
 import { deleteDocument, renewDocument } from "../server-actions"
 import { Attachments } from "./attachments"
+import { DocumentCard } from "./document-card"
 import { KindIcon, StatusChip } from "./bits"
 
 /** One document: its dates and status, Renewed, reminders, scans and history. */
@@ -76,6 +78,8 @@ export function DocumentView({ document, renew }: { document: DocumentDetail; re
           </Button>
         </div>
       </div>
+
+      <DocumentCard document={document} />
 
       <section className="glass grid gap-4 rounded-xl p-4 [--glass-shadow:var(--shadow-glass-lg)] md:p-6" aria-labelledby="document-name">
         <div className="flex items-start gap-3">
@@ -170,7 +174,10 @@ function RenewPanel({ document, onDone }: { document: DocumentDetail; onDone: ()
     if (expiresOn <= document.expiresOn) return setError(`The new expiry date should be after ${formatDate(document.expiresOn)}.`)
     if (issuedOn && issuedOn > expiresOn) return setError("The issue date can't be after the expiry date.")
     start(async () => {
-      const result = await renewDocument({ id: document.id, expiresOn, issuedOn: issuedOn || null, addFileIds: files.map((f) => f.id) })
+      // New photos are the new card: they replace both sides. Without any, the current ones stay.
+      const sides = sideIds(files)
+      const newCard = sides.frontFileId || sides.backFileId ? sides : {}
+      const result = await renewDocument({ id: document.id, expiresOn, issuedOn: issuedOn || null, addFileIds: files.map((f) => f.id), ...newCard })
       if (!result.ok) return setError(result.error)
       toast.success(`Renewed · valid until ${formatDate(result.value.expiresOn)}`)
       onDone()

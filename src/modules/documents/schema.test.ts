@@ -17,6 +17,16 @@ describe("createDocumentInput", () => {
       notes: "",
       reminderDays: [90, 30, 7, 0],
       fileIds: [],
+      frontFileId: null,
+      backFileId: null,
+    })
+  })
+
+  it("won't use one photo for both sides", () => {
+    const id = "6f1c1f7e-5b5d-4e0b-9a63-0d5b8f3c2a11"
+    expect(issue(createDocumentInput.safeParse({ name: "ID", expiresOn: "2030-05-01", fileIds: [id], frontFileId: id, backFileId: id }))).toEqual({
+      message: "Pick different photos for the front and the back.",
+      path: "backFileId",
     })
   })
 

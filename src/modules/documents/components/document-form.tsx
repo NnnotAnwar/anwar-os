@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { describeReminders, reminderLabel } from "../lib/format"
 import { MAX_REMINDER_DAYS, MAX_REMINDERS, normalizeReminderDays } from "../lib/reminders"
+import { sideIds } from "../lib/sides"
 import { DEFAULT_REMINDER_DAYS, documentKinds, kindLabels, type AttachedFile, type DocumentDetail, type DocumentKind } from "../schema"
 import { createDocument, updateDocument } from "../server-actions"
 import { Attachments } from "./attachments"
@@ -71,7 +72,7 @@ export function DocumentForm({ document }: { document: DocumentDetail | null }) 
     if (!expiresOn) return setError({ field: "expiresOn", message: "Enter the expiry date: the last day it's valid." })
     if (issuedOn && issuedOn > expiresOn) return setError({ field: "issuedOn", message: "The issue date can't be after the expiry date." })
     if (uploading) return setError({ field: "files", message: "Wait for the upload to finish." })
-    const payload = { name, kind, expiresOn, issuedOn: issuedOn || null, notes, reminderDays: days, fileIds: files.map((f) => f.id) }
+    const payload = { name, kind, expiresOn, issuedOn: issuedOn || null, notes, reminderDays: days, fileIds: files.map((f) => f.id), ...sideIds(files) }
     start(async () => {
       const result = document ? await updateDocument({ id: document.id, ...payload }) : await createDocument(payload)
       if (!result.ok) return setError({ field: "form", message: result.error })

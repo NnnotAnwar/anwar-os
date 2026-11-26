@@ -4,6 +4,7 @@ import Link from "next/link"
 import { ChevronRightIcon, Paperclip } from "@/components/icons"
 import { usePendingRemovals } from "@/components/list/pending"
 import { NAV_FORWARD } from "@/components/motion"
+import { rawHref } from "@/modules/files/lib/links"
 import { formatDate } from "../lib/dates"
 import { kindLabels, type DocumentItem } from "../schema"
 import { KindIcon, StatusChip } from "./bits"
@@ -26,7 +27,18 @@ export function DocumentsList({ documents }: { documents: DocumentItem[] }) {
             transitionTypes={NAV_FORWARD}
             className="glass press flex min-h-16 items-center gap-3 rounded-xl p-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:p-4"
           >
-            <KindIcon kind={doc.kind} tone={doc.status.tone} />
+            {doc.frontFileId ? (
+              // The card's front, small: the document is easier to spot by its photo.
+              // eslint-disable-next-line @next/next/no-img-element -- a presigned redirect, not an optimizable asset
+              <img
+                src={rawHref(doc.frontFileId, "inline")}
+                alt=""
+                loading="lazy"
+                className="h-10 w-16 shrink-0 rounded-md bg-muted object-cover ring-1 ring-foreground/10"
+              />
+            ) : (
+              <KindIcon kind={doc.kind} tone={doc.status.tone} />
+            )}
             <span className="grid min-w-0 flex-1 gap-0.5">
               <span className="text-body-strong truncate">{doc.name}</span>
               <span className="text-caption flex min-w-0 items-center gap-1.5 text-muted-foreground">

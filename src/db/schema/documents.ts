@@ -17,6 +17,10 @@ const ownerId = () =>
 export const documentKinds = ["passport", "residence_permit", "id_card", "driving_licence", "insurance", "other"] as const
 export type DocumentKind = (typeof documentKinds)[number]
 
+/** Which side of the card a scan shows: the document page offers both to flip through. */
+export const documentSides = ["front", "back"] as const
+export type DocumentSide = (typeof documentSides)[number]
+
 /** A renewal kept on the document: the dates it had before ("Renewed" moves them here). */
 export type DocumentHistoryEntry = { expiresOn: string; issuedOn: string | null; renewedOn: string }
 
@@ -69,7 +73,8 @@ export const documentsDocuments = pgTable(
  * Files items attached to a document (scans live in Files, usually in the
  * "Documents" folder). Deleting the file removes the link; deleting the
  * document leaves the file in Files. RLS only lets a link point at the
- * viewer's own file (db/modules/documents.sql).
+ * viewer's own file (db/modules/documents.sql). `side` marks the photo of the
+ * card's front or back (at most one of each per document); null = just a file.
  */
 export const documentsFiles = pgTable(
   "documents_files",
@@ -79,6 +84,7 @@ export const documentsFiles = pgTable(
     fileId: uuid("file_id")
       .notNull()
       .references(() => filesFiles.id, { onDelete: "cascade" }),
+    side: text("side", { enum: documentSides }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -90,6 +96,9 @@ export const documentsFiles = pgTable(
       foreignColumns: [documentsDocuments.ownerId, documentsDocuments.id],
     }).onDelete("cascade"),
     index("documents_files_file_idx").on(t.fileId),
+    // Nulls are distinct: any number of plain files, one front and one back.
+    unique("documents_files_document_side_key").on(t.documentId, t.side),
+    check("documents_files_side_valid", sql`${t.side} is null or ${t.side} in ('front', 'back')`),
     index("documents_files_owner_idx").on(t.ownerId),
   ],
 )
