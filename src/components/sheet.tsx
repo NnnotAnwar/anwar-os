@@ -37,6 +37,8 @@ export function Sheet({
           <DialogTitle className="text-card-title">{title}</DialogTitle>
           {description && <DialogDescription className="text-meta text-muted-foreground">{description}</DialogDescription>}
         </div>
+        {/* No visible title: keep the band the close button (top right, 8–36px) sits in, so the content starts below it. */}
+        {hideTitle && <div aria-hidden className="h-10 max-sm:h-6" />}
         {children}
       </DialogContent>
     </Dialog>
