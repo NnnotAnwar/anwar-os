@@ -6,6 +6,7 @@ import { Eye, Pencil, Trash2 } from "@/components/icons"
 import {
   AlertDialog,
   AlertDialogCancel,
+  AlertDialogConfirm,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -18,12 +19,16 @@ import { cn } from "@/lib/utils"
 import { folderHref } from "../lib/links"
 import { renderMarkdown } from "../lib/markdown"
 import { createDocument, deleteDocument, saveDocument } from "../server-actions"
+import type { Folder } from "../schema"
+import { Breadcrumbs } from "./breadcrumbs"
 import { proseClass } from "./prose"
 
 type Props = {
   timezone: string
   locale: string
   folderId: string | null
+  /** The folders above the document, for the breadcrumb trail. */
+  path: Folder[]
 } & (
   | { mode: "create" }
   | { mode: "edit"; id: string; initialTitle: string; initialBody: string; initialUpdatedAt: string }
@@ -131,6 +136,13 @@ export function DocumentEditor(props: Props) {
 
   const html = useMemo(() => (view === "read" ? renderMarkdown(body) : ""), [view, body])
 
+  // The trail and the tab follow the title as it's typed: the server set them
+  // once, as "New document" (or the old name), when the page loaded.
+  const shownTitle = title.trim() || (id ? "Untitled" : "New document")
+  useEffect(() => {
+    document.title = `${shownTitle} · anwar.os`
+  }, [shownTitle])
+
   function remove() {
     if (!id) return
     clearTimeout(timer.current)
@@ -142,87 +154,90 @@ export function DocumentEditor(props: Props) {
   }
 
   return (
-    <article className="glass grid gap-4 rounded-xl p-4 sm:p-6">
-      <div className="flex min-h-8 flex-wrap items-center gap-2">
-        <div className="segmented" role="tablist" aria-label="View">
-          {(
-            [
-              ["write", "Write", Pencil],
-              ["read", "Preview", Eye],
-            ] as const
-          ).map(([key, label, Icon]) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={view === key}
-              onClick={() => setView(key)}
-              className={cn(
-                "text-small flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
-                view === key && "segment-active text-foreground",
-              )}
-            >
-              <Icon className="size-3.5" />
-              {label}
-            </button>
-          ))}
+    <>
+      <Breadcrumbs path={props.path} current={shownTitle} />
+      <article className="glass grid gap-4 rounded-xl p-4 sm:p-6">
+        <div className="flex min-h-8 flex-wrap items-center gap-2">
+          <div className="segmented" role="tablist" aria-label="View">
+            {(
+              [
+                ["write", "Write", Pencil],
+                ["read", "Preview", Eye],
+              ] as const
+            ).map(([key, label, Icon]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={view === key}
+                onClick={() => setView(key)}
+                className={cn(
+                  "text-small flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                  view === key && "segment-active text-foreground",
+                )}
+              >
+                <Icon className="size-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+          <SaveStatus status={status} timezone={props.timezone} locale={props.locale} />
+          {id && (
+            <AlertDialog busy={pending}>
+              <AlertDialogTrigger render={<Button variant="ghost" size="icon" aria-label="Delete document" className="ml-auto" />}>
+                <Trash2 />
+              </AlertDialogTrigger>
+              <AlertDialogContent className="glass glass-menu">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-card-title">Delete “{title.trim() || "this document"}”?</AlertDialogTitle>
+                  <AlertDialogDescription>The document is removed for good. This can&apos;t be undone.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep document</AlertDialogCancel>
+                  <AlertDialogConfirm busyLabel="Deleting…" onClick={remove}>
+                    Delete document
+                  </AlertDialogConfirm>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
-        <SaveStatus status={status} timezone={props.timezone} locale={props.locale} />
-        {id && (
-          <AlertDialog>
-            <AlertDialogTrigger render={<Button variant="ghost" size="icon" aria-label="Delete document" className="ml-auto" />}>
-              <Trash2 />
-            </AlertDialogTrigger>
-            <AlertDialogContent className="glass glass-menu">
-              <AlertDialogHeader>
-                <AlertDialogTitle className="text-card-title">Delete “{title.trim() || "this document"}”?</AlertDialogTitle>
-                <AlertDialogDescription>The document is removed for good. This can&apos;t be undone.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep document</AlertDialogCancel>
-                <Button variant="destructive" onClick={remove} disabled={pending}>
-                  Delete document
-                </Button>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+
+        <label htmlFor="doc-title" className="sr-only">
+          Title
+        </label>
+        <input
+          id="doc-title"
+          value={title}
+          onChange={(e) => edit({ title: e.target.value })}
+          placeholder="Title"
+          maxLength={200}
+          autoFocus={props.mode === "create"}
+          autoComplete="off"
+          className="w-full bg-transparent font-display text-xl font-bold tracking-tight outline-none placeholder:text-muted-foreground/60 md:text-2xl"
+        />
+
+        {view === "write" ? (
+          <>
+            <label htmlFor="doc-body" className="sr-only">
+              Body (markdown)
+            </label>
+            <textarea
+              id="doc-body"
+              value={body}
+              onChange={(e) => edit({ body: e.target.value })}
+              placeholder={"e.g. ## Checklist\n- [ ] Passport\n- [ ] Tickets"}
+              spellCheck
+              className="field-sizing-content min-h-[50vh] w-full resize-none bg-transparent font-mono text-sm leading-6 outline-none placeholder:text-muted-foreground/60"
+            />
+          </>
+        ) : body.trim() ? (
+          <div className={proseClass} dangerouslySetInnerHTML={{ __html: html }} />
+        ) : (
+          <p className="text-meta text-muted-foreground">Nothing written yet. Switch to Write to start.</p>
         )}
-      </div>
-
-      <label htmlFor="doc-title" className="sr-only">
-        Title
-      </label>
-      <input
-        id="doc-title"
-        value={title}
-        onChange={(e) => edit({ title: e.target.value })}
-        placeholder="Title"
-        maxLength={200}
-        autoFocus={props.mode === "create"}
-        autoComplete="off"
-        className="w-full bg-transparent font-display text-xl font-bold tracking-tight outline-none placeholder:text-muted-foreground/60 md:text-2xl"
-      />
-
-      {view === "write" ? (
-        <>
-          <label htmlFor="doc-body" className="sr-only">
-            Body (markdown)
-          </label>
-          <textarea
-            id="doc-body"
-            value={body}
-            onChange={(e) => edit({ body: e.target.value })}
-            placeholder={"e.g. ## Checklist\n- [ ] Passport\n- [ ] Tickets"}
-            spellCheck
-            className="field-sizing-content min-h-[50vh] w-full resize-none bg-transparent font-mono text-sm leading-6 outline-none placeholder:text-muted-foreground/60"
-          />
-        </>
-      ) : body.trim() ? (
-        <div className={proseClass} dangerouslySetInnerHTML={{ __html: html }} />
-      ) : (
-        <p className="text-meta text-muted-foreground">Nothing written yet. Switch to Write to start.</p>
-      )}
-    </article>
+      </article>
+    </>
   )
 }
 

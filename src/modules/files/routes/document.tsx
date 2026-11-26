@@ -5,7 +5,6 @@ import { z } from "zod"
 import { Skeleton } from "@/components/ui/skeleton"
 import { requireViewer } from "@/core/auth"
 import { actions } from "../actions"
-import { Breadcrumbs } from "../components/breadcrumbs"
 import { DocumentEditor } from "../components/document-editor"
 import { Page } from "@/components/motion"
 
@@ -36,9 +35,9 @@ async function DocumentLoader({ params }: Pick<PageProps<"/app/files/doc/[id]">,
   if (!doc) notFound()
   return (
     <>
-      <Breadcrumbs path={doc.path} current={doc.title} />
       <DocumentEditor
         key={doc.id}
+        path={doc.path}
         mode="edit"
         id={doc.id}
         folderId={doc.folderId}

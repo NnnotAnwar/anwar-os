@@ -8,6 +8,7 @@ import { Fingerprint, Lock, PasswordIcon, Pencil, ShieldCheck, Trash2 } from "@/
 import {
   AlertDialog,
   AlertDialogCancel,
+  AlertDialogConfirm,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -184,7 +185,7 @@ function GoogleRow({ methods, locked, settle, onStale }: RowProps & { methods: M
       meta={connected ? (email ? `Connected as ${email}` : "Connected") : "Sign in with your Google account."}
       action={
         connected ? (
-          <AlertDialog open={open} onOpenChange={setOpen}>
+          <AlertDialog open={open} onOpenChange={setOpen} busy={pending}>
             <AlertDialogTrigger render={<Button variant="ghost" className="h-11 sm:h-8" disabled={locked} />}>
               Disconnect
             </AlertDialogTrigger>
@@ -197,9 +198,9 @@ function GoogleRow({ methods, locked, settle, onStale }: RowProps & { methods: M
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Keep it</AlertDialogCancel>
-                <Button variant="destructive" onClick={disconnect} disabled={pending}>
+                <AlertDialogConfirm busyLabel="Disconnecting…" onClick={disconnect}>
                   Disconnect
-                </Button>
+                </AlertDialogConfirm>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
@@ -327,7 +328,7 @@ function PasskeyRow({ passkey, settle }: { passkey: PasskeyItem; settle: RowProp
           <Pencil />
         </Button>
       )}
-      <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialog open={open} onOpenChange={setOpen} busy={open && pending}>
         <AlertDialogTrigger
           render={<Button variant="ghost" size="icon" className="size-11 sm:size-8" aria-label={`Remove ${passkey.name}`} />}
         >
@@ -343,9 +344,9 @@ function PasskeyRow({ passkey, settle }: { passkey: PasskeyItem; settle: RowProp
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <Button variant="destructive" onClick={remove} disabled={pending}>
+            <AlertDialogConfirm busyLabel="Removing…" onClick={remove}>
               Remove passkey
-            </Button>
+            </AlertDialogConfirm>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -7,6 +7,7 @@ import { Copy, DeviceMobile, KeyIcon, Lock, Plus, Robot } from "@/components/ico
 import {
   AlertDialog,
   AlertDialogCancel,
+  AlertDialogConfirm,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -135,7 +136,7 @@ function TokenRow({ token }: { token: ApiTokenItem }) {
           <span className="font-mono">{token.prefix}…</span> · {meta}
         </p>
       </div>
-      <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialog open={open} onOpenChange={setOpen} busy={pending}>
         <AlertDialogTrigger render={<Button variant="ghost" className="h-11 shrink-0 self-center sm:h-8" />}>
           Revoke
         </AlertDialogTrigger>
@@ -149,9 +150,9 @@ function TokenRow({ token }: { token: ApiTokenItem }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <Button variant="destructive" onClick={revoke} disabled={pending}>
+            <AlertDialogConfirm busyLabel="Revoking…" onClick={revoke}>
               Revoke
-            </Button>
+            </AlertDialogConfirm>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

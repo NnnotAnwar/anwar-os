@@ -3,7 +3,6 @@ import { notFound } from "next/navigation"
 import { z } from "zod"
 import { requireViewer } from "@/core/auth"
 import { actions } from "../actions"
-import { Breadcrumbs } from "../components/breadcrumbs"
 import { DocumentEditor } from "../components/document-editor"
 import { DocumentSkeleton } from "./document"
 import { Page } from "@/components/motion"
@@ -32,8 +31,7 @@ async function NewDocument({ searchParams }: Pick<PageProps<"/app/files/doc/new"
   }
   return (
     <>
-      <Breadcrumbs path={path?.path ?? []} current="New document" />
-      <DocumentEditor mode="create" folderId={folderId} timezone={viewer.timezone} locale={viewer.locale} />
+      <DocumentEditor path={path?.path ?? []} mode="create" folderId={folderId} timezone={viewer.timezone} locale={viewer.locale} />
     </>
   )
 }

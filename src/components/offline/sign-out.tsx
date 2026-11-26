@@ -6,13 +6,13 @@ import { toast } from "sonner"
 import {
   AlertDialog,
   AlertDialogCancel,
+  AlertDialogConfirm,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
 import { signOut } from "@/core/auth-actions"
 import { clearOfflineData, getOutboxState, itemsFor } from "@/lib/offline/client"
 
@@ -59,7 +59,7 @@ export function SignOutGuard() {
   }, [])
 
   return (
-    <AlertDialog open={count > 0} onOpenChange={(open) => !open && setCount(0)}>
+    <AlertDialog open={count > 0} onOpenChange={(open) => !open && setCount(0)} busy={pending}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{count === 1 ? "1 capture hasn't synced" : `${count} captures haven't synced`}</AlertDialogTitle>
@@ -69,9 +69,8 @@ export function SignOutGuard() {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Stay signed in</AlertDialogCancel>
-          <Button
-            variant="destructive"
-            disabled={pending}
+          <AlertDialogConfirm
+            busyLabel="Signing out…"
             onClick={() =>
               startTransition(async () => {
                 await signOutNow()
@@ -80,7 +79,7 @@ export function SignOutGuard() {
             }
           >
             Sign out and delete
-          </Button>
+          </AlertDialogConfirm>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

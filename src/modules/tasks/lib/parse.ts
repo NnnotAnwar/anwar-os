@@ -137,6 +137,21 @@ function take(ctx: Ctx, re: RegExp): RegExpExecArray | null {
   return m
 }
 
+/**
+ * Like `take`, but blanks the match out only when `read` turns it into a
+ * value: "Feb 30" or "31.13." stay in the title instead of vanishing.
+ */
+function takeIf<T>(ctx: Ctx, re: RegExp, read: (m: RegExpExecArray) => T | null): T | null {
+  const m = re.exec(ctx.text)
+  if (!m) return null
+  const value = read(m)
+  if (value === null) return null
+  ctx.text = ctx.text.slice(0, m.index) + " " + ctx.text.slice(m.index + m[0].length)
+  return value
+}
+
+const validMonth = (m: string | undefined) => Number(m) >= 1 && Number(m) <= 12
+
 // ---------------------------------------------------------------------------
 // Pieces
 // ---------------------------------------------------------------------------
@@ -292,8 +307,7 @@ function takeRepeat(ctx: Ctx): RepeatResult | null {
 function takeTime(ctx: Ctx): { hour: number; minute: number } | null {
   const pre = String.raw`(?:(?:at|@|v|ve|o)\s*)?`
   // 3pm, 3:30 pm, 11 a.m.
-  let m = take(ctx, new RegExp(String.raw`${L}${pre}(\d{1,2})(?:[:.](\d{2}))?\s?([ap])\.?m\.?${R}`, "iu"))
-  if (m) {
+  const meridiem = takeIf(ctx, new RegExp(String.raw`${L}${pre}(\d{1,2})(?:[:.](\d{2}))?\s?([ap])\.?m\.?${R}`, "iu"), (m) => {
     let hour = Number(m[1])
     const minute = Number(m[2] ?? 0)
     if (hour < 1 || hour > 12 || minute > 59) return null
@@ -301,9 +315,10 @@ function takeTime(ctx: Ctx): { hour: number; minute: number } | null {
     if (pm && hour < 12) hour += 12
     if (!pm && hour === 12) hour = 0
     return { hour, minute }
-  }
+  })
+  if (meridiem) return meridiem
   // 10:00, 9.30 (a dotted pair followed by another dot is a date, handled earlier)
-  m = take(ctx, new RegExp(String.raw`${L}${pre}([01]?\d|2[0-3])[:.]([0-5]\d)(?![\p{L}\p{N}.:])`, "iu"))
+  let m = take(ctx, new RegExp(String.raw`${L}${pre}([01]?\d|2[0-3])[:.]([0-5]\d)(?![\p{L}\p{N}.:])`, "iu"))
   if (m) return { hour: Number(m[1]), minute: Number(m[2]) }
   // at 5 / at 17 — bare hours need "at"; 1–7 read as afternoon.
   m = take(ctx, new RegExp(String.raw`${L}(?:at|@)\s*([01]?\d|2[0-3])(?![\p{L}\p{N}:.])`, "iu"))
@@ -320,30 +335,41 @@ function takeTime(ctx: Ctx): { hour: number; minute: number } | null {
 function takeDate(ctx: Ctx): LocalDate | null {
   const { today } = ctx
   const pre = String.raw`(?:(?:on|by|due|for|v|ve|do|na)\s+)?`
+  const year = (m: string | undefined) => (m ? Number(m) : undefined)
 
   // 2026-11-21
-  let m = take(ctx, new RegExp(String.raw`${L}${pre}(\d{4})-(\d{2})-(\d{2})${R}`, "iu"))
-  if (m) return upcoming(today, Number(m[2]), Number(m[3]), Number(m[1]))
+  let d = takeIf(ctx, new RegExp(String.raw`${L}${pre}(\d{4})-(\d{2})-(\d{2})${R}`, "iu"), (m) =>
+    validMonth(m[2]) ? upcoming(today, Number(m[2]), Number(m[3]), Number(m[1])) : null,
+  )
+  if (d) return d
 
   // 21.11. / 21. 11. 2026
-  m = take(ctx, new RegExp(String.raw`${L}${pre}(\d{1,2})\.\s?(\d{1,2})\.(?:\s?(\d{4}))?(?![\p{N}])`, "iu"))
-  if (m && Number(m[2]) >= 1 && Number(m[2]) <= 12) return upcoming(today, Number(m[2]), Number(m[1]), m[3] ? Number(m[3]) : undefined)
+  d = takeIf(ctx, new RegExp(String.raw`${L}${pre}(\d{1,2})\.\s?(\d{1,2})\.(?:\s?(\d{4}))?(?![\p{N}])`, "iu"), (m) =>
+    validMonth(m[2]) ? upcoming(today, Number(m[2]), Number(m[1]), year(m[3])) : null,
+  )
+  if (d) return d
 
   // 21/11, 21/11/2026 (day first)
-  m = take(ctx, new RegExp(String.raw`${L}${pre}(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?${R}`, "iu"))
-  if (m && Number(m[2]) >= 1 && Number(m[2]) <= 12) return upcoming(today, Number(m[2]), Number(m[1]), m[3] ? Number(m[3]) : undefined)
+  d = takeIf(ctx, new RegExp(String.raw`${L}${pre}(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?${R}`, "iu"), (m) =>
+    validMonth(m[2]) ? upcoming(today, Number(m[2]), Number(m[1]), year(m[3])) : null,
+  )
+  if (d) return d
 
   // 21 Nov, 21st of November, 21. listopadu
-  m = take(
+  d = takeIf(
     ctx,
     new RegExp(String.raw`${L}${pre}(?:the\s+)?(\d{1,2})(?:st|nd|rd|th|\.)?\s*(?:of\s+)?(${MONTH_WORDS})\.?(?:\s+(\d{4}))?${R}`, "iu"),
+    (m) => upcoming(today, monthIndex(m[2]!)!, Number(m[1]), year(m[3])),
   )
-  if (m) return upcoming(today, monthIndex(m[2]!)!, Number(m[1]), m[3] ? Number(m[3]) : undefined)
+  if (d) return d
 
   // Nov 21, November 21st, 2026
-  m = take(ctx, new RegExp(String.raw`${L}${pre}(${MONTH_WORDS})\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?${R}`, "iu"))
-  if (m) return upcoming(today, monthIndex(m[1]!)!, Number(m[2]), m[3] ? Number(m[3]) : undefined)
+  d = takeIf(ctx, new RegExp(String.raw`${L}${pre}(${MONTH_WORDS})\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?${R}`, "iu"), (m) =>
+    upcoming(today, monthIndex(m[1]!)!, Number(m[2]), year(m[3])),
+  )
+  if (d) return d
 
+  let m: RegExpExecArray | null
   // day after tomorrow / pozítří
   m = take(ctx, new RegExp(String.raw`${L}(?:the\s+)?(?:day\s+after\s+tomorrow|pozítří|pozitri)${R}`, "iu"))
   if (m) return addDays(today, 2)
@@ -386,8 +412,10 @@ function takeDate(ctx: Ctx): LocalDate | null {
   }
 
   // on the 5th / by the 21st (this month or next)
-  m = take(ctx, new RegExp(String.raw`${L}(?:on|by|due)\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)${R}`, "iu"))
-  if (m && Number(m[1]) >= 1 && Number(m[1]) <= 31) return nextDayOfMonth(today, Number(m[1]))
+  d = takeIf(ctx, new RegExp(String.raw`${L}(?:on|by|due)\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)${R}`, "iu"), (m) =>
+    Number(m[1]) >= 1 && Number(m[1]) <= 31 ? nextDayOfMonth(today, Number(m[1])) : null,
+  )
+  if (d) return d
 
   // [next|this|on] friday / v pátek
   m = take(ctx, new RegExp(String.raw`${L}(?:(next|this|on|v|ve|příští|pristi)\s+)?(${alt(ALL_WEEKDAY_WORDS)})${R}`, "iu"))
@@ -406,6 +434,18 @@ function cleanTitle(text: string) {
     .replace(/(?:\s+|^)(?:on|at|by|due|for|in|v|ve|do|na|-|–|,)$/iu, "")
     .replace(/^(?:-|–|,)\s*/u, "")
     .trim()
+}
+
+/**
+ * Just the "when" of a phrase (a date and a time, as tasks read them), with
+ * the rest of the text left over. The calendar's quick add uses it, so both
+ * understand "31.12.", "zítra", "next fri" and "3pm" the same way.
+ */
+export function parseWhen(input: string, today: LocalDate): { rest: string; date: LocalDate | null; time: { hour: number; minute: number } | null } {
+  const ctx: Ctx = { text: ` ${input.replace(/\s+/g, " ").trim()} `, today }
+  const date = takeDate(ctx)
+  const time = takeTime(ctx)
+  return { rest: cleanTitle(ctx.text), date, time }
 }
 
 /** Parses quick-add text. `today` is the viewer's local date. */

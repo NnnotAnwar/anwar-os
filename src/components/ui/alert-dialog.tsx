@@ -5,9 +5,43 @@ import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog
 import { cn } from "@/lib/utils"
 
 import { Button } from "@/components/ui/button"
+import { Loader2Icon } from "@/components/icons"
 
-function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
+/** True while the confirmed action runs: the dialog stays put and shows it. */
+const BusyContext = React.createContext(false)
+
+/**
+ * `busy`: the confirmed action is running. Escape, a click outside and Cancel
+ * can't close the dialog half-way through (the action would carry on with no
+ * place left to report an error), and AlertDialogConfirm shows the progress.
+ */
+function AlertDialog({
+  busy = false,
+  open,
+  defaultOpen = false,
+  onOpenChange,
+  ...props
+}: AlertDialogPrimitive.Root.Props & { busy?: boolean }) {
+  const [innerOpen, setInnerOpen] = React.useState(defaultOpen)
+  // Next keeps the page you left mounted but hidden (<Activity>), state and
+  // all: a dialog still open there, mid-"Deleting…" before a server redirect,
+  // would come back open on Back. Hiding runs effect cleanups, so close it
+  // then. (A controlled dialog's owner decides for itself.)
+  React.useEffect(() => () => setInnerOpen(false), [])
+  return (
+    <BusyContext.Provider value={busy}>
+      <AlertDialogPrimitive.Root
+        data-slot="alert-dialog"
+        open={open ?? innerOpen}
+        onOpenChange={(next, details) => {
+          if (busy && !next) return details.cancel()
+          setInnerOpen(next)
+          onOpenChange?.(next, details)
+        }}
+        {...props}
+      />
+    </BusyContext.Provider>
+  )
 }
 
 function AlertDialogTrigger({ ...props }: AlertDialogPrimitive.Trigger.Props) {
@@ -158,16 +192,46 @@ function AlertDialogCancel({
   className,
   variant = "outline",
   size = "default",
+  disabled,
   ...props
 }: AlertDialogPrimitive.Close.Props &
   Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
+  const busy = React.useContext(BusyContext)
   return (
     <AlertDialogPrimitive.Close
       data-slot="alert-dialog-cancel"
       className={cn(className)}
+      disabled={disabled || busy}
       render={<Button variant={variant} size={size} />}
       {...props}
     />
+  )
+}
+
+/**
+ * The confirming button (destructive by default). While the dialog is busy it
+ * reads `busyLabel` with a spinner, so a slow request looks like progress
+ * rather than a frozen dialog.
+ */
+function AlertDialogConfirm({
+  busyLabel,
+  variant = "destructive",
+  disabled,
+  children,
+  ...props
+}: React.ComponentProps<typeof Button> & { busyLabel: string }) {
+  const busy = React.useContext(BusyContext)
+  return (
+    <Button data-slot="alert-dialog-confirm" variant={variant} disabled={disabled || busy} aria-busy={busy || undefined} {...props}>
+      {busy ? (
+        <>
+          <Loader2Icon className="animate-spin" />
+          {busyLabel}
+        </>
+      ) : (
+        children
+      )}
+    </Button>
   )
 }
 
@@ -175,6 +239,7 @@ export {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
+  AlertDialogConfirm,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,

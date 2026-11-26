@@ -7,6 +7,7 @@ import { Archive, ArrowBendUpLeft, ArrowLeft, Check, RotateCcw, Trash2 } from "@
 import {
   AlertDialog,
   AlertDialogCancel,
+  AlertDialogConfirm,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -86,7 +87,7 @@ export function ContactDetail({ message, timezone, locale }: { message: ContactM
               Archive
             </Button>
           )}
-          <AlertDialog>
+          <AlertDialog busy={deleting}>
             <AlertDialogTrigger
               render={<Button variant="ghost" size="sm" className="hover:text-destructive max-sm:h-11" />}
             >
@@ -102,9 +103,8 @@ export function ContactDetail({ message, timezone, locale }: { message: ContactM
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Keep it</AlertDialogCancel>
-                <Button
-                  variant="destructive"
-                  disabled={deleting}
+                <AlertDialogConfirm
+                  busyLabel="Deleting…"
                   onClick={() =>
                     startDeleting(async () => {
                       await deleteContact({ id: message.id })
@@ -113,7 +113,7 @@ export function ContactDetail({ message, timezone, locale }: { message: ContactM
                   }
                 >
                   Delete message
-                </Button>
+                </AlertDialogConfirm>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

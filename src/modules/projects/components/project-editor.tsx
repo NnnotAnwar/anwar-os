@@ -8,6 +8,7 @@ import { Field, fieldClass, SaveStatus, Toggle } from "@/components/editor-field
 import {
   AlertDialog,
   AlertDialogCancel,
+  AlertDialogConfirm,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -150,7 +151,7 @@ export function ProjectEditor({
             </Link>
           )}
           {id && (
-            <AlertDialog>
+            <AlertDialog busy={pending}>
               <AlertDialogTrigger render={<Button variant="ghost" size="icon" aria-label="Delete project" />}>
                 <Trash2 />
               </AlertDialogTrigger>
@@ -163,9 +164,9 @@ export function ProjectEditor({
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Keep project</AlertDialogCancel>
-                  <Button variant="destructive" onClick={remove} disabled={pending}>
+                  <AlertDialogConfirm busyLabel="Deleting…" onClick={remove}>
                     Delete project
-                  </Button>
+                  </AlertDialogConfirm>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>

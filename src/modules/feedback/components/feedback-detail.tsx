@@ -7,6 +7,7 @@ import { ArrowLeft, ShieldWarning, Trash2 } from "@/components/icons"
 import {
   AlertDialog,
   AlertDialogCancel,
+  AlertDialogConfirm,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -98,7 +99,7 @@ export function FeedbackDetail({
               Mark spam
             </Button>
           )}
-          <AlertDialog>
+          <AlertDialog busy={deleting}>
             <AlertDialogTrigger render={<Button variant="ghost" size="sm" className="hover:text-destructive" />}>
               <Trash2 />
               Delete
@@ -112,9 +113,8 @@ export function FeedbackDetail({
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Keep it</AlertDialogCancel>
-                <Button
-                  variant="destructive"
-                  disabled={deleting}
+                <AlertDialogConfirm
+                  busyLabel="Deleting…"
                   onClick={() =>
                     startDeleting(async () => {
                       await deleteFeedback({ id: item.id })
@@ -123,7 +123,7 @@ export function FeedbackDetail({
                   }
                 >
                   Delete feedback
-                </Button>
+                </AlertDialogConfirm>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

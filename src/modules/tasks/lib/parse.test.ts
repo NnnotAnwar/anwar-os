@@ -179,6 +179,14 @@ describe("parseTask", () => {
     expect(parse("  Call   mom   at 5pm  ").title).toBe("Call mom")
   })
 
+  it("keeps an impossible date or time in the title instead of dropping it", () => {
+    expect(parse("Feb 30 test")).toMatchObject({ title: "Feb 30 test", dueDate: null })
+    expect(parse("31.13. thing")).toMatchObject({ title: "31.13. thing", dueDate: null })
+    expect(parse("meet 13pm")).toMatchObject({ title: "meet 13pm", dueTime: null })
+    // A real date next to it still works.
+    expect(parse("Buy milk 31.12.")).toMatchObject({ title: "Buy milk", dueDate: { year: 2026, month: 12, day: 31 } })
+  })
+
   it("returns an empty title when only modifiers were typed", () => {
     expect(parse("tomorrow 10:00 !!").title).toBe("")
   })

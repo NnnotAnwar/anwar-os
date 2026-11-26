@@ -27,6 +27,7 @@ import { useListKeyboard } from "@/components/list/use-list-keyboard"
 import {
   AlertDialog,
   AlertDialogCancel,
+  AlertDialogConfirm,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -518,7 +519,7 @@ function DeleteFoldersDialog({ rows, onClose, onDone }: { rows: Row[] | null; on
   const [error, setError] = useState<string | null>(null)
   const single = rows?.length === 1 ? rows[0] : null
   return (
-    <AlertDialog open={rows !== null} onOpenChange={(o) => !o && onClose()}>
+    <AlertDialog open={rows !== null} onOpenChange={(o) => !o && onClose()} busy={pending}>
       <AlertDialogContent className="glass glass-menu">
         <AlertDialogHeader>
           <AlertDialogTitle className="text-card-title">
@@ -531,9 +532,8 @@ function DeleteFoldersDialog({ rows, onClose, onDone }: { rows: Row[] | null; on
         {error && <p className="text-caption rounded-lg bg-error-surface px-2 py-1.5 text-destructive">{error}</p>}
         <AlertDialogFooter>
           <AlertDialogCancel>Keep {single?.kind === "folder" ? "folder" : "them"}</AlertDialogCancel>
-          <Button
-            variant="destructive"
-            disabled={pending}
+          <AlertDialogConfirm
+            busyLabel="Deleting…"
             onClick={async () => {
               if (!rows) return
               setPending(true)
@@ -550,7 +550,7 @@ function DeleteFoldersDialog({ rows, onClose, onDone }: { rows: Row[] | null; on
             }}
           >
             Delete
-          </Button>
+          </AlertDialogConfirm>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

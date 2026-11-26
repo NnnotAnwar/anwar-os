@@ -6,6 +6,7 @@ import { FolderDuo, Refresh, Trash2 } from "@/components/icons"
 import {
   AlertDialog,
   AlertDialogCancel,
+  AlertDialogConfirm,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -167,7 +168,7 @@ export function FilesStorageTile({ initial, renderedAt, timezone, locale }: { in
               {busy === "check" ? "Checking…" : "Check now"}
             </Button>
             {deletable.length > 0 && (
-              <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+              <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen} busy={busy === "delete"}>
                 <AlertDialogTrigger render={<Button variant="ghost" size="sm" className="hover:text-destructive" disabled={busy !== null} />}>
                   <Trash2 />
                   Delete orphans
@@ -182,9 +183,9 @@ export function FilesStorageTile({ initial, renderedAt, timezone, locale }: { in
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Keep them</AlertDialogCancel>
-                    <Button variant="destructive" disabled={busy !== null} onClick={removeOrphans}>
-                      {busy === "delete" ? "Deleting…" : "Delete"}
-                    </Button>
+                    <AlertDialogConfirm busyLabel="Deleting…" disabled={busy !== null} onClick={removeOrphans}>
+                      Delete
+                    </AlertDialogConfirm>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
