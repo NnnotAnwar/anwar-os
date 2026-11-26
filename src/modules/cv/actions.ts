@@ -1,4 +1,5 @@
 import "server-only"
+import { droppingPublicCache } from "@/core/public-cache"
 import { asc, eq, max, sql, type AnyColumn } from "drizzle-orm"
 import { z } from "zod"
 import { asViewer } from "@/core/auth"
@@ -6,6 +7,7 @@ import { defineAction } from "@/core/module"
 import type { Tx } from "@/db"
 import { cvEducation, cvExperience, cvLanguages, cvProfile, cvSkills } from "@/db/schema"
 import {
+  PUBLIC_CV_TAG,
   entryRefInput,
   moveEntryInput,
   profileInput,
@@ -117,7 +119,7 @@ export async function readCv(tx: Tx, whose: "mine" | "site owner" = "mine"): Pro
   }
 }
 
-export const actions = {
+export const actions = droppingPublicCache([PUBLIC_CV_TAG], {
   get: defineAction({
     description:
       "Get the user's whole CV: profile (name, headline, summary, location, contacts, published flag) and the ordered experience, education, skills and languages, hidden entries included.",
@@ -220,4 +222,4 @@ export const actions = {
         await tx.delete(table).where(eq(table.id, id))
       }),
   }),
-}
+})

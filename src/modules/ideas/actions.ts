@@ -1,4 +1,5 @@
 import "server-only"
+import { droppingPublicCache } from "@/core/public-cache"
 import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm"
 import { z } from "zod"
 import { asViewer } from "@/core/auth"
@@ -6,6 +7,7 @@ import { defineAction } from "@/core/module"
 import { ideasIdeas as i } from "@/db/schema"
 import { likeContains } from "@/lib/sql-like"
 import {
+  PUBLIC_IDEAS_TAG,
   createIdeaInput,
   ideaIdInput,
   listIdeasInput,
@@ -39,7 +41,7 @@ export const statusOrder = sql`array_position(array['building', 'exploring', 'ra
 // so private queries must also say "only mine" (same as links).
 const mine = eq(i.ownerId, sql`app.current_user_id()`)
 
-export const actions = {
+export const actions = droppingPublicCache([PUBLIC_IDEAS_TAG], {
   list: defineAction({
     description:
       "List the user's ideas, active ones first (building, exploring, raw, shipped, dropped), newest edit first within each. Optionally filter by statuses or by text in the title, notes or tags.",
@@ -142,4 +144,4 @@ export const actions = {
         await tx.delete(i).where(eq(i.id, id))
       }),
   }),
-}
+})

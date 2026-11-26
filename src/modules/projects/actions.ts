@@ -1,4 +1,5 @@
 import "server-only"
+import { droppingPublicCache } from "@/core/public-cache"
 import { and, asc, desc, eq, ilike, like, min, ne, or, sql } from "drizzle-orm"
 import { asViewer } from "@/core/auth"
 import { defineAction } from "@/core/module"
@@ -7,6 +8,7 @@ import { projectsProjects as p } from "@/db/schema"
 import { likeContains } from "@/lib/sql-like"
 import { slugify } from "@/lib/tags"
 import {
+  PUBLIC_PROJECTS_TAG,
   createProjectInput,
   listProjectsInput,
   moveProjectInput,
@@ -69,7 +71,7 @@ function isUniqueViolation(error: unknown) {
 }
 
 // Every action runs through asViewer(), so RLS scopes it to the signed-in user.
-export const actions = {
+export const actions = droppingPublicCache([PUBLIC_PROJECTS_TAG], {
   list: defineAction({
     description:
       "List the user's projects in their showcase order, drafts included. Optionally filter by text in the title, summary or case study.",
@@ -173,4 +175,4 @@ export const actions = {
         await tx.delete(p).where(eq(p.id, id))
       }),
   }),
-}
+})

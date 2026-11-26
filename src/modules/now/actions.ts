@@ -1,10 +1,11 @@
 import "server-only"
+import { droppingPublicCache } from "@/core/public-cache"
 import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 import { asViewer } from "@/core/auth"
 import { defineAction } from "@/core/module"
 import { nowSettings as n } from "@/db/schema"
-import { defaultNowSettings, nowSettingsInput, type NowSettings } from "./schema"
+import { defaultNowSettings, NOW_PUBLIC_TAG, nowSettingsInput, type NowSettings } from "./schema"
 
 const columns = {
   intro: n.intro,
@@ -26,7 +27,7 @@ export function toSettings(row: Row | undefined): NowSettings {
 // so reads here say "mine" explicitly instead of trusting RLS to narrow it.
 const mine = eq(n.ownerId, sql`app.current_user_id()`)
 
-export const actions = {
+export const actions = droppingPublicCache([NOW_PUBLIC_TAG], {
   get: defineAction({
     description:
       "Get the settings of the user's public /now page: the intro line, the location line (empty = the CV's location) and which sections show (this year's goals marked for /now, projects in progress, latest writing, a habits aggregate).",
@@ -53,4 +54,4 @@ export const actions = {
         return toSettings(row)
       }),
   }),
-}
+})

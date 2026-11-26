@@ -1,4 +1,5 @@
 import "server-only"
+import { droppingPublicCache } from "@/core/public-cache"
 import { and, desc, eq, ilike, like, ne, or, sql } from "drizzle-orm"
 import { asViewer } from "@/core/auth"
 import { defineAction } from "@/core/module"
@@ -7,6 +8,7 @@ import { notesNotes } from "@/db/schema"
 import { likeContains } from "@/lib/sql-like"
 import { slugify } from "@/lib/tags"
 import {
+  PUBLIC_NOTES_TAG,
   createNoteInput,
   listNotesInput,
   noteIdInput,
@@ -82,7 +84,7 @@ function isUniqueViolation(error: unknown) {
 
 // Every action runs through asViewer(), so RLS scopes it to the signed-in user.
 // The same definitions will back AI and MCP tools (phase 7).
-export const actions = {
+export const actions = droppingPublicCache([PUBLIC_NOTES_TAG], {
   list: defineAction({
     description:
       "List the user's notes, pinned first, then most recently edited. Optionally filter by text in the title or body, or by pinned state.",
@@ -199,4 +201,4 @@ export const actions = {
         await tx.delete(notesNotes).where(and(mine, eq(notesNotes.id, id)))
       }),
   }),
-}
+})

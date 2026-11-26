@@ -1,4 +1,6 @@
 import "server-only"
+import { droppingPublicCache } from "@/core/public-cache"
+import { NOW_PUBLIC_TAG } from "@/modules/now/schema"
 import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm"
 import { z } from "zod"
 import { asViewer, requireViewer } from "@/core/auth"
@@ -95,7 +97,7 @@ function isRlsViolation(error: unknown) {
   return e?.code === "42501" || e?.cause?.code === "42501"
 }
 
-export const actions = {
+export const actions = droppingPublicCache([NOW_PUBLIC_TAG], {
   list: defineAction({
     description:
       "List the user's goals for one year (default: the current year) with their progress: a measurable goal counts its own number (e.g. 12 of 20 books), otherwise the share of linked tasks done. Active goals first. Optionally filter by status or by text in the title or why.",
@@ -326,7 +328,7 @@ export const actions = {
         await tx.delete(g).where(eq(g.id, id))
       }),
   }),
-}
+})
 
 /** For Today: this year's goals that aren't dropped, in the owner's order. */
 export function goalsForToday(year: number) {
